@@ -1,0 +1,15 @@
+name: fellowship-scheduler
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - ortools==9.12.4544
+      - streamlit==1.42.0
+      - fpdf2==2.8.2
+      - pandas==2.2.3
+      - wandb==0.19.6
+      - pytest==8.3.4
+      - python-dotenv==1.0.1

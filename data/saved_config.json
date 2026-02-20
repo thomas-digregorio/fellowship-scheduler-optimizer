@@ -1,0 +1,225 @@
+{
+  "num_fellows": 9,
+  "num_weeks": 52,
+  "start_date": "2026-07-01",
+  "pto_weeks_granted": 4,
+  "pto_weeks_to_rank": 6,
+  "pto_blackout_weeks": [
+    0,
+    1
+  ],
+  "max_concurrent_pto": 1,
+  "max_consecutive_night_float": 2,
+  "call_day": "saturday",
+  "call_hours": 24.0,
+  "call_excluded_blocks": [
+    "Night Float",
+    "PTO"
+  ],
+  "hours_cap": 80.0,
+  "trailing_avg_weeks": 4,
+  "solver_timeout_seconds": 120.0,
+  "blocks": [
+    {
+      "name": "Night Float",
+      "block_type": "night",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "CCU",
+      "block_type": "day",
+      "fellows_needed": 2,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 8,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": true
+    },
+    {
+      "name": "Consult SRC",
+      "block_type": "day",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 8,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": true
+    },
+    {
+      "name": "Consult Y",
+      "block_type": "day",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 8,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": true
+    },
+    {
+      "name": "Consult VA",
+      "block_type": "day",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 8,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": true
+    },
+    {
+      "name": "Cath Y",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "Cath SRC",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "EP",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "Echo Y",
+      "block_type": "day",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "VA Echo",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "CHF",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "Nuc Y",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "VA Clinic",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 6,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    },
+    {
+      "name": "Research",
+      "block_type": "day",
+      "fellows_needed": 1,
+      "hours_per_week": 60.0,
+      "min_weeks": 1,
+      "max_weeks": 8,
+      "is_active": true,
+      "has_weekend_off": true,
+      "requires_call_coverage": false
+    }
+  ],
+  "fellows": [
+    {
+      "name": "Fellow 1",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 2",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 3",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 4",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 5",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 6",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 7",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 8",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fellow 9",
+      "pto_rankings": [],
+      "unavailable_weeks": []
+    }
+  ]
+}
