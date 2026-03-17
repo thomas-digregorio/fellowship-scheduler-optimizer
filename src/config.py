@@ -1,266 +1,728 @@
-"""Default configuration and block definitions.
-
-This module creates the "factory defaults" for all 14 rotation blocks
-and 9 fellows. When the Streamlit app boots for the first time (no
-saved config on disk), it calls ``get_default_config()`` to populate
-the sidebar.
-
-The defaults are intentionally *loose* — all block minimums are set to 0
-so the solver has maximum freedom. Tighten them in the dashboard before
-running the solver.
-"""
+"""Default configuration and rule definitions for the scheduler."""
 
 from __future__ import annotations
 
 from datetime import date
 
-from src.models import BlockConfig, BlockType, FellowConfig, ScheduleConfig
+from src.models import (
+    BlockConfig,
+    BlockType,
+    CohortLimitRule,
+    CoverageRule,
+    EligibilityRule,
+    FellowConfig,
+    ForbiddenTransitionRule,
+    PrerequisiteRule,
+    ScheduleConfig,
+    SoftRuleDirection,
+    SoftSequenceRule,
+    TrainingYear,
+    WeekCountRule,
+)
 
-
-# ---------------------------------------------------------------------------
-# Color palette for each block (used by the dashboard for consistent
-# color-coding across all three panels).  Maps block name → hex color.
-# ---------------------------------------------------------------------------
 
 BLOCK_COLORS: dict[str, str] = {
-    "Night Float":  "#6C3483",   # deep purple
-    "CCU":          "#C0392B",   # red
-    "Consult SRC":  "#2980B9",   # blue
-    "Consult Y":    "#1ABC9C",   # teal
-    "Consult VA":   "#16A085",   # dark teal
-    "Cath Y":       "#E67E22",   # orange
-    "Cath SRC":     "#D35400",   # dark orange
-    "EP":           "#F1C40F",   # yellow
-    "Echo Y":       "#27AE60",   # green
-    "VA Echo":      "#2ECC71",   # light green
-    "CHF":          "#8E44AD",   # purple
-    "Nuc Y":        "#3498DB",   # light blue
-    "VA Clinic":    "#E74C3C",   # coral
-    "Research":     "#95A5A6",   # gray
-    "PTO":          "#BDC3C7",   # light gray
+    "White Consults": "#355C7D",
+    "SRC Consults": "#2E86AB",
+    "VA Consults": "#0E7490",
+    "Goodyer Consults": "#7C3AED",
+    "CCU": "#C0392B",
+    "Night Float": "#34495E",
+    "EP": "#F39C12",
+    "CHF": "#A04000",
+    "Yale Nuclear": "#F1C40F",
+    "VA Nuclear": "#D4AC0D",
+    "Yale Echo": "#1F8A70",
+    "VA Echo": "#2E8B57",
+    "SRC Echo": "#138D75",
+    "Yale Cath": "#E67E22",
+    "VA Cath": "#D35400",
+    "SRC Cath": "#AF601A",
+    "Research": "#7F8C8D",
+    "CT-MRI": "#6C3483",
+    "Elective": "#5D6D7E",
+    "PTO": "#BDC3C7",
 }
 
 
+ACADEMIC_YEAR_START = date(2026, 7, 13)
+NUM_WEEKS = 52
+FIRST_YEAR_CCU_START_WEEK = 4
+FIRST_YEAR_NF_START_WEEK = 5
+FIRST_YEAR_PTO_BLACKOUT_END_WEEK = 7
+
+
 def get_default_blocks() -> list[BlockConfig]:
-    """Return the 14 rotation blocks with sensible defaults.
+    """Return the fellowship rotations with default metadata."""
 
-    Notes
-    -----
-    ``fellows_needed`` is set to 0 for all blocks by default. The user
-    must configure staffing requirements in the Streamlit sidebar before
-    solving.  The feasibility checker will flag if the total exceeds the
-    number of available fellows.
-
-    Returns
-    -------
-    list[BlockConfig]
-        One ``BlockConfig`` per rotation block, ordered as they appear
-        in clinical convention.
-    """
+    consult_call = True
     return [
         BlockConfig(
-            name="Night Float",
-            block_type=BlockType.NIGHT,
-            fellows_needed=1,
+            name="White Consults",
+            fellows_needed=0,
+            hours_per_week=65.0,
+            requires_call_coverage=consult_call,
+        ),
+        BlockConfig(
+            name="SRC Consults",
+            fellows_needed=0,
+            hours_per_week=65.0,
+            requires_call_coverage=consult_call,
+        ),
+        BlockConfig(
+            name="VA Consults",
+            fellows_needed=0,
             hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
+            requires_call_coverage=consult_call,
+        ),
+        BlockConfig(
+            name="Goodyer Consults",
+            fellows_needed=0,
+            hours_per_week=60.0,
+            requires_call_coverage=consult_call,
         ),
         BlockConfig(
             name="CCU",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=8,
-            is_active=True,
-            has_weekend_off=False,
+            fellows_needed=0,
+            hours_per_week=70.0,
             requires_call_coverage=True,
         ),
         BlockConfig(
-            name="Consult SRC",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=8,
-            is_active=True,
-            has_weekend_off=False,
-            requires_call_coverage=True,
-        ),
-        BlockConfig(
-            name="Consult Y",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=8,
-            is_active=True,
-            has_weekend_off=False,
-            requires_call_coverage=True,
-        ),
-        BlockConfig(
-            name="Consult VA",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=8,
-            is_active=True,
-            has_weekend_off=False,
-            requires_call_coverage=True,
-        ),
-        BlockConfig(
-            name="Cath Y",
-            block_type=BlockType.DAY,
+            name="Night Float",
+            block_type=BlockType.NIGHT,
             fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
+            hours_per_week=70.0,
             requires_call_coverage=False,
         ),
-        BlockConfig(
-            name="Cath SRC",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="EP",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="Echo Y",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="VA Echo",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="CHF",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="Nuc Y",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="VA Clinic",
-            block_type=BlockType.DAY,
-            fellows_needed=0,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=6,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
-        BlockConfig(
-            name="Research",
-            block_type=BlockType.DAY,
-            fellows_needed=1,
-            hours_per_week=60.0,
-            min_weeks=1,
-            max_weeks=8,
-            is_active=True,
-            has_weekend_off=True,
-            requires_call_coverage=False,
-        ),
+        BlockConfig(name="EP", fellows_needed=0, hours_per_week=55.0),
+        BlockConfig(name="CHF", fellows_needed=0, hours_per_week=55.0),
+        BlockConfig(name="Yale Nuclear", fellows_needed=0, hours_per_week=50.0),
+        BlockConfig(name="VA Nuclear", fellows_needed=0, hours_per_week=50.0),
+        BlockConfig(name="Yale Echo", fellows_needed=0, hours_per_week=50.0),
+        BlockConfig(name="VA Echo", fellows_needed=0, hours_per_week=50.0),
+        BlockConfig(name="SRC Echo", fellows_needed=0, hours_per_week=50.0),
+        BlockConfig(name="Yale Cath", fellows_needed=0, hours_per_week=60.0),
+        BlockConfig(name="VA Cath", fellows_needed=0, hours_per_week=60.0),
+        BlockConfig(name="SRC Cath", fellows_needed=0, hours_per_week=60.0),
+        BlockConfig(name="Research", fellows_needed=0, hours_per_week=40.0),
+        BlockConfig(name="CT-MRI", fellows_needed=0, hours_per_week=40.0),
+        BlockConfig(name="Elective", fellows_needed=0, hours_per_week=40.0),
     ]
 
 
-def get_default_fellows(num_fellows: int = 9) -> list[FellowConfig]:
-    """Return default fellow configs with empty PTO rankings.
+def get_default_fellows(
+    pgy1_count: int = 9,
+    pgy2_count: int = 9,
+    pgy3_count: int = 7,
+) -> list[FellowConfig]:
+    """Return cohort-aware default fellow configs."""
 
-    Parameters
-    ----------
-    num_fellows : int
-        Number of fellows (default 9).
+    fellows: list[FellowConfig] = []
+    for idx in range(pgy1_count):
+        fellows.append(
+            FellowConfig(
+                name=f"PGY1 Fellow {idx + 1}",
+                training_year=TrainingYear.PGY1,
+            )
+        )
+    for idx in range(pgy2_count):
+        fellows.append(
+            FellowConfig(
+                name=f"PGY2 Fellow {idx + 1}",
+                training_year=TrainingYear.PGY2,
+            )
+        )
+    for idx in range(pgy3_count):
+        fellows.append(
+            FellowConfig(
+                name=f"PGY3 Fellow {idx + 1}",
+                training_year=TrainingYear.PGY3,
+            )
+        )
+    return fellows
 
-    Returns
-    -------
-    list[FellowConfig]
-        One config per fellow, named "Fellow 1" through "Fellow N".
-    """
+
+def get_default_coverage_rules() -> list[CoverageRule]:
+    """Return default staffing rules derived from scheduling_rules.txt."""
+
+    any_year = [TrainingYear.PGY1, TrainingYear.PGY2, TrainingYear.PGY3]
     return [
-        FellowConfig(name=f"Fellow {i + 1}")
-        for i in range(num_fellows)
+        CoverageRule(
+            name="White Consults staffed by PGY1",
+            block_name="White Consults",
+            eligible_years=[TrainingYear.PGY1],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="SRC Consults staffed",
+            block_name="SRC Consults",
+            eligible_years=any_year,
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="VA Consults staffed",
+            block_name="VA Consults",
+            eligible_years=any_year,
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Goodyer staffed by PGY2",
+            block_name="Goodyer Consults",
+            eligible_years=[TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="CCU early by PGY2",
+            block_name="CCU",
+            eligible_years=[TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+            start_week=0,
+            end_week=FIRST_YEAR_CCU_START_WEEK - 1,
+        ),
+        CoverageRule(
+            name="CCU later by PGY1",
+            block_name="CCU",
+            eligible_years=[TrainingYear.PGY1],
+            min_fellows=1,
+            max_fellows=1,
+            start_week=FIRST_YEAR_CCU_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        CoverageRule(
+            name="Night Float early by PGY2",
+            block_name="Night Float",
+            eligible_years=[TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+            start_week=0,
+            end_week=FIRST_YEAR_NF_START_WEEK - 1,
+        ),
+        CoverageRule(
+            name="Night Float later by PGY1",
+            block_name="Night Float",
+            eligible_years=[TrainingYear.PGY1],
+            min_fellows=1,
+            max_fellows=1,
+            start_week=FIRST_YEAR_NF_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        CoverageRule(
+            name="EP staffed by PGY1 or PGY2",
+            block_name="EP",
+            eligible_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="CHF staffed by PGY1 or PGY2",
+            block_name="CHF",
+            eligible_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Yale Nuclear optional PGY1 slot",
+            block_name="Yale Nuclear",
+            eligible_years=[TrainingYear.PGY1],
+            min_fellows=0,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Yale Nuclear PGY2 slot",
+            block_name="Yale Nuclear",
+            eligible_years=[TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="VA Nuclear staffed by PGY1 or PGY2",
+            block_name="VA Nuclear",
+            eligible_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Yale Echo PGY1 range",
+            block_name="Yale Echo",
+            eligible_years=[TrainingYear.PGY1],
+            min_fellows=0,
+            max_fellows=3,
+        ),
+        CoverageRule(
+            name="Yale Echo senior range",
+            block_name="Yale Echo",
+            eligible_years=[TrainingYear.PGY2, TrainingYear.PGY3],
+            min_fellows=2,
+            max_fellows=3,
+        ),
+        CoverageRule(
+            name="VA Echo staffed by PGY1 or PGY2",
+            block_name="VA Echo",
+            eligible_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="SRC Echo staffed",
+            block_name="SRC Echo",
+            eligible_years=any_year,
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Yale Cath range",
+            block_name="Yale Cath",
+            eligible_years=any_year,
+            min_fellows=1,
+            max_fellows=2,
+        ),
+        CoverageRule(
+            name="VA Cath staffed by PGY1 or PGY2",
+            block_name="VA Cath",
+            eligible_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+            min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="SRC Cath staffed",
+            block_name="SRC Cath",
+            eligible_years=any_year,
+            min_fellows=1,
+            max_fellows=1,
+        ),
     ]
+
+
+def get_default_eligibility_rules() -> list[EligibilityRule]:
+    """Return cohort eligibility rules for each rotation."""
+
+    any_year = [TrainingYear.PGY1, TrainingYear.PGY2, TrainingYear.PGY3]
+    return [
+        EligibilityRule(
+            name="White Consults only PGY1",
+            block_names=["White Consults"],
+            allowed_years=[TrainingYear.PGY1],
+        ),
+        EligibilityRule(
+            name="SRC Consults any year",
+            block_names=["SRC Consults"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="VA Consults any year",
+            block_names=["VA Consults"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="Goodyer only PGY2",
+            block_names=["Goodyer Consults"],
+            allowed_years=[TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="CCU early PGY2 only",
+            block_names=["CCU"],
+            allowed_years=[TrainingYear.PGY2],
+            start_week=0,
+            end_week=FIRST_YEAR_CCU_START_WEEK - 1,
+        ),
+        EligibilityRule(
+            name="CCU later PGY1 only",
+            block_names=["CCU"],
+            allowed_years=[TrainingYear.PGY1],
+            start_week=FIRST_YEAR_CCU_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        EligibilityRule(
+            name="Night Float early PGY2 only",
+            block_names=["Night Float"],
+            allowed_years=[TrainingYear.PGY2],
+            start_week=0,
+            end_week=FIRST_YEAR_NF_START_WEEK - 1,
+        ),
+        EligibilityRule(
+            name="Night Float later PGY1 only",
+            block_names=["Night Float"],
+            allowed_years=[TrainingYear.PGY1],
+            start_week=FIRST_YEAR_NF_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        EligibilityRule(
+            name="EP limited to PGY1 and PGY2",
+            block_names=["EP"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="CHF limited to PGY1 and PGY2",
+            block_names=["CHF"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="Yale Nuclear limited to PGY1 and PGY2",
+            block_names=["Yale Nuclear"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="VA Nuclear limited to PGY1 and PGY2",
+            block_names=["VA Nuclear"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="Yale Echo any year",
+            block_names=["Yale Echo"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="VA Echo limited to PGY1 and PGY2",
+            block_names=["VA Echo"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="SRC Echo any year",
+            block_names=["SRC Echo"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="Yale Cath any year",
+            block_names=["Yale Cath"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="VA Cath limited to PGY1 and PGY2",
+            block_names=["VA Cath"],
+            allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2],
+        ),
+        EligibilityRule(
+            name="SRC Cath any year",
+            block_names=["SRC Cath"],
+            allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="Research any year",
+            block_names=["Research", "CT-MRI", "Elective"],
+            allowed_years=any_year,
+        ),
+    ]
+
+
+def get_default_week_count_rules() -> list[WeekCountRule]:
+    """Return cohort-specific per-fellow rotation requirements."""
+
+    pgy1 = [TrainingYear.PGY1]
+    return [
+        WeekCountRule(
+            name="PGY1 no PTO in first two months",
+            applicable_years=pgy1,
+            block_names=["PTO"],
+            min_weeks=0,
+            max_weeks=0,
+            start_week=0,
+            end_week=FIRST_YEAR_PTO_BLACKOUT_END_WEEK,
+        ),
+        WeekCountRule(
+            name="PGY1 White Consults",
+            applicable_years=pgy1,
+            block_names=["White Consults"],
+            min_weeks=4,
+            max_weeks=6,
+        ),
+        WeekCountRule(
+            name="PGY1 SRC Consults",
+            applicable_years=pgy1,
+            block_names=["SRC Consults"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="PGY1 VA Consults",
+            applicable_years=pgy1,
+            block_names=["VA Consults"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="PGY1 Consult total",
+            applicable_years=pgy1,
+            block_names=["White Consults", "SRC Consults", "VA Consults"],
+            min_weeks=10,
+            max_weeks=12,
+        ),
+        WeekCountRule(
+            name="PGY1 Goodyer prohibited",
+            applicable_years=pgy1,
+            block_names=["Goodyer Consults"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="PGY1 CCU after orientation",
+            applicable_years=pgy1,
+            block_names=["CCU"],
+            min_weeks=5,
+            max_weeks=6,
+            start_week=FIRST_YEAR_CCU_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        WeekCountRule(
+            name="PGY1 Night Float after onboarding",
+            applicable_years=pgy1,
+            block_names=["Night Float"],
+            min_weeks=5,
+            max_weeks=6,
+            start_week=FIRST_YEAR_NF_START_WEEK,
+            end_week=NUM_WEEKS - 1,
+        ),
+        WeekCountRule(
+            name="PGY1 EP",
+            applicable_years=pgy1,
+            block_names=["EP"],
+            min_weeks=3,
+            max_weeks=5,
+        ),
+        WeekCountRule(
+            name="PGY1 CHF",
+            applicable_years=pgy1,
+            block_names=["CHF"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="PGY1 Yale Nuclear",
+            applicable_years=pgy1,
+            block_names=["Yale Nuclear"],
+            min_weeks=2,
+            max_weeks=6,
+        ),
+        WeekCountRule(
+            name="PGY1 VA Nuclear",
+            applicable_years=pgy1,
+            block_names=["VA Nuclear"],
+            min_weeks=1,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="PGY1 Nuclear total",
+            applicable_years=pgy1,
+            block_names=["Yale Nuclear", "VA Nuclear"],
+            min_weeks=4,
+            max_weeks=7,
+        ),
+        WeekCountRule(
+            name="PGY1 Yale Echo",
+            applicable_years=pgy1,
+            block_names=["Yale Echo"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="PGY1 VA Echo",
+            applicable_years=pgy1,
+            block_names=["VA Echo"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="PGY1 SRC Echo",
+            applicable_years=pgy1,
+            block_names=["SRC Echo"],
+            min_weeks=1,
+            max_weeks=1,
+        ),
+        WeekCountRule(
+            name="PGY1 Echo total",
+            applicable_years=pgy1,
+            block_names=["Yale Echo", "VA Echo", "SRC Echo"],
+            min_weeks=8,
+            max_weeks=9,
+        ),
+        WeekCountRule(
+            name="PGY1 Yale Cath",
+            applicable_years=pgy1,
+            block_names=["Yale Cath"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="PGY1 VA Cath",
+            applicable_years=pgy1,
+            block_names=["VA Cath"],
+            min_weeks=1,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="PGY1 SRC Cath",
+            applicable_years=pgy1,
+            block_names=["SRC Cath"],
+            min_weeks=1,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="PGY1 Cath total",
+            applicable_years=pgy1,
+            block_names=["Yale Cath", "VA Cath", "SRC Cath"],
+            min_weeks=6,
+            max_weeks=7,
+        ),
+        WeekCountRule(
+            name="PGY1 Research",
+            applicable_years=pgy1,
+            block_names=["Research"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="PGY1 CT-MRI prohibited",
+            applicable_years=pgy1,
+            block_names=["CT-MRI"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="PGY1 Elective prohibited",
+            applicable_years=pgy1,
+            block_names=["Elective"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+    ]
+
+
+def get_default_cohort_limit_rules() -> list[CohortLimitRule]:
+    """Return same-cohort vacation concurrency rules."""
+
+    return [
+        CohortLimitRule(
+            name="PGY1 PTO cap",
+            applicable_years=[TrainingYear.PGY1],
+            state_name="PTO",
+            max_fellows=4,
+        ),
+        CohortLimitRule(
+            name="PGY2 PTO cap",
+            applicable_years=[TrainingYear.PGY2],
+            state_name="PTO",
+            max_fellows=4,
+        ),
+        CohortLimitRule(
+            name="PGY3 PTO cap",
+            applicable_years=[TrainingYear.PGY3],
+            state_name="PTO",
+            max_fellows=4,
+        ),
+    ]
+
+
+def get_default_prerequisite_rules() -> list[PrerequisiteRule]:
+    """Return default hard prerequisite rules."""
+
+    return [
+        PrerequisiteRule(
+            name="PGY1 before Night Float needs core exposure",
+            applicable_years=[TrainingYear.PGY1],
+            target_block="Night Float",
+            prerequisite_blocks=[
+                "Yale Echo",
+                "Yale Cath",
+                "White Consults",
+                "CCU",
+                "EP",
+            ],
+            prerequisite_min_weeks=1,
+        )
+    ]
+
+
+def get_default_forbidden_transition_rules() -> list[ForbiddenTransitionRule]:
+    """Return hard transition rules."""
+
+    return [
+        ForbiddenTransitionRule(
+            name="PGY1 no consult or PTO directly before Night Float",
+            applicable_years=[TrainingYear.PGY1],
+            target_block="Night Float",
+            forbidden_previous_blocks=[
+                "White Consults",
+                "SRC Consults",
+                "VA Consults",
+                "CCU",
+                "PTO",
+            ],
+            is_active=False,
+        )
+    ]
+
+
+def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
+    """Return default weighted soft rules."""
+
+    return [
+        SoftSequenceRule(
+            name="Bonus: PGY1 CHF immediately before Night Float",
+            applicable_years=[TrainingYear.PGY1],
+            left_states=["CHF"],
+            right_states=["Night Float"],
+            weight=30,
+        ),
+        SoftSequenceRule(
+            name="Bonus: PGY1 Research adjacent to PTO",
+            applicable_years=[TrainingYear.PGY1],
+            left_states=["Research"],
+            right_states=["PTO"],
+            weight=12,
+            direction=SoftRuleDirection.EITHER,
+        ),
+        SoftSequenceRule(
+            name="Bonus: PGY1 two-week PTO block",
+            applicable_years=[TrainingYear.PGY1],
+            left_states=["PTO"],
+            right_states=["PTO"],
+            weight=8,
+        ),
+    ]
+
+
+def get_default_pto_preference_weight_overrides() -> dict[str, list[int]]:
+    """Return the default cohort PTO preference weights."""
+
+    strongest_top_two = [120, 80, 12, 4, 1, 0]
+    return {
+        TrainingYear.PGY1.value: strongest_top_two.copy(),
+        TrainingYear.PGY2.value: strongest_top_two.copy(),
+        TrainingYear.PGY3.value: strongest_top_two.copy(),
+    }
 
 
 def get_default_config() -> ScheduleConfig:
-    """Return a complete default ScheduleConfig.
+    """Return a complete default cohort-aware ScheduleConfig."""
 
-    This is the starting point when no saved config exists on disk.
-    The user is expected to customize block staffing, PTO rankings,
-    and other parameters through the Streamlit sidebar.
-
-    Returns
-    -------
-    ScheduleConfig
-        Fully populated config with default blocks and fellows.
-    """
+    fellows = get_default_fellows()
     return ScheduleConfig(
-        num_fellows=9,
-        num_weeks=52,
-        start_date=date(2026, 7, 1),
+        num_fellows=len(fellows),
+        num_weeks=NUM_WEEKS,
+        start_date=ACADEMIC_YEAR_START,
         pto_weeks_granted=4,
         pto_weeks_to_rank=6,
-        pto_blackout_weeks=[0, 1],  # first two weeks of July
-        max_concurrent_pto=1,
+        pto_blackout_weeks=[],
+        max_concurrent_pto=12,
         max_consecutive_night_float=2,
         call_day="saturday",
         call_hours=24.0,
         call_excluded_blocks=["Night Float", "PTO"],
         hours_cap=80.0,
         trailing_avg_weeks=4,
-        solver_timeout_seconds=120.0,
+        solver_timeout_seconds=300.0,
+        pto_preference_weight_overrides=get_default_pto_preference_weight_overrides(),
         blocks=get_default_blocks(),
-        fellows=get_default_fellows(9),
+        fellows=fellows,
+        coverage_rules=get_default_coverage_rules(),
+        eligibility_rules=get_default_eligibility_rules(),
+        week_count_rules=get_default_week_count_rules(),
+        cohort_limit_rules=get_default_cohort_limit_rules(),
+        prerequisite_rules=get_default_prerequisite_rules(),
+        forbidden_transition_rules=get_default_forbidden_transition_rules(),
+        soft_sequence_rules=get_default_soft_sequence_rules(),
     )

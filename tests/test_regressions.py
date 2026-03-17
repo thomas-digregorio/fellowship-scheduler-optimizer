@@ -9,7 +9,6 @@ from pathlib import Path
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import get_default_config
 from src.export import export_pdf
 from src.models import BlockConfig, BlockType, FellowConfig, ScheduleConfig
 from src.scheduler import check_feasibility, solve_schedule
@@ -89,10 +88,8 @@ def make_small_config() -> ScheduleConfig:
 
 def test_feasibility_flags_block_capacity_conflict() -> None:
     """The feasibility checker should catch impossible per-block staffing."""
-    config = get_default_config()
-    for block in config.blocks:
-        if block.name == "CCU":
-            block.fellows_needed = 2
+    config = make_small_config()
+    config.blocks[0].max_weeks = 1
 
     issues = check_feasibility(config)
 

@@ -134,6 +134,13 @@ def _add_call_fairness(
         min_calls = floor(ideal) - 1   (allow some slack)
         max_calls = ceil(ideal) + 1
     """
+    any_block_needs_call: bool = any(
+        block.requires_call_coverage and block.is_active
+        for block in config.blocks
+    )
+    if not any_block_needs_call:
+        return
+
     ideal: float = config.num_weeks / config.num_fellows
     min_calls: int = max(0, int(ideal) - 1)
     max_calls: int = int(ideal) + 2  # +2 for slack

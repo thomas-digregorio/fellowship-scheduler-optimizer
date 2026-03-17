@@ -1,11 +1,4 @@
-"""Configuration sidebar for the Streamlit dashboard.
-
-Renders all configurable parameters in ``st.sidebar``:
-- Block settings (fellows needed, hours, min/max weeks, etc.)
-- PTO settings (blackout weeks, max concurrent, ranking count)
-- Call settings (excluded blocks, call day)
-- Action buttons (Generate Schedule, Export, Re-solve)
-"""
+"""Configuration sidebar for the Streamlit dashboard."""
 
 from __future__ import annotations
 
@@ -13,208 +6,295 @@ from datetime import timedelta
 
 import streamlit as st
 
-from src.models import BlockConfig, BlockType, FellowConfig, ScheduleConfig
 from app.state import get_config, persist_config, set_config
+from src.models import FellowConfig, ScheduleConfig, TrainingYear
 
 
 def render_config_sidebar() -> None:
-    """Render the full configuration sidebar."""
-    config: ScheduleConfig = get_config()
+    """Render the sidebar controls."""
+
+    config = get_config()
+    config.num_fellows = len(config.fellows)
 
     st.sidebar.title("⚙️ Schedule Config")
 
-    # ── Global Settings ──────────────────────────────────────────────
     with st.sidebar.expander("📋 Global Settings", expanded=False):
-        config.num_fellows = st.number_input(
-            "Number of fellows", min_value=1, max_value=20,
-            value=config.num_fellows, key="cfg_num_fellows",
+        cohort_counts = config.cohort_counts
+        pgy1_count = st.number_input(
+            "PGY1 fellows",
+            min_value=0,
+            max_value=30,
+            value=cohort_counts[TrainingYear.PGY1],
+            key="cfg_pgy1_count",
         )
+        pgy2_count = st.number_input(
+            "PGY2 fellows",
+            min_value=0,
+            max_value=30,
+            value=cohort_counts[TrainingYear.PGY2],
+            key="cfg_pgy2_count",
+        )
+        pgy3_count = st.number_input(
+            "PGY3 fellows",
+            min_value=0,
+            max_value=30,
+            value=cohort_counts[TrainingYear.PGY3],
+            key="cfg_pgy3_count",
+        )
+        _sync_fellows_by_year(config, pgy1_count, pgy2_count, pgy3_count)
+        st.caption(f"Total fellows: {len(config.fellows)}")
+
         config.pto_weeks_granted = st.number_input(
-            "PTO weeks granted", min_value=0, max_value=10,
-            value=config.pto_weeks_granted, key="cfg_pto_granted",
+            "PTO weeks granted",
+            min_value=0,
+            max_value=10,
+            value=config.pto_weeks_granted,
+            key="cfg_pto_granted",
         )
         config.pto_weeks_to_rank = st.number_input(
-            "PTO weeks to rank", min_value=config.pto_weeks_granted,
-            max_value=15, value=config.pto_weeks_to_rank,
+            "PTO weeks to rank",
+            min_value=config.pto_weeks_granted,
+            max_value=15,
+            value=config.pto_weeks_to_rank,
             key="cfg_pto_rank",
         )
         config.max_concurrent_pto = st.number_input(
-            "Max fellows on PTO same week", min_value=1, max_value=5,
-            value=config.max_concurrent_pto, key="cfg_max_pto",
+            "Global max fellows on PTO",
+            min_value=1,
+            max_value=max(1, len(config.fellows)),
+            value=config.max_concurrent_pto,
+            key="cfg_max_pto",
         )
         config.solver_timeout_seconds = st.number_input(
-            "Solver timeout (seconds)", min_value=10.0, max_value=600.0,
-            value=config.solver_timeout_seconds, step=10.0,
+            "Solver timeout (seconds)",
+            min_value=10.0,
+            max_value=600.0,
+            value=config.solver_timeout_seconds,
+            step=10.0,
             key="cfg_timeout",
         )
 
-    # ── PTO Blackout Weeks ───────────────────────────────────────────
-    with st.sidebar.expander("🚫 PTO Blackout Weeks", expanded=False):
-        # Show weeks as date labels for clarity
+    with st.sidebar.expander("🚫 Global PTO Blackout Weeks", expanded=False):
         week_options: dict[str, int] = {}
-        for w in range(config.num_weeks):
-            week_date = config.start_date + timedelta(weeks=w)
-            label = f"W{w + 1}: {week_date.strftime('%b %d')}"
-            week_options[label] = w
-
+        for week in range(config.num_weeks):
+            week_date = config.start_date + timedelta(weeks=week)
+            week_options[f"W{week + 1}: {week_date.strftime('%b %d')}"] = week
         selected_labels = st.multiselect(
-            "Select blackout weeks (no PTO allowed)",
+            "Weeks blocked for every cohort",
             options=list(week_options.keys()),
             default=[
-                label for label, idx in week_options.items()
-                if idx in config.pto_blackout_weeks
+                label
+                for label, week in week_options.items()
+                if week in config.pto_blackout_weeks
             ],
             key="cfg_blackout",
         )
-        config.pto_blackout_weeks = [
-            week_options[label] for label in selected_labels
-        ]
+        config.pto_blackout_weeks = [week_options[label] for label in selected_labels]
 
-    # ── Block Configuration ──────────────────────────────────────────
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔄 Block Configuration")
+    st.sidebar.subheader("🔄 Block Metadata")
+    st.sidebar.caption(
+        "Cohort-specific staffing and min/max week rules are managed in the "
+        "**Rules** tab."
+    )
 
-    # Track total staffing for feasibility indicator
-    total_staffing: int = 0
-
-    for i, block in enumerate(config.blocks):
-        with st.sidebar.expander(
-            f"{'🌙' if block.block_type == BlockType.NIGHT else '☀️'} "
-            f"{block.name}",
-            expanded=False,
-        ):
+    for block_idx, block in enumerate(config.blocks):
+        with st.sidebar.expander(block.name, expanded=False):
             block.is_active = st.checkbox(
-                "Active", value=block.is_active,
-                key=f"blk_active_{i}",
+                "Active",
+                value=block.is_active,
+                key=f"blk_active_{block_idx}",
+            )
+            block.hours_per_week = st.number_input(
+                "Hours/week",
+                min_value=0.0,
+                max_value=100.0,
+                value=block.hours_per_week,
+                step=5.0,
+                key=f"blk_hours_{block_idx}",
+            )
+            block.has_weekend_off = st.checkbox(
+                "Weekend off",
+                value=block.has_weekend_off,
+                key=f"blk_wknd_{block_idx}",
+            )
+            block.requires_call_coverage = st.checkbox(
+                "Needs call coverage",
+                value=block.requires_call_coverage,
+                key=f"blk_call_{block_idx}",
             )
 
-            if block.is_active:
-                block.fellows_needed = st.number_input(
-                    "Min fellows/week", min_value=0, max_value=9,
-                    value=block.fellows_needed,
-                    key=f"blk_needed_{i}",
-                )
-                total_staffing += block.fellows_needed
+    _render_structured_staffing_summary(config)
 
-                block.hours_per_week = st.number_input(
-                    "Hours/week", min_value=0.0, max_value=100.0,
-                    value=block.hours_per_week, step=5.0,
-                    key=f"blk_hours_{i}",
-                )
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    block.min_weeks = st.number_input(
-                        "Min weeks", min_value=0, max_value=52,
-                        value=block.min_weeks,
-                        key=f"blk_min_{i}",
-                    )
-                with col2:
-                    block.max_weeks = st.number_input(
-                        "Max weeks", min_value=block.min_weeks,
-                        max_value=52, value=block.max_weeks,
-                        key=f"blk_max_{i}",
-                    )
-
-                block.has_weekend_off = st.checkbox(
-                    "Weekend off", value=block.has_weekend_off,
-                    key=f"blk_wknd_{i}",
-                )
-                block.requires_call_coverage = st.checkbox(
-                    "Needs call coverage", value=block.requires_call_coverage,
-                    key=f"blk_call_{i}",
-                )
-
-    # Feasibility indicator
-    available = config.num_fellows - config.max_concurrent_pto
-    if total_staffing > available:
-        st.sidebar.error(
-            f"⚠️ Staffing: {total_staffing} needed > {available} available"
-        )
-    else:
-        st.sidebar.success(
-            f"✅ Staffing: {total_staffing} needed / {available} available"
-        )
-
-    # ── Call Settings ────────────────────────────────────────────────
     st.sidebar.markdown("---")
     with st.sidebar.expander("📞 24-Hr Call Settings", expanded=False):
         config.call_day = st.selectbox(
-            "Call day", options=["saturday", "sunday", "friday"],
+            "Call day",
+            options=["saturday", "sunday", "friday"],
             index=["saturday", "sunday", "friday"].index(config.call_day),
             key="cfg_call_day",
         )
         config.call_hours = st.number_input(
-            "Call hours", min_value=0.0, max_value=48.0,
-            value=config.call_hours, step=1.0,
+            "Call hours",
+            min_value=0.0,
+            max_value=48.0,
+            value=config.call_hours,
+            step=1.0,
             key="cfg_call_hours",
         )
         config.max_consecutive_night_float = st.number_input(
             "Max consecutive Night Float weeks",
-            min_value=1, max_value=6,
+            min_value=1,
+            max_value=6,
             value=config.max_consecutive_night_float,
             key="cfg_max_nf",
         )
-
-        all_block_names: list[str] = [b.name for b in config.blocks] + ["PTO"]
+        all_block_names = [block.name for block in config.blocks] + ["PTO"]
         config.call_excluded_blocks = st.multiselect(
             "Blocks excluded from call",
             options=all_block_names,
-            default=config.call_excluded_blocks,
+            default=[
+                block_name
+                for block_name in config.call_excluded_blocks
+                if block_name in all_block_names
+            ],
             key="cfg_call_excluded",
         )
 
-    # ── Fellow PTO Rankings ──────────────────────────────────────────
     st.sidebar.markdown("---")
     st.sidebar.subheader("👤 Fellow PTO Rankings")
+    _render_fellow_sections(config)
 
-    # Ensure we have the right number of fellows
-    while len(config.fellows) < config.num_fellows:
-        config.fellows.append(
-            FellowConfig(name=f"Fellow {len(config.fellows) + 1}")
-        )
-    config.fellows = config.fellows[: config.num_fellows]
-
-    for f_idx, fellow in enumerate(config.fellows):
-        with st.sidebar.expander(f"👤 {fellow.name}", expanded=False):
-            fellow.name = st.text_input(
-                "Name", value=fellow.name.strip(),
-                key=f"fellow_name_{f_idx}",
-            )
-
-            # PTO week picker
-            st.caption(
-                f"Select up to {config.pto_weeks_to_rank} preferred PTO "
-                f"weeks, ranked best → worst"
-            )
-
-            # Build week options for the multi-select
-            week_opts: dict[str, int] = {}
-            for w in range(config.num_weeks):
-                if w not in config.pto_blackout_weeks:
-                    wd = config.start_date + timedelta(weeks=w)
-                    week_opts[f"W{w + 1}: {wd.strftime('%b %d')}"] = w
-
-            # Current selections as labels
-            current_labels: list[str] = []
-            for w in fellow.pto_rankings:
-                for label, idx in week_opts.items():
-                    if idx == w:
-                        current_labels.append(label)
-                        break
-
-            selected = st.multiselect(
-                "Ranked PTO weeks (order = priority)",
-                options=list(week_opts.keys()),
-                default=current_labels,
-                max_selections=config.pto_weeks_to_rank,
-                key=f"fellow_pto_{f_idx}",
-            )
-            fellow.pto_rankings = [week_opts[label] for label in selected]
-
-    # ── Save config ──────────────────────────────────────────────────
+    config.num_fellows = len(config.fellows)
     set_config(config)
 
     if st.sidebar.button("💾 Save Config", use_container_width=True):
         persist_config()
-        st.sidebar.success("Configuration saved!")
+        st.sidebar.success("Configuration saved.")
+
+
+def _render_structured_staffing_summary(config: ScheduleConfig) -> None:
+    """Show the peak structured coverage load."""
+
+    available = len(config.fellows) - config.max_concurrent_pto
+    weekly_required = [0] * config.num_weeks
+    for rule in config.coverage_rules:
+        if not rule.is_active:
+            continue
+        end_week = config.num_weeks - 1 if rule.end_week is None else min(
+            rule.end_week,
+            config.num_weeks - 1,
+        )
+        for week in range(max(0, rule.start_week), end_week + 1):
+            weekly_required[week] += rule.min_fellows
+    peak_required = max(weekly_required, default=0)
+    if peak_required > available:
+        st.sidebar.error(
+            f"⚠️ Structured staffing: peak {peak_required} needed > {available} available"
+        )
+    else:
+        st.sidebar.success(
+            f"✅ Structured staffing: peak {peak_required} needed / {available} available"
+        )
+
+
+def _render_fellow_sections(config: ScheduleConfig) -> None:
+    """Render fellow PTO editors grouped by cohort."""
+
+    for year in TrainingYear:
+        fellows = [
+            (index, fellow)
+            for index, fellow in enumerate(config.fellows)
+            if fellow.training_year == year
+        ]
+        if not fellows:
+            continue
+        with st.sidebar.expander(f"{year.value} Fellows", expanded=False):
+            for fellow_idx, fellow in fellows:
+                st.markdown(f"**{fellow.name}**")
+                fellow.name = st.text_input(
+                    "Name",
+                    value=fellow.name.strip(),
+                    key=f"fellow_name_{fellow_idx}",
+                )
+                st.caption(
+                    f"Select up to {config.pto_weeks_to_rank} preferred PTO "
+                    f"weeks, ranked best → worst"
+                )
+                week_options: dict[str, int] = {}
+                for week in range(config.num_weeks):
+                    if week not in config.pto_blackout_weeks:
+                        week_date = config.start_date + timedelta(weeks=week)
+                        week_options[
+                            f"W{week + 1}: {week_date.strftime('%b %d')}"
+                        ] = week
+                current_labels: list[str] = []
+                for week in fellow.pto_rankings:
+                    for label, idx in week_options.items():
+                        if idx == week:
+                            current_labels.append(label)
+                            break
+                selected = st.multiselect(
+                    "Ranked PTO weeks",
+                    options=list(week_options.keys()),
+                    default=current_labels,
+                    max_selections=config.pto_weeks_to_rank,
+                    key=f"fellow_pto_{fellow_idx}",
+                )
+                fellow.pto_rankings = [week_options[label] for label in selected]
+
+                unavailable = st.multiselect(
+                    "Unavailable weeks",
+                    options=list(week_options.keys()),
+                    default=[
+                        label
+                        for label, idx in week_options.items()
+                        if idx in fellow.unavailable_weeks
+                    ],
+                    key=f"fellow_unavailable_{fellow_idx}",
+                )
+                fellow.unavailable_weeks = [week_options[label] for label in unavailable]
+                st.markdown("---")
+
+
+def _sync_fellows_by_year(
+    config: ScheduleConfig,
+    pgy1_count: int,
+    pgy2_count: int,
+    pgy3_count: int,
+) -> None:
+    """Resize the roster by cohort while preserving existing fellow data."""
+
+    existing_by_year = {
+        year: [
+            fellow
+            for fellow in config.fellows
+            if fellow.training_year == year
+        ]
+        for year in TrainingYear
+    }
+    target_counts = {
+        TrainingYear.PGY1: pgy1_count,
+        TrainingYear.PGY2: pgy2_count,
+        TrainingYear.PGY3: pgy3_count,
+    }
+
+    new_fellows: list[FellowConfig] = []
+    for year in TrainingYear:
+        existing = existing_by_year[year]
+        for idx in range(target_counts[year]):
+            if idx < len(existing):
+                fellow = existing[idx]
+                fellow.training_year = year
+                if not fellow.name.strip():
+                    fellow.name = f"{year.value} Fellow {idx + 1}"
+                new_fellows.append(fellow)
+            else:
+                new_fellows.append(
+                    FellowConfig(
+                        name=f"{year.value} Fellow {idx + 1}",
+                        training_year=year,
+                    )
+                )
+
+    config.fellows = new_fellows

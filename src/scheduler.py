@@ -1,20 +1,4 @@
-"""Main scheduling engine — orchestrates the CP-SAT solver.
-
-This is the "brain" of the system. It:
-1. Builds the CP-SAT model with all decision variables
-2. Calls each constraint-builder function (from constraints.py,
-   acgme.py, and call_scheduler.py)
-3. Sets the objective (maximize PTO preference satisfaction)
-4. Runs the solver with a configurable timeout
-5. Extracts and returns the solution as a ScheduleResult
-
-Usage:
-    from src.scheduler import solve_schedule
-    from src.config import get_default_config
-
-    config = get_default_config()
-    result = solve_schedule(config)
-"""
+"""Main scheduling engine — orchestrates the CP-SAT solver."""
 
 from __future__ import annotations
 
@@ -26,108 +10,253 @@ from src.acgme import add_trailing_hours_cap
 from src.call_scheduler import add_call_constraints
 from src.constraints import (
     add_block_completion,
+    add_cohort_limit_rules,
+    add_coverage_rules,
+    add_eligibility_rules,
+    add_forbidden_transition_rules,
     add_max_concurrent_pto,
     add_min_max_weeks_per_block,
     add_night_float_consecutive_limit,
     add_no_consecutive_same_block,
     add_one_assignment_per_week,
+    add_prerequisite_rules,
     add_pto_blackout,
     add_pto_count,
     add_staffing_coverage,
+    add_unavailable_weeks,
+    add_week_count_rules,
 )
-from src.models import ScheduleConfig, ScheduleResult, SolverStatus
+from src.models import (
+    ScheduleConfig,
+    ScheduleResult,
+    SoftRuleDirection,
+    SolverStatus,
+    TrainingYear,
+)
 
 
-# ---------------------------------------------------------------------------
-# Feasibility pre-check (run before the solver to catch obvious issues)
-# ---------------------------------------------------------------------------
+def _sync_num_fellows(config: ScheduleConfig) -> None:
+    """Keep the legacy ``num_fellows`` field aligned with the roster."""
+
+    config.num_fellows = len(config.fellows)
+
+
+def _resolve_rule_end_week(end_week: int | None, num_weeks: int) -> int:
+    """Clamp a rule window to the schedule length."""
+
+    return num_weeks - 1 if end_week is None else min(end_week, num_weeks - 1)
+
 
 def check_feasibility(config: ScheduleConfig) -> list[str]:
-    """Run quick sanity checks on the config before invoking the solver.
+    """Run quick sanity checks on the config before invoking the solver."""
 
-    Returns a list of human-readable warning/error strings. An empty
-    list means no issues were detected (but the solver may still fail
-    if constraints are conflicting).
-
-    Parameters
-    ----------
-    config : ScheduleConfig
-        The schedule configuration to validate.
-
-    Returns
-    -------
-    list[str]
-        Warning/error messages. Empty if everything looks OK.
-    """
+    _sync_num_fellows(config)
     issues: list[str] = []
-    # --- Check 1: total staffing vs available fellows ---
     active_blocks = config.active_blocks
-    total_needed: int = sum(b.fellows_needed for b in active_blocks)
-    available: int = config.num_fellows - config.max_concurrent_pto
+    block_names = {block.name for block in config.blocks}
 
-    if total_needed > available:
+    if config.num_fellows == 0:
+        issues.append("⚠️ No fellows configured. Add at least one fellow.")
+        return issues
+
+    unavailable_excess = [
+        fellow.name
+        for fellow in config.fellows
+        if len(fellow.unavailable_weeks) > config.pto_weeks_granted
+    ]
+    for fellow_name in unavailable_excess:
         issues.append(
-            f"⚠️ Staffing conflict: blocks need {total_needed} fellows/week "
-            f"but only {available} are available ({config.num_fellows} total "
-            f"minus {config.max_concurrent_pto} on PTO). "
-            f"Reduce fellows_needed on some blocks."
+            f"⚠️ '{fellow_name}' has more unavailable weeks than PTO granted. "
+            f"Unavailable weeks are currently forced to PTO."
         )
 
-    # --- Check 2: enough weeks per fellow for required block exposure ---
-    working_weeks: int = config.num_weeks - config.pto_weeks_granted
-    total_required_weeks: int = sum(
-        max(b.min_weeks, 1) for b in active_blocks
-    )
-    if total_required_weeks > working_weeks:
-        issues.append(
-            f"⚠️ Block minimums conflict: each fellow must cover at least "
-            f"{total_required_weeks} block-weeks (counting the once-per-block "
-            f"requirement), but only {working_weeks} working weeks remain "
-            f"after PTO. Reduce active blocks or per-block minimums."
-        )
+    if config.coverage_rules:
+        available = config.num_fellows
+        min_required_by_week = [0] * config.num_weeks
+        for rule in config.coverage_rules:
+            if not rule.is_active:
+                continue
+            if rule.block_name not in block_names:
+                issues.append(
+                    f"⚠️ Coverage rule '{rule.name}' references unknown block "
+                    f"'{rule.block_name}'."
+                )
+                continue
+            eligible_count = len(config.fellow_indices_for_years(rule.eligible_years))
+            if rule.min_fellows > eligible_count:
+                issues.append(
+                    f"⚠️ Coverage rule '{rule.name}' needs {rule.min_fellows} "
+                    f"fellows but only {eligible_count} eligible fellows exist."
+                )
+            if rule.max_fellows is not None and rule.max_fellows < rule.min_fellows:
+                issues.append(
+                    f"⚠️ Coverage rule '{rule.name}' has max_fellows < min_fellows."
+                )
+            end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+            for week in range(max(0, rule.start_week), end_week + 1):
+                min_required_by_week[week] += rule.min_fellows
 
-    # --- Check 3: block coverage vs per-fellow max weeks ---
-    for blk in active_blocks:
-        required_staffed_weeks = blk.fellows_needed * config.num_weeks
-        max_assignable_weeks = config.num_fellows * blk.max_weeks
-        if required_staffed_weeks > max_assignable_weeks:
+        peak_required = max(min_required_by_week, default=0)
+        if peak_required > available:
             issues.append(
-                f"⚠️ Block capacity conflict: '{blk.name}' needs "
-                f"{required_staffed_weeks} staffed weeks, but fellows can "
-                f"cover at most {max_assignable_weeks} given max_weeks="
-                f"{blk.max_weeks}. Reduce staffing or raise max_weeks."
+                f"⚠️ Staffing conflict: structured coverage rules require up to "
+                f"{peak_required} fellows in a week but only {available} total "
+                f"fellows exist."
+            )
+    else:
+        total_needed = sum(block.fellows_needed for block in active_blocks)
+        available = config.num_fellows
+        if total_needed > available:
+            issues.append(
+                f"⚠️ Staffing conflict: blocks need {total_needed} fellows/week "
+                f"but only {available} total fellows exist. Reduce fellows_needed "
+                f"on some blocks."
+            )
+        for block in active_blocks:
+            required_staffed_weeks = block.fellows_needed * config.num_weeks
+            max_assignable_weeks = config.num_fellows * block.max_weeks
+            if required_staffed_weeks > max_assignable_weeks:
+                issues.append(
+                    f"⚠️ Block capacity conflict: '{block.name}' needs "
+                    f"{required_staffed_weeks} staffed weeks, but fellows can "
+                    f"cover at most {max_assignable_weeks} given max_weeks="
+                    f"{block.max_weeks}. Reduce staffing or raise max_weeks."
+                )
+
+    if config.week_count_rules:
+        for rule in config.week_count_rules:
+            if not rule.is_active:
+                continue
+            unknown_blocks = [name for name in rule.block_names if name != "PTO" and name not in block_names]
+            if unknown_blocks:
+                issues.append(
+                    f"⚠️ Week-count rule '{rule.name}' references unknown blocks: "
+                    f"{', '.join(unknown_blocks)}."
+                )
+            if rule.max_weeks < rule.min_weeks:
+                issues.append(
+                    f"⚠️ Week-count rule '{rule.name}' has max_weeks < min_weeks."
+                )
+            working_window = (
+                _resolve_rule_end_week(rule.end_week, config.num_weeks)
+                - max(0, rule.start_week)
+                + 1
+            )
+            if rule.min_weeks > max(0, working_window):
+                issues.append(
+                    f"⚠️ Week-count rule '{rule.name}' requires {rule.min_weeks} "
+                    f"weeks in a window of only {max(0, working_window)} weeks."
+                )
+    else:
+        working_weeks = config.num_weeks - config.pto_weeks_granted
+        total_required_weeks = sum(max(block.min_weeks, 1) for block in active_blocks)
+        if total_required_weeks > working_weeks:
+            issues.append(
+                f"⚠️ Block minimums conflict: each fellow must cover at least "
+                f"{total_required_weeks} block-weeks (counting the once-per-block "
+                f"requirement), but only {working_weeks} working weeks remain "
+                f"after PTO. Reduce active blocks or per-block minimums."
+            )
+        total_required_assignments = sum(
+            max(
+                block.fellows_needed * config.num_weeks,
+                config.num_fellows * max(block.min_weeks, 1),
+            )
+            for block in active_blocks
+        )
+        total_available_assignments = (
+            config.num_fellows * config.num_weeks
+            - config.num_fellows * config.pto_weeks_granted
+        )
+        if total_required_assignments > total_available_assignments:
+            issues.append(
+                f"⚠️ Coverage/minimum conflict: active blocks require at least "
+                f"{total_required_assignments} total assignments, but only "
+                f"{total_available_assignments} working fellow-weeks are "
+                f"available after PTO. Loosen staffing or reduce required blocks."
             )
 
-    # --- Check 4: aggregate minimum assignments vs total capacity ---
-    total_required_assignments = sum(
-        max(
-            blk.fellows_needed * config.num_weeks,
-            config.num_fellows * max(blk.min_weeks, 1),
-        )
-        for blk in active_blocks
-    )
-    total_available_assignments = (
-        config.num_fellows * config.num_weeks
-        - config.num_fellows * config.pto_weeks_granted
-    )
-    if total_required_assignments > total_available_assignments:
-        issues.append(
-            f"⚠️ Coverage/minimum conflict: active blocks require at least "
-            f"{total_required_assignments} total assignments, but only "
-            f"{total_available_assignments} working fellow-weeks are "
-            f"available after PTO. Loosen staffing or reduce required blocks."
-        )
-
-    # --- Check 5: blocks with hours > 72 (day-off approximation) ---
-    for blk in active_blocks:
-        if blk.hours_per_week > 72:
+    for rule in config.eligibility_rules:
+        if not rule.is_active:
+            continue
+        unknown_blocks = [name for name in rule.block_names if name not in block_names]
+        if unknown_blocks:
             issues.append(
-                f"⚠️ ACGME warning: '{blk.name}' has {blk.hours_per_week} "
+                f"⚠️ Eligibility rule '{rule.name}' references unknown blocks: "
+                f"{', '.join(unknown_blocks)}."
+            )
+        if not config.fellow_indices_for_years(rule.allowed_years):
+            issues.append(
+                f"⚠️ Eligibility rule '{rule.name}' has no fellows in the allowed cohorts."
+            )
+
+    for rule in config.cohort_limit_rules:
+        if not rule.is_active:
+            continue
+        if rule.state_name != "PTO" and rule.state_name not in block_names:
+            issues.append(
+                f"⚠️ Cohort limit rule '{rule.name}' references unknown state "
+                f"'{rule.state_name}'."
+            )
+
+    for rule in config.prerequisite_rules:
+        if not rule.is_active:
+            continue
+        if rule.target_block not in block_names:
+            issues.append(
+                f"⚠️ Prerequisite rule '{rule.name}' references unknown target "
+                f"block '{rule.target_block}'."
+            )
+        unknown_prereqs = [
+            name for name in rule.prerequisite_blocks if name not in block_names
+        ]
+        if unknown_prereqs:
+            issues.append(
+                f"⚠️ Prerequisite rule '{rule.name}' references unknown blocks: "
+                f"{', '.join(unknown_prereqs)}."
+            )
+
+    for rule in config.forbidden_transition_rules:
+        if not rule.is_active:
+            continue
+        if rule.target_block not in block_names:
+            issues.append(
+                f"⚠️ Transition rule '{rule.name}' references unknown target "
+                f"block '{rule.target_block}'."
+            )
+        unknown_previous = [
+            name
+            for name in rule.forbidden_previous_blocks
+            if name != "PTO" and name not in block_names
+        ]
+        if unknown_previous:
+            issues.append(
+                f"⚠️ Transition rule '{rule.name}' references unknown previous "
+                f"blocks: {', '.join(unknown_previous)}."
+            )
+
+    for rule in config.soft_sequence_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in (rule.left_states + rule.right_states)
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Soft rule '{rule.name}' references unknown states: "
+                f"{', '.join(sorted(set(unknown_states)))}."
+            )
+
+    for block in active_blocks:
+        if block.hours_per_week > 72:
+            issues.append(
+                f"⚠️ ACGME warning: '{block.name}' has {block.hours_per_week} "
                 f"hrs/week, which may violate the 1-day-off-per-7 rule "
                 f"(> 72 hrs implies no rest day in a 7-day period)."
             )
 
-    # --- Check 6: PTO rankings provided ---
     for fellow in config.fellows:
         if len(fellow.pto_rankings) == 0:
             issues.append(
@@ -138,128 +267,117 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
     return issues
 
 
-# ---------------------------------------------------------------------------
-# Main solver
-# ---------------------------------------------------------------------------
+def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
+    """Build and solve the CP-SAT model for the fellowship schedule."""
 
-def solve_schedule(
-    config: ScheduleConfig,
-) -> ScheduleResult:
-    """Build and solve the CP-SAT model for the fellowship schedule.
+    _sync_num_fellows(config)
 
-    Parameters
-    ----------
-    config : ScheduleConfig
-        Fully populated schedule configuration.
-    Returns
-    -------
-    ScheduleResult
-        The generated schedule, including solver status and metrics.
-    """
-
-    # --- Setup ---
     model = cp_model.CpModel()
-    num_blocks: int = len(config.blocks)
-    pto_idx: int = num_blocks  # PTO is the last "block" index
-
-    # Build a lookup: block_name → block_index
-    block_name_to_idx: dict[str, int] = {
-        blk.name: i for i, blk in enumerate(config.blocks)
-    }
+    num_blocks = len(config.blocks)
+    pto_idx = num_blocks
+    block_name_to_idx = {block.name: index for index, block in enumerate(config.blocks)}
     block_name_to_idx["PTO"] = pto_idx
+    nf_idx = block_name_to_idx.get("Night Float")
 
-    # Find Night Float index for the consecutive-NF constraint
-    nf_idx: int | None = block_name_to_idx.get("Night Float")
-
-    # --- Decision variables ---
-    # assign[f, w, b] = 1 if fellow f is on block b in week w
     assign: dict[tuple[int, int, int], cp_model.IntVar] = {}
-    for f in range(config.num_fellows):
-        for w in range(config.num_weeks):
-            for b in range(num_blocks + 1):  # +1 for PTO
-                assign[f, w, b] = model.new_bool_var(
-                    f"assign_f{f}_w{w}_b{b}"
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            for block_idx in range(num_blocks + 1):
+                assign[fellow_idx, week, block_idx] = model.NewBoolVar(
+                    f"assign_f{fellow_idx}_w{week}_b{block_idx}"
                 )
 
-    # call[f, w] = 1 if fellow f has Saturday call in week w
     call: dict[tuple[int, int], cp_model.IntVar] = {}
-    for f in range(config.num_fellows):
-        for w in range(config.num_weeks):
-            call[f, w] = model.new_bool_var(f"call_f{f}_w{w}")
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            call[fellow_idx, week] = model.NewBoolVar(
+                f"call_f{fellow_idx}_w{week}"
+            )
 
-    # --- Add all constraints ---
+    for block_idx, block in enumerate(config.blocks):
+        if block.is_active:
+            continue
+        for fellow_idx in range(config.num_fellows):
+            for week in range(config.num_weeks):
+                model.Add(assign[fellow_idx, week, block_idx] == 0)
 
-    # 1. Exactly one assignment per fellow per week
     add_one_assignment_per_week(model, assign, config, num_blocks, pto_idx)
-
-    # 2. PTO count, blackout, and concurrency
+    add_unavailable_weeks(model, assign, config, pto_idx)
     add_pto_count(model, assign, config, pto_idx)
     add_pto_blackout(model, assign, config, pto_idx)
     add_max_concurrent_pto(model, assign, config, pto_idx)
-
-    # 3. No consecutive same rotation block
     add_no_consecutive_same_block(model, assign, config, num_blocks)
 
-    # 4. Night Float consecutive limit
     if nf_idx is not None:
         add_night_float_consecutive_limit(model, assign, config, nf_idx)
 
-    # 5. Every fellow completes every active block at least once
-    add_block_completion(model, assign, config, num_blocks)
+    if (
+        config.coverage_rules
+        or config.eligibility_rules
+        or config.week_count_rules
+        or config.cohort_limit_rules
+        or config.prerequisite_rules
+        or config.forbidden_transition_rules
+    ):
+        add_eligibility_rules(model, assign, config, block_name_to_idx)
+        add_coverage_rules(model, assign, config, block_name_to_idx)
+        add_week_count_rules(model, assign, config, block_name_to_idx)
+        add_cohort_limit_rules(model, assign, config, block_name_to_idx)
+        add_prerequisite_rules(model, assign, config, block_name_to_idx)
+        add_forbidden_transition_rules(model, assign, config, block_name_to_idx)
+    else:
+        add_block_completion(model, assign, config, num_blocks)
 
-    # 6. Min/max weeks per block per fellow
     add_min_max_weeks_per_block(model, assign, config, num_blocks)
-
-    # 7. Staffing coverage minimums
     add_staffing_coverage(model, assign, config, num_blocks)
-
-    # 8. ACGME 80-hour trailing average
     add_trailing_hours_cap(model, assign, call, config, num_blocks, pto_idx)
-
-    # 9. 24-hr Saturday call constraints
     add_call_constraints(model, assign, call, config, num_blocks, pto_idx)
 
-    # --- Objective: maximize PTO preference satisfaction ---
-    _add_pto_objective(model, assign, config, pto_idx)
+    objective_terms = _build_objective_terms(
+        model,
+        assign,
+        config,
+        pto_idx,
+        block_name_to_idx,
+    )
+    if objective_terms:
+        model.Maximize(sum(objective_terms))
 
-    # --- Solve ---
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = config.solver_timeout_seconds
-    # Use multiple workers for faster search
     solver.parameters.num_workers = 8
 
-    start_time: float = time.time()
-    status_code: int = solver.solve(model)
-    solve_time: float = time.time() - start_time
+    start_time = time.time()
+    status_code = solver.Solve(model)
+    solve_time = time.time() - start_time
 
-    # --- Map solver status ---
-    status_map: dict[int, SolverStatus] = {
+    status_map = {
         cp_model.OPTIMAL: SolverStatus.OPTIMAL,
         cp_model.FEASIBLE: SolverStatus.FEASIBLE,
         cp_model.INFEASIBLE: SolverStatus.INFEASIBLE,
         cp_model.MODEL_INVALID: SolverStatus.ERROR,
         cp_model.UNKNOWN: SolverStatus.TIMEOUT,
     }
-    solver_status: SolverStatus = status_map.get(
-        status_code, SolverStatus.ERROR
-    )
+    solver_status = status_map.get(status_code, SolverStatus.ERROR)
 
-    # --- Extract solution ---
     if solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE):
         return _extract_solution(
-            solver, assign, call, config, num_blocks, pto_idx,
-            solver_status, solver.objective_value, solve_time,
+            solver,
+            assign,
+            call,
+            config,
+            num_blocks,
+            solver_status,
+            solver.ObjectiveValue(),
+            solve_time,
         )
 
-    # No valid solution found
     return ScheduleResult(
         assignments=[
-            ["" for _ in range(config.num_weeks)]
-            for _ in range(config.num_fellows)
+            ["" for _ in range(config.num_weeks)] for _ in range(config.num_fellows)
         ],
         call_assignments=[
-            [False for _ in range(config.num_weeks)]
-            for _ in range(config.num_fellows)
+            [False for _ in range(config.num_weeks)] for _ in range(config.num_fellows)
         ],
         solver_status=solver_status,
         objective_value=0.0,
@@ -267,51 +385,129 @@ def solve_schedule(
     )
 
 
-# ---------------------------------------------------------------------------
-# Objective function
-# ---------------------------------------------------------------------------
-
-def _add_pto_objective(
+def _build_objective_terms(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
     config: ScheduleConfig,
     pto_idx: int,
-) -> None:
-    """Maximize PTO preference satisfaction.
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Build the optimization objective from PTO preferences and soft rules."""
 
-    Each fellow ranks ``pto_weeks_to_rank`` weeks. We assign a score
-    based on rank position:
-        rank 1 (most preferred) → score = pto_weeks_to_rank
-        rank 2                  → score = pto_weeks_to_rank - 1
-        ...
-        rank N (least preferred) → score = 1
-        unranked weeks           → score = 0
+    objective_terms: list[cp_model.LinearExpr] = []
+    objective_terms.extend(_build_pto_objective_terms(assign, config, pto_idx))
+    objective_terms.extend(
+        _build_soft_sequence_objective_terms(
+            model,
+            assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    return objective_terms
 
-    The solver maximizes the total score across all fellows, meaning
-    higher-ranked weeks are prioritized.
-    """
-    objective_terms = []
 
-    for f, fellow in enumerate(config.fellows):
+def _build_pto_objective_terms(
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    pto_idx: int,
+) -> list[cp_model.LinearExpr]:
+    """Return PTO preference objective terms."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx, fellow in enumerate(config.fellows):
+        cohort_weights = config.pto_preference_weights_for_year(fellow.training_year)
         for rank, week_idx in enumerate(fellow.pto_rankings):
+            if rank >= len(cohort_weights):
+                continue
             if 0 <= week_idx < config.num_weeks:
-                # Higher score for higher-ranked (lower index) weeks
-                score: int = config.pto_weeks_to_rank - rank
-                objective_terms.append(
-                    assign[f, week_idx, pto_idx] * score
+                score = cohort_weights[rank]
+                if score > 0:
+                    objective_terms.append(assign[fellow_idx, week_idx, pto_idx] * score)
+    return objective_terms
+
+
+def _build_soft_sequence_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted bonus / penalty terms for soft sequence rules."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for rule_idx, rule in enumerate(config.soft_sequence_rules):
+        if not rule.is_active:
+            continue
+        left_indices = [
+            block_name_to_idx[state]
+            for state in rule.left_states
+            if state in block_name_to_idx
+        ]
+        right_indices = [
+            block_name_to_idx[state]
+            for state in rule.right_states
+            if state in block_name_to_idx
+        ]
+        if not left_indices or not right_indices:
+            continue
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for fellow_idx in fellow_indices:
+            for week in range(max(0, rule.start_week), end_week):
+                objective_terms.extend(
+                    _build_sequence_match_terms(
+                        model,
+                        assign,
+                        fellow_idx,
+                        week,
+                        left_indices,
+                        right_indices,
+                        rule.weight,
+                        f"soft_r{rule_idx}_f{fellow_idx}_w{week}",
+                    )
                 )
+                if (
+                    rule.direction == SoftRuleDirection.EITHER
+                    and set(left_indices) != set(right_indices)
+                ):
+                    objective_terms.extend(
+                        _build_sequence_match_terms(
+                            model,
+                            assign,
+                            fellow_idx,
+                            week,
+                            right_indices,
+                            left_indices,
+                            rule.weight,
+                            f"soft_r{rule_idx}_rev_f{fellow_idx}_w{week}",
+                        )
+                    )
+    return objective_terms
 
-    if objective_terms:
-        model.maximize(sum(objective_terms))
-    else:
-        # No PTO preferences provided — solver just finds any feasible
-        # solution (no optimization direction)
-        pass
 
+def _build_sequence_match_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    fellow_idx: int,
+    week: int,
+    left_indices: list[int],
+    right_indices: list[int],
+    weight: int,
+    name_prefix: str,
+) -> list[cp_model.LinearExpr]:
+    """Build one conjunction variable for an adjacent block pattern."""
 
-# ---------------------------------------------------------------------------
-# Solution extraction
-# ---------------------------------------------------------------------------
+    left_expr = sum(assign[fellow_idx, week, block_idx] for block_idx in left_indices)
+    right_expr = sum(
+        assign[fellow_idx, week + 1, block_idx] for block_idx in right_indices
+    )
+    match_var = model.NewBoolVar(name_prefix)
+    model.Add(match_var <= left_expr)
+    model.Add(match_var <= right_expr)
+    model.Add(match_var >= left_expr + right_expr - 1)
+    return [match_var * weight]
+
 
 def _extract_solution(
     solver: cp_model.CpSolver,
@@ -319,64 +515,137 @@ def _extract_solution(
     call: dict[tuple[int, int], cp_model.IntVar],
     config: ScheduleConfig,
     num_blocks: int,
-    pto_idx: int,
     status: SolverStatus,
     objective: float,
     solve_time: float,
 ) -> ScheduleResult:
-    """Read the solver's variable values and build a ScheduleResult.
+    """Read the solver's values and build a ``ScheduleResult``."""
 
-    Parameters
-    ----------
-    solver : CpSolver
-        The solved CP-SAT solver instance.
-    assign, call : dict
-        Decision variable dictionaries.
-    config : ScheduleConfig
-        Configuration used for the solve.
-    num_blocks, pto_idx : int
-        Index bounds.
-    status : SolverStatus
-        Mapped solver status.
-    objective : float
-        Objective function value.
-    solve_time : float
-        Wall-clock solve time.
-
-    Returns
-    -------
-    ScheduleResult
-        The complete extracted schedule.
-    """
-    # Build block index → name lookup
-    block_names: list[str] = [blk.name for blk in config.blocks] + ["PTO"]
-
+    block_names = [block.name for block in config.blocks] + ["PTO"]
     assignments: list[list[str]] = []
     call_assignments: list[list[bool]] = []
 
-    for f in range(config.num_fellows):
+    for fellow_idx in range(config.num_fellows):
         fellow_blocks: list[str] = []
         fellow_calls: list[bool] = []
-
-        for w in range(config.num_weeks):
-            # Find which block this fellow is assigned to this week
-            assigned_block: str = "UNASSIGNED"
-            for b in range(num_blocks + 1):
-                if solver.value(assign[f, w, b]) == 1:
-                    assigned_block = block_names[b]
+        for week in range(config.num_weeks):
+            assigned_block = "UNASSIGNED"
+            for block_idx in range(num_blocks + 1):
+                if solver.Value(assign[fellow_idx, week, block_idx]) == 1:
+                    assigned_block = block_names[block_idx]
                     break
             fellow_blocks.append(assigned_block)
-
-            # Check if fellow has call this week
-            fellow_calls.append(bool(solver.value(call[f, w])))
-
+            fellow_calls.append(bool(solver.Value(call[fellow_idx, week])))
         assignments.append(fellow_blocks)
         call_assignments.append(fellow_calls)
 
+    objective_breakdown = _build_objective_breakdown(config, assignments)
     return ScheduleResult(
         assignments=assignments,
         call_assignments=call_assignments,
         solver_status=status,
         objective_value=objective,
         solve_time_seconds=solve_time,
+        objective_breakdown=objective_breakdown,
     )
+
+
+def _empty_cohort_score_row(category: str) -> dict[str, int | str]:
+    """Return one objective-breakdown row initialized to zero."""
+
+    row: dict[str, int | str] = {"Category": category}
+    for year in TrainingYear:
+        row[year.value] = 0
+    row["Total"] = 0
+    return row
+
+
+def _add_points_to_row(
+    row: dict[str, int | str],
+    year: TrainingYear,
+    points: int,
+) -> None:
+    """Add points to one cohort/category cell and the category total."""
+
+    row[year.value] = int(row[year.value]) + points
+    row["Total"] = int(row["Total"]) + points
+
+
+def _build_objective_breakdown(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Recompute objective points by category and cohort for the solved schedule."""
+
+    rows: list[dict[str, int | str]] = []
+    rows.append(_build_pto_objective_breakdown_row(config, assignments))
+    rows.extend(_build_soft_sequence_breakdown_rows(config, assignments))
+
+    total_row = _empty_cohort_score_row("Total")
+    for row in rows:
+        for year in TrainingYear:
+            _add_points_to_row(total_row, year, int(row[year.value]))
+    rows.append(total_row)
+    return rows
+
+
+def _build_pto_objective_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> dict[str, int | str]:
+    """Return PTO objective points grouped by cohort."""
+
+    row = _empty_cohort_score_row("PTO Preferences")
+    for fellow_idx, fellow in enumerate(config.fellows):
+        cohort_weights = config.pto_preference_weights_for_year(fellow.training_year)
+        for rank, week_idx in enumerate(fellow.pto_rankings):
+            if rank >= len(cohort_weights):
+                continue
+            if not 0 <= week_idx < config.num_weeks:
+                continue
+            score = cohort_weights[rank]
+            if score <= 0:
+                continue
+            if assignments[fellow_idx][week_idx] == "PTO":
+                _add_points_to_row(row, fellow.training_year, score)
+    return row
+
+
+def _build_soft_sequence_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Return one objective-breakdown row per active soft rule."""
+
+    rows: list[dict[str, int | str]] = []
+    valid_states = set(config.all_states)
+    for rule in config.soft_sequence_rules:
+        if not rule.is_active:
+            continue
+
+        row = _empty_cohort_score_row(rule.name)
+        forward_left = {state for state in rule.left_states if state in valid_states}
+        forward_right = {state for state in rule.right_states if state in valid_states}
+        if not forward_left or not forward_right:
+            rows.append(row)
+            continue
+
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        allow_reverse = (
+            rule.direction == SoftRuleDirection.EITHER
+            and forward_left != forward_right
+        )
+
+        for fellow_idx in fellow_indices:
+            year = config.fellows[fellow_idx].training_year
+            for week in range(max(0, rule.start_week), end_week):
+                current_state = assignments[fellow_idx][week]
+                next_state = assignments[fellow_idx][week + 1]
+                if current_state in forward_left and next_state in forward_right:
+                    _add_points_to_row(row, year, rule.weight)
+                if allow_reverse and current_state in forward_right and next_state in forward_left:
+                    _add_points_to_row(row, year, rule.weight)
+
+        rows.append(row)
+    return rows

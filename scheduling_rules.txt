@@ -1,0 +1,55 @@
+The calendar year begins 7/13/2026 and ends 7/11/2027.
+Every week begins on a Monday and ends on a Sunday. 
+There are 9 First year Fellows, 9 Second year Fellows, and 7 Third year fellows. 
+Each weekly rotation requires the following number of fellows in each week at minimum
+vacation - NA
+white consults- 1 First year Fellow
+SRC consults- 1 First year, Second year, or Third year fellow
+VA consults- 1 First year, Second year, or Third year fellow
+Goodyer consults- 1 Second year fellow
+CCU- 1 Second year fellow from 7/13/26 – 8/9/26, 1 First year fellow beginning 8/10/2026
+Night Float- 1 Second year fellow from 7/13/26 – 8/16/261 First year fellow
+EP- 1 First year or Second year Fellow
+CHF- 1 First year or Second year Fellow
+Yale nuclear- 1 second year Fellow, with no weekly first year minimum
+VA nuclear- 1 First year or 1 second year Fellow
+Yale echo- 0-3 First year Fellows and 2-3 Second or Third year Fellows
+VA echo- 1 First year or 1 Second year Fellow
+SRC echo- 1 First year, 1 Second year, or 1 Third year Fellow
+Yale cath- 1-2 First year, Second year, or Third year Fellows
+VA cath- 1 First year or Second year Fellow
+SRC cath- 1 First year, Second year, or 3rd year Fellow
+2 weeks of research- NA
+CT-MRI
+Elective
+There can be a maximum of 4 fellows from the same year with vacation at the same time
+All First year fellows must complete the following number of weeks per rotation
+4 weeks of vacation (ideally divided into 1 two-week vacation and 2 one-week vacation blocks)
+4-6 weeks of white consults
+3-4 weeks of SRC consults
+3-4 weeks of VA consults
+0 weeks of Goodyer consults
+5-6 weeks of CCU beginning 8/10/26
+5-6 weeks of Night Float beginning 8/17/26
+3-5 weeks of EP
+2  weeks of CHF
+2-6 weeks of Yale nuclear
+1-2 weeks of VA nuclear
+3-4 weeks of Yale echo
+3-4 weeks of VA echo
+1 weeks of SRC echo
+3-4 weeks of Yale cath
+1-2 weeks of VA cath
+1-2 weeks of SRC cath
+2 weeks of research
+0 weeks of CT-MRI
+0 weeks of Elective
+For First year fellows, the total weeks of White consults + SRC consults + VA consults = 10-12 weeks
+For First year fellows, the total weeks of Yale cath + SRC cath + VA cath = 6-7 weeks
+For First year fellows, the total weeks of Yale echo + SRC echo + VA echo = 8-9 weeks
+For First year fellows, the total weeks of Yale nuclear + VA nuclear = 4-7 weeks
+For First year fellows, 1 week of Research should be before or after 1 week vacation blocks if possible
+All first year fellows must complete 1 week of yale echo, 1 week of yale cath, 1 week of white consults, 1 week of CCU, and 1 week of EP before having a Night Float rotation.
+For First year fellows, 1 week of CHF should be immediately before the 1st night float rotation if possible
+For First year fellows, Night float cannot come after the following rotations: white consults, SRC consults, VA consults, CCU, vacation 
+No vacation in the first 2 months for first year fellows
