@@ -23,11 +23,18 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 
-from components.config_sidebar import render_config_sidebar
-from components.fellow_cards import render_fellow_cards
-from components.master_schedule import render_master_schedule
-from components.pto_calendar import render_pto_calendar
-from state import get_config, get_issues, get_result, set_issues, set_result
+from app.components.config_sidebar import render_config_sidebar
+from app.components.checks_panel import render_checks_panel
+from app.components.fellow_cards import render_fellow_cards
+from app.components.master_schedule import render_master_schedule
+from app.components.pto_calendar import render_pto_calendar
+from app.state import (
+    get_config,
+    get_issues,
+    get_result,
+    set_issues,
+    set_result,
+)
 from src.export import export_csv, export_pdf
 from src.scheduler import check_feasibility, solve_schedule
 
@@ -48,9 +55,19 @@ st.set_page_config(
 # Initialize session state
 # ---------------------------------------------------------------------------
 
-from state import init_state  # noqa: E402
+from app.state import init_state  # noqa: E402
 init_state()
 
+
+def _has_fatal_feasibility_issue(issues: list[str]) -> bool:
+    """Return True when the current config has a blocking feasibility issue."""
+    fatal_prefixes = (
+        "⚠️ Staffing conflict",
+        "⚠️ Block capacity conflict",
+        "⚠️ Coverage/minimum conflict",
+        "⚠️ Block minimums conflict",
+    )
+    return any(issue.startswith(fatal_prefixes) for issue in issues)
 
 # ---------------------------------------------------------------------------
 # Sidebar: configuration + action buttons
@@ -74,8 +91,10 @@ if st.sidebar.button(
     issues = check_feasibility(config)
     set_issues(issues)
 
-    if any("⚠️ Staffing conflict" in issue for issue in issues):
-        st.sidebar.error("Cannot generate: fix staffing issues first.")
+    if _has_fatal_feasibility_issue(issues):
+        st.sidebar.error(
+            "Cannot generate: fix blocking configuration issues first."
+        )
     else:
         with st.spinner("Solving... this may take up to 2 minutes."):
             result = solve_schedule(config)
@@ -117,46 +136,6 @@ with col_pdf:
         else:
             st.sidebar.warning("Generate a schedule first.")
 
-# --- Lock & Re-solve (for maternity leave) ---
-st.sidebar.markdown("---")
-with st.sidebar.expander("🔒 Lock & Re-solve (Maternity Leave)", expanded=False):
-    st.caption(
-        "Mark a fellow as unavailable for specific weeks, then re-run "
-        "the solver. Already-completed weeks stay locked."
-    )
-    config = get_config()
-
-    lock_fellow = st.selectbox(
-        "Fellow",
-        options=[f.name for f in config.fellows],
-        key="lock_fellow",
-    )
-    lock_start = st.number_input(
-        "Unavailable from week", min_value=1, max_value=52,
-        value=1, key="lock_start",
-    )
-    lock_end = st.number_input(
-        "Unavailable through week", min_value=lock_start, max_value=52,
-        value=min(lock_start + 11, 52), key="lock_end",
-    )
-
-    if st.button("🔒 Apply & Re-solve", use_container_width=True):
-        # Find the fellow index
-        f_idx = next(
-            i for i, f in enumerate(config.fellows)
-            if f.name == lock_fellow
-        )
-        # Mark the weeks as unavailable
-        config.fellows[f_idx].unavailable_weeks = list(
-            range(lock_start - 1, lock_end)  # convert to 0-indexed
-        )
-
-        with st.spinner("Re-solving with locked weeks..."):
-            result = solve_schedule(config)
-            set_result(result)
-
-        st.rerun()
-
 
 # ---------------------------------------------------------------------------
 # Show feasibility warnings
@@ -189,3 +168,4 @@ with center_col:
 
 with right_col:
     render_fellow_cards(config, result)
+    render_checks_panel(config, result)

@@ -14,7 +14,7 @@ from datetime import timedelta
 import streamlit as st
 
 from src.models import BlockConfig, BlockType, FellowConfig, ScheduleConfig
-from state import get_config, set_config, persist_config
+from app.state import get_config, persist_config, set_config
 
 
 def render_config_sidebar() -> None:

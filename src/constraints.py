@@ -214,24 +214,3 @@ def add_staffing_coverage(
                 >= blk.fellows_needed
             )
 
-
-# ---------------------------------------------------------------------------
-# 8. UNAVAILABLE WEEKS (maternity leave, etc.)
-# ---------------------------------------------------------------------------
-
-def add_unavailable_weeks(
-    model: cp_model.CpModel,
-    assign: dict[tuple[int, int, int], cp_model.IntVar],
-    config: ScheduleConfig,
-    pto_idx: int,
-) -> None:
-    """If a fellow is marked unavailable for certain weeks, force PTO.
-
-    This is used for maternity leave and other pre-scheduled absences.
-    The PTO count constraint is relaxed accordingly in the solver setup.
-    """
-    for f, fellow in enumerate(config.fellows):
-        for w in fellow.unavailable_weeks:
-            if 0 <= w < config.num_weeks:
-                # Force this fellow to PTO that week
-                model.Add(assign[f, w, pto_idx] == 1)

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 
 from src.config import BLOCK_COLORS
 from src.models import ScheduleConfig, ScheduleResult
@@ -109,13 +110,16 @@ def export_pdf(
 
     # Title
     pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 10, "Fellowship Schedule", ln=True, align="C")
+    pdf.cell(
+        0, 10, "Fellowship Schedule",
+        new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C",
+    )
     pdf.set_font("Helvetica", "", 9)
     pdf.cell(
         0, 6,
-        f"{config.start_date.strftime('%B %d, %Y')} — "
+        f"{config.start_date.strftime('%B %d, %Y')} - "
         f"{(config.start_date + timedelta(weeks=config.num_weeks)).strftime('%B %d, %Y')}",
-        ln=True, align="C",
+        new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C",
     )
     pdf.ln(4)
 
@@ -170,7 +174,7 @@ def export_pdf(
                 # Abbreviate block name to fit cell
                 abbrev: str = _abbreviate(block_name)
                 if has_call:
-                    abbrev += "☎"
+                    abbrev += "*"
 
                 pdf.cell(
                     col_w, row_h, abbrev,
@@ -183,7 +187,10 @@ def export_pdf(
     # Legend
     pdf.ln(6)
     pdf.set_font("Helvetica", "B", 7)
-    pdf.cell(0, 5, "Legend:", ln=True)
+    pdf.cell(
+        0, 5, "Legend:",
+        new_x=XPos.LMARGIN, new_y=YPos.NEXT,
+    )
     pdf.set_font("Helvetica", "", 6)
 
     x_start: float = pdf.get_x()

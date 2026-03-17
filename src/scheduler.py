@@ -34,7 +34,6 @@ from src.constraints import (
     add_pto_blackout,
     add_pto_count,
     add_staffing_coverage,
-    add_unavailable_weeks,
 )
 from src.models import ScheduleConfig, ScheduleResult, SolverStatus
 
@@ -61,7 +60,6 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
         Warning/error messages. Empty if everything looks OK.
     """
     issues: list[str] = []
-
     # --- Check 1: total staffing vs available fellows ---
     active_blocks = config.active_blocks
     total_needed: int = sum(b.fellows_needed for b in active_blocks)
@@ -75,19 +73,52 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
             f"Reduce fellows_needed on some blocks."
         )
 
-    # --- Check 2: enough weeks for all block completions ---
+    # --- Check 2: enough weeks per fellow for required block exposure ---
     working_weeks: int = config.num_weeks - config.pto_weeks_granted
-    total_min_weeks: int = sum(
-        b.min_weeks for b in active_blocks
+    total_required_weeks: int = sum(
+        max(b.min_weeks, 1) for b in active_blocks
     )
-    if total_min_weeks > working_weeks:
+    if total_required_weeks > working_weeks:
         issues.append(
-            f"⚠️ Block minimums conflict: total min_weeks across blocks = "
-            f"{total_min_weeks}, but each fellow only works {working_weeks} "
-            f"weeks. Reduce some min_weeks values."
+            f"⚠️ Block minimums conflict: each fellow must cover at least "
+            f"{total_required_weeks} block-weeks (counting the once-per-block "
+            f"requirement), but only {working_weeks} working weeks remain "
+            f"after PTO. Reduce active blocks or per-block minimums."
         )
 
-    # --- Check 3: blocks with hours > 72 (day-off approximation) ---
+    # --- Check 3: block coverage vs per-fellow max weeks ---
+    for blk in active_blocks:
+        required_staffed_weeks = blk.fellows_needed * config.num_weeks
+        max_assignable_weeks = config.num_fellows * blk.max_weeks
+        if required_staffed_weeks > max_assignable_weeks:
+            issues.append(
+                f"⚠️ Block capacity conflict: '{blk.name}' needs "
+                f"{required_staffed_weeks} staffed weeks, but fellows can "
+                f"cover at most {max_assignable_weeks} given max_weeks="
+                f"{blk.max_weeks}. Reduce staffing or raise max_weeks."
+            )
+
+    # --- Check 4: aggregate minimum assignments vs total capacity ---
+    total_required_assignments = sum(
+        max(
+            blk.fellows_needed * config.num_weeks,
+            config.num_fellows * max(blk.min_weeks, 1),
+        )
+        for blk in active_blocks
+    )
+    total_available_assignments = (
+        config.num_fellows * config.num_weeks
+        - config.num_fellows * config.pto_weeks_granted
+    )
+    if total_required_assignments > total_available_assignments:
+        issues.append(
+            f"⚠️ Coverage/minimum conflict: active blocks require at least "
+            f"{total_required_assignments} total assignments, but only "
+            f"{total_available_assignments} working fellow-weeks are "
+            f"available after PTO. Loosen staffing or reduce required blocks."
+        )
+
+    # --- Check 5: blocks with hours > 72 (day-off approximation) ---
     for blk in active_blocks:
         if blk.hours_per_week > 72:
             issues.append(
@@ -96,7 +127,7 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"(> 72 hrs implies no rest day in a 7-day period)."
             )
 
-    # --- Check 4: PTO rankings provided ---
+    # --- Check 6: PTO rankings provided ---
     for fellow in config.fellows:
         if len(fellow.pto_rankings) == 0:
             issues.append(
@@ -113,7 +144,6 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
 
 def solve_schedule(
     config: ScheduleConfig,
-    locked_weeks: dict[int, dict[int, str]] | None = None,
 ) -> ScheduleResult:
     """Build and solve the CP-SAT model for the fellowship schedule.
 
@@ -121,18 +151,11 @@ def solve_schedule(
     ----------
     config : ScheduleConfig
         Fully populated schedule configuration.
-    locked_weeks : dict, optional
-        Pre-locked assignments for mid-year re-solve. Format:
-        ``{fellow_idx: {week: block_name}}``. These assignments are
-        fixed (not changeable by the solver).
-
     Returns
     -------
     ScheduleResult
         The generated schedule, including solver status and metrics.
     """
-    if locked_weeks is None:
-        locked_weeks = {}
 
     # --- Setup ---
     model = cp_model.CpModel()
@@ -164,13 +187,6 @@ def solve_schedule(
         for w in range(config.num_weeks):
             call[f, w] = model.new_bool_var(f"call_f{f}_w{w}")
 
-    # --- Lock pre-assigned weeks (for mid-year re-solve) ---
-    for f_idx, week_map in locked_weeks.items():
-        for w, block_name in week_map.items():
-            if block_name in block_name_to_idx:
-                b_idx = block_name_to_idx[block_name]
-                model.Add(assign[f_idx, w, b_idx] == 1)
-
     # --- Add all constraints ---
 
     # 1. Exactly one assignment per fellow per week
@@ -197,13 +213,10 @@ def solve_schedule(
     # 7. Staffing coverage minimums
     add_staffing_coverage(model, assign, config, num_blocks)
 
-    # 8. Unavailable weeks (maternity leave, etc.)
-    add_unavailable_weeks(model, assign, config, pto_idx)
-
-    # 9. ACGME 80-hour trailing average
+    # 8. ACGME 80-hour trailing average
     add_trailing_hours_cap(model, assign, call, config, num_blocks, pto_idx)
 
-    # 10. 24-hr Saturday call constraints
+    # 9. 24-hr Saturday call constraints
     add_call_constraints(model, assign, call, config, num_blocks, pto_idx)
 
     # --- Objective: maximize PTO preference satisfaction ---

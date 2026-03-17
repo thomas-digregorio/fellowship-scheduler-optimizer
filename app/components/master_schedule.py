@@ -1,8 +1,8 @@
 """Center panel: Master Schedule Grid.
 
-Displays the full 52-week × 9-fellow schedule as an editable grid.
-Users can click cells to change block assignments (overriding the
-solver). Constraint violations are flagged with visual indicators.
+Displays the full 52-week × 9-fellow schedule as a color-coded grid
+that matches the block legend. Manual edits remain available in a
+separate editor below the grid.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import streamlit as st
 
 from src.config import BLOCK_COLORS
 from src.models import ScheduleConfig, ScheduleResult
-from state import get_result, set_result
+from app.state import set_result
 
 
 def render_master_schedule(
@@ -45,36 +45,14 @@ def render_master_schedule(
     # Build the schedule DataFrame
     df = _build_schedule_dataframe(config, result)
 
-    # Render editable grid using st.data_editor
-    # Each cell is a dropdown with all possible block assignments
-    all_states: list[str] = config.all_states
-
-    # Configure columns so each fellow column has a selectbox
-    column_config: dict[str, st.column_config.Column] = {
-        "Week": st.column_config.TextColumn("Week", disabled=True, width=80),
-    }
-    for fellow in config.fellows:
-        column_config[fellow.name] = st.column_config.SelectboxColumn(
-            fellow.name,
-            options=all_states,
-            width=90,
-            required=True,
-        )
-
-    # Show the editable grid
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        use_container_width=True,
-        height=min(800, 35 * len(df) + 40),  # dynamic height
-        num_rows="fixed",
-        key="schedule_grid",
+    st.caption(
+        "The schedule grid uses the same colors as the Block Legend. "
+        "Open edit mode below to override assignments."
     )
 
-    # Check if user made manual edits
-    if not df.equals(edited_df):
-        _apply_manual_edits(config, result, edited_df)
-        st.rerun()
+    _render_colored_schedule_grid(config, df)
+
+    _render_manual_edit_mode(config, result, df)
 
     # Render the call schedule overlay below the grid
     _render_call_overlay(config, result)
@@ -126,6 +104,87 @@ def _build_schedule_dataframe(
     return pd.DataFrame(data)
 
 
+def _render_colored_schedule_grid(
+    config: ScheduleConfig,
+    df: pd.DataFrame,
+) -> None:
+    """Render the main schedule grid with legend-matched block colors."""
+    fellow_columns: list[str] = [f.name for f in config.fellows]
+    styled_df = df.style
+    styled_df = styled_df.set_properties(
+        subset=["Week"],
+        **{
+            "background-color": "#F7F9FB",
+            "color": "#1F2933",
+            "font-weight": "600",
+        },
+    )
+    styled_df = styled_df.map(
+        _style_block_cell,
+        subset=fellow_columns,
+    )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(800, 35 * len(df) + 40),
+        column_config={
+            "Week": st.column_config.TextColumn("Week", width="medium"),
+            **{
+                fellow.name: st.column_config.TextColumn(
+                    fellow.name,
+                    width="small",
+                )
+                for fellow in config.fellows
+            },
+        },
+    )
+
+
+def _render_manual_edit_mode(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    df: pd.DataFrame,
+) -> None:
+    """Render the editable schedule controls in a collapsible section."""
+    with st.expander("✏️ Edit Schedule Assignments", expanded=False):
+        st.caption(
+            "Manual edits update the saved schedule directly. The call table "
+            "and constraint checks are not automatically recalculated."
+        )
+
+        all_states: list[str] = config.all_states
+        column_config: dict[str, st.column_config.Column] = {
+            "Week": st.column_config.TextColumn(
+                "Week",
+                disabled=True,
+                width="medium",
+            ),
+        }
+        for fellow in config.fellows:
+            column_config[fellow.name] = st.column_config.SelectboxColumn(
+                fellow.name,
+                options=all_states,
+                width="small",
+                required=True,
+            )
+
+        edited_df = st.data_editor(
+            df,
+            column_config=column_config,
+            use_container_width=True,
+            hide_index=True,
+            height=min(800, 35 * len(df) + 40),
+            num_rows="fixed",
+            key="schedule_grid_editor",
+        )
+
+        if not df.equals(edited_df):
+            _apply_manual_edits(config, result, edited_df)
+            st.rerun()
+
+
 def _apply_manual_edits(
     config: ScheduleConfig,
     result: ScheduleResult,
@@ -146,6 +205,31 @@ def _apply_manual_edits(
 
     # Persist the edited result
     set_result(result)
+
+
+def _style_block_cell(value: str) -> str:
+    """Return CSS that matches the schedule cell to the block legend."""
+    color = BLOCK_COLORS.get(value, "#FFFFFF")
+    text_color = "#FFFFFF" if _is_dark_color(color) else "#1F2933"
+    return (
+        f"background-color: {color}; "
+        f"color: {text_color}; "
+        "font-weight: 600; "
+        "text-align: center;"
+    )
+
+
+def _is_dark_color(hex_color: str) -> bool:
+    """Return True if the color needs light text for contrast."""
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) != 6:
+        return False
+
+    red = int(hex_color[0:2], 16)
+    green = int(hex_color[2:4], 16)
+    blue = int(hex_color[4:6], 16)
+    brightness = (red * 299 + green * 587 + blue * 114) / 1000
+    return brightness < 145
 
 
 def _render_call_overlay(
