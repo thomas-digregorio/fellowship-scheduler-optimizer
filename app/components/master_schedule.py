@@ -44,6 +44,7 @@ def render_master_schedule(
 
     _render_colored_schedule_grid(config, df, visible_fellows)
     _render_manual_edit_mode(config, result, df, visible_fellows)
+    _render_rotation_counts(config, result, visible_fellows)
     _render_call_overlay(config, result, visible_fellows)
     _render_legend()
 
@@ -225,6 +226,53 @@ def _apply_manual_edits(
             if new_value != result.assignments[fellow_idx][week]:
                 result.assignments[fellow_idx][week] = new_value
     set_result(result)
+
+
+def _build_rotation_counts_dataframe(
+    config: ScheduleConfig,
+    schedule_df: pd.DataFrame,
+    visible_fellows: list[int],
+) -> pd.DataFrame:
+    """Return a per-rotation count table for the visible fellows."""
+
+    rows: list[dict[str, int | str]] = []
+    for block_name in config.block_names:
+        row: dict[str, int | str] = {"Rotation": block_name}
+        for fellow_idx in visible_fellows:
+            fellow_name = config.fellows[fellow_idx].name
+            row[fellow_name] = int((schedule_df[fellow_name] == block_name).sum())
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _render_rotation_counts(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> None:
+    """Render a standalone rotation-count summary for the visible fellows."""
+
+    st.markdown("**Counts**")
+    st.caption("Counts for the currently displayed schedule, by rotation and fellow.")
+    st.dataframe(
+        _build_rotation_counts_dataframe(
+            config,
+            _build_schedule_dataframe(config, result, visible_fellows),
+            visible_fellows,
+        ),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Rotation": st.column_config.TextColumn("Rotation", width="large"),
+            **{
+                config.fellows[fellow_idx].name: st.column_config.NumberColumn(
+                    config.fellows[fellow_idx].name,
+                    format="%d",
+                )
+                for fellow_idx in visible_fellows
+            },
+        },
+    )
 
 
 def _style_block_cell(value: str) -> str:

@@ -6,11 +6,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app.state as app_state
+from app.components.master_schedule import _build_rotation_counts_dataframe
 from app.components.rules_tab import (
     _display_optional_week_index,
     _display_week_index,
@@ -180,6 +182,7 @@ def test_app_renders_and_generates_schedule(
     assert schedule_path.exists()
     assert len(at.dataframe) >= 1
     schedule_tab = next(tab for tab in at.tabs if tab.label == "Master Schedule & Checks")
+    assert any(markdown.value == "**Counts**" for markdown in schedule_tab.markdown)
     objective_breakdown_frames = [
         dataframe.value
         for dataframe in schedule_tab.dataframe
@@ -189,6 +192,13 @@ def test_app_renders_and_generates_schedule(
     ]
     assert objective_breakdown_frames
     assert "Total" in objective_breakdown_frames[0]["Category"].tolist()
+    counts_frames = [
+        dataframe.value
+        for dataframe in schedule_tab.dataframe
+        if "Rotation" in dataframe.value.columns
+    ]
+    assert counts_frames
+    assert "White Consults" in counts_frames[0]["Rotation"].tolist()
     assert any(subheader.value == "✅ Checks" for subheader in at.subheader)
 
 
@@ -405,6 +415,41 @@ def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
     assert pgy1_cath_total.is_active
     assert yn_coverage.name == "Yale Nuclear optional PGY1 slot"
     assert yn_coverage.min_fellows == 0
+
+
+def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
+    """The master schedule counts table should total rotations per visible fellow."""
+
+    config = make_small_ui_config()
+    visible_fellows = [0, 1]
+    schedule_df = pd.DataFrame(
+        {
+            "Week": ["W1", "W2", "W3", "W4"],
+            "PGY1 A": [
+                "White Consults",
+                "Elective",
+                "White Consults",
+                "Research",
+            ],
+            "PGY1 B": [
+                "Elective",
+                "White Consults",
+                "Research",
+                "White Consults",
+            ],
+        }
+    )
+
+    counts_df = _build_rotation_counts_dataframe(config, schedule_df, visible_fellows)
+    counts_by_rotation = {
+        row["Rotation"]: row for row in counts_df.to_dict("records")
+    }
+
+    assert counts_by_rotation["White Consults"]["PGY1 A"] == 2
+    assert counts_by_rotation["White Consults"]["PGY1 B"] == 2
+    assert counts_by_rotation["Research"]["PGY1 A"] == 1
+    assert counts_by_rotation["Research"]["PGY1 B"] == 1
+    assert counts_by_rotation["CCU"]["PGY1 A"] == 0
 
 
 def test_rules_tab_week_windows_are_1_based_in_the_ui() -> None:
