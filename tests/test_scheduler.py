@@ -89,7 +89,6 @@ def legacy_small_config() -> ScheduleConfig:
         start_date=date(2026, 7, 1),
         pto_weeks_granted=1,
         pto_weeks_to_rank=3,
-        pto_blackout_weeks=[0],
         max_concurrent_pto=1,
         max_consecutive_night_float=2,
         call_day="saturday",
@@ -142,7 +141,6 @@ def structured_config() -> ScheduleConfig:
         start_date=date(2026, 7, 13),
         pto_weeks_granted=1,
         pto_weeks_to_rank=1,
-        pto_blackout_weeks=[],
         max_concurrent_pto=1,
         max_consecutive_night_float=2,
         call_day="saturday",
@@ -367,15 +365,6 @@ class TestLegacyConstraints:
             }
             assert not (required - completed)
 
-    def test_pto_blackout(
-        self,
-        legacy_small_config: ScheduleConfig,
-        legacy_solved_result: ScheduleResult,
-    ) -> None:
-        for fellow_idx in range(legacy_small_config.num_fellows):
-            for week in legacy_small_config.pto_blackout_weeks:
-                assert legacy_solved_result.assignments[fellow_idx][week] != "PTO"
-
     def test_max_concurrent_pto(
         self,
         legacy_small_config: ScheduleConfig,
@@ -507,7 +496,7 @@ class TestStructuredRules:
                     for fellow_idx in nf_fellows
                 )
 
-    def test_cohort_pto_cap_and_blackout(
+    def test_cohort_pto_cap_and_restricted_windows(
         self,
         structured_config: ScheduleConfig,
         structured_result: ScheduleResult,
@@ -556,7 +545,6 @@ class TestStructuredRules:
             start_date=date(2026, 7, 13),
             pto_weeks_granted=1,
             pto_weeks_to_rank=1,
-            pto_blackout_weeks=[],
             max_concurrent_pto=1,
             max_consecutive_night_float=2,
             call_day="saturday",
@@ -614,7 +602,6 @@ class TestStructuredRules:
             start_date=date(2026, 7, 13),
             pto_weeks_granted=1,
             pto_weeks_to_rank=2,
-            pto_blackout_weeks=[],
             max_concurrent_pto=1,
             max_consecutive_night_float=2,
             call_day="saturday",
@@ -662,7 +649,6 @@ class TestStructuredRules:
             start_date=date(2026, 7, 13),
             pto_weeks_granted=1,
             pto_weeks_to_rank=1,
-            pto_blackout_weeks=[],
             max_concurrent_pto=1,
             max_consecutive_night_float=2,
             call_day="saturday",
@@ -728,7 +714,6 @@ class TestStructuredRules:
             start_date=date(2026, 7, 13),
             pto_weeks_granted=0,
             pto_weeks_to_rank=0,
-            pto_blackout_weeks=[],
             max_concurrent_pto=1,
             max_consecutive_night_float=2,
             call_day="saturday",
@@ -784,7 +769,6 @@ class TestStructuredRules:
             start_date=date(2026, 7, 13),
             pto_weeks_granted=0,
             pto_weeks_to_rank=0,
-            pto_blackout_weeks=[],
             max_concurrent_pto=1,
             max_consecutive_night_float=2,
             call_day="saturday",
@@ -811,8 +795,8 @@ class TestStructuredRules:
         assert any("Emily" in issue and "matching fellow" in issue for issue in issues)
 
 
-class TestSourceBackedDefaults:
-    """The shipped defaults should reflect scheduling_rules.txt."""
+class TestBuiltInDefaults:
+    """The shipped defaults should reflect the built-in rule set."""
 
     def test_default_config_uses_source_cohort_counts_and_rules(self) -> None:
         config = get_default_config()

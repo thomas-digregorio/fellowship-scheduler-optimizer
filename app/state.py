@@ -67,15 +67,14 @@ def _normalize_loaded_config(
         return (
             get_default_config(),
             (
-                "Loaded legacy saved data and reset it to the cohort-aware defaults "
-                "from scheduling_rules.txt."
+                "Loaded legacy saved data and reset it to the cohort-aware built-in defaults."
             ),
         )
 
     updated_messages: list[str] = []
     if _upgrade_source_backed_rule_defaults(config):
         updated_messages.append(
-            "Updated saved source-backed rules to match the latest scheduling_rules.txt defaults."
+            "Updated saved default rules to match the latest built-in defaults."
         )
     if updated_messages:
         return config, " ".join(updated_messages)
@@ -159,9 +158,12 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             and rule.min_weeks == 10
             and rule.max_weeks in {11, 12}
         ):
-            rule.max_weeks = 12
-            rule.is_active = True
-            changed = True
+            if rule.max_weeks != 12:
+                rule.max_weeks = 12
+                changed = True
+            if not rule.is_active:
+                rule.is_active = True
+                changed = True
         elif (
             rule.name == "F1 Yale Nuclear"
             and rule.block_names == ["Yale Nuclear"]
@@ -438,6 +440,13 @@ def set_issues(issues: list[str]) -> None:
 def persist_config() -> None:
     """Save the current config to disk."""
     save_config(get_config(), CONFIG_PATH)
+    st.session_state["dirty"] = False
+
+
+def is_dirty() -> bool:
+    """Return True when the config has changed since the last save/solve."""
+
+    return bool(st.session_state.get("dirty", False))
 
 
 def get_notice() -> str | None:

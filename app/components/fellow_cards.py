@@ -7,7 +7,7 @@ from datetime import timedelta
 import streamlit as st
 
 from src.config import BLOCK_COLORS
-from src.models import ScheduleConfig, ScheduleResult
+from src.models import ScheduleConfig, ScheduleResult, TrainingYear
 
 
 def render_fellow_cards(
@@ -22,8 +22,19 @@ def render_fellow_cards(
         st.info("Generate a schedule to see fellow details.")
         return
 
-    for fellow_idx, _fellow in enumerate(config.fellows):
-        _render_single_card(config, result, fellow_idx)
+    for year in TrainingYear:
+        fellow_indices = [
+            fellow_idx
+            for fellow_idx, fellow in enumerate(config.fellows)
+            if fellow.training_year == year
+        ]
+        if not fellow_indices:
+            continue
+
+        with st.container(border=True):
+            st.markdown(f"#### {year.value} Fellows")
+            for fellow_idx in fellow_indices:
+                _render_single_card(config, result, fellow_idx)
 
 
 def _render_single_card(

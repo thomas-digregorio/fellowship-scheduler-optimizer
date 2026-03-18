@@ -80,7 +80,6 @@ fellowship-scheduler/
 | Block completion | Every fellow completes all 14 blocks ≥1× |
 | Staffing coverage | Configurable min fellows per block per week |
 | 80-hour trailing average | ACGME 4-week rolling average ≤ 80 hrs |
-| PTO blackout | No PTO during orientation (configurable) |
 | Concurrent PTO cap | Max 1 fellow on PTO per week (configurable) |
 | Call exclusions | No call during Night Float or PTO |
 | Call fairness | ~5-6 call shifts per fellow per year |

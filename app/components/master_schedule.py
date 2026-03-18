@@ -16,10 +16,10 @@ def render_master_schedule(
     config: ScheduleConfig,
     result: ScheduleResult | None,
     training_year_filter: TrainingYear | None = None,
+    *,
+    edit_mode: bool = False,
 ) -> None:
     """Render the schedule grid, optionally filtered to one cohort."""
-
-    st.subheader("📋 Master Schedule")
 
     if result is None:
         st.info(
@@ -33,20 +33,32 @@ def render_master_schedule(
         st.warning("No fellows match the selected training-year filter.")
         return
 
-    _render_status_banner(result)
-    _render_objective_breakdown(result)
     df = _build_schedule_dataframe(config, result, visible_fellows)
     label = "All cohorts" if training_year_filter is None else training_year_filter.value
-    st.caption(
-        f"Showing schedule for **{label}**. Open edit mode below to override "
-        f"assignments for the displayed fellows."
-    )
 
-    _render_colored_schedule_grid(config, df, visible_fellows)
-    _render_manual_edit_mode(config, result, df, visible_fellows)
-    _render_rotation_counts(config, result, visible_fellows)
-    _render_call_overlay(config, result, visible_fellows)
-    _render_legend()
+    with st.container(border=True):
+        st.markdown("#### Schedule Grid")
+        st.caption(
+            f"Showing schedule for **{label}**. Use edit mode from the workspace header "
+            f"to override assignments for the displayed fellows."
+        )
+        _render_colored_schedule_grid(config, df, visible_fellows)
+
+    with st.container(border=True):
+        st.subheader("📋 Master Schedule")
+        _render_status_banner(result)
+        _render_objective_breakdown(result)
+
+    if edit_mode:
+        with st.container(border=True):
+            st.markdown("#### Edit Mode")
+            _render_manual_edit_mode(config, result, df, visible_fellows)
+
+    with st.container(border=True):
+        _render_rotation_counts(config, result, visible_fellows)
+
+    with st.container(border=True):
+        _render_call_overlay(config, result, visible_fellows)
 
 
 def _visible_fellow_indices(
@@ -67,20 +79,11 @@ def _visible_fellow_indices(
 def _render_status_banner(result: ScheduleResult) -> None:
     """Show a colored banner with the solver status."""
 
-    status_colors = {
-        "optimal": "success",
-        "feasible": "warning",
-        "infeasible": "error",
-        "timeout": "warning",
-        "error": "error",
-    }
     status_name = result.solver_status.value
-    message = (
-        f"**Solver status:** {status_name.upper()} | "
-        f"**Solve time:** {result.solve_time_seconds:.1f}s | "
-        f"**Objective:** {result.objective_value:.0f}"
-    )
-    getattr(st, status_colors.get(status_name, "info"))(message)
+    metric_left, metric_middle, metric_right = st.columns(3)
+    metric_left.metric("Solver status", status_name.upper())
+    metric_middle.metric("Solve time", f"{result.solve_time_seconds:.1f}s")
+    metric_right.metric("Objective", f"{result.objective_value:.0f}")
 
 
 def _render_objective_breakdown(result: ScheduleResult) -> None:
@@ -174,41 +177,40 @@ def _render_manual_edit_mode(
 ) -> None:
     """Render manual edit controls for the visible fellows."""
 
-    with st.expander("✏️ Edit Displayed Assignments", expanded=False):
-        st.caption(
-            "Manual edits update the saved schedule directly. Constraint checks "
-            "and soft-rule scoring are not recalculated after manual edits."
+    st.caption(
+        "Manual edits update the saved schedule directly. Constraint checks and "
+        "soft-rule scoring are not recalculated after manual edits."
+    )
+
+    column_config: dict[str, st.column_config.Column] = {
+        "Week": st.column_config.TextColumn(
+            "Week",
+            disabled=True,
+            width="medium",
+        ),
+    }
+    for fellow_idx in visible_fellows:
+        fellow_name = config.fellows[fellow_idx].name
+        column_config[fellow_name] = st.column_config.SelectboxColumn(
+            fellow_name,
+            options=config.all_states,
+            width="small",
+            required=True,
         )
 
-        column_config: dict[str, st.column_config.Column] = {
-            "Week": st.column_config.TextColumn(
-                "Week",
-                disabled=True,
-                width="medium",
-            ),
-        }
-        for fellow_idx in visible_fellows:
-            fellow_name = config.fellows[fellow_idx].name
-            column_config[fellow_name] = st.column_config.SelectboxColumn(
-                fellow_name,
-                options=config.all_states,
-                width="small",
-                required=True,
-            )
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        use_container_width=True,
+        hide_index=True,
+        height=min(800, 35 * len(df) + 40),
+        num_rows="fixed",
+        key=f"schedule_grid_editor_{'_'.join(str(idx) for idx in visible_fellows)}",
+    )
 
-        edited_df = st.data_editor(
-            df,
-            column_config=column_config,
-            use_container_width=True,
-            hide_index=True,
-            height=min(800, 35 * len(df) + 40),
-            num_rows="fixed",
-            key=f"schedule_grid_editor_{'_'.join(str(idx) for idx in visible_fellows)}",
-        )
-
-        if not df.equals(edited_df):
-            _apply_manual_edits(config, result, edited_df, visible_fellows)
-            st.rerun()
+    if not df.equals(edited_df):
+        _apply_manual_edits(config, result, edited_df, visible_fellows)
+        st.rerun()
 
 
 def _apply_manual_edits(
@@ -252,7 +254,7 @@ def _render_rotation_counts(
 ) -> None:
     """Render a standalone rotation-count summary for the visible fellows."""
 
-    st.markdown("**Counts**")
+    st.markdown("#### Counts")
     st.caption("Counts for the currently displayed schedule, by rotation and fellow.")
     st.dataframe(
         _build_rotation_counts_dataframe(
@@ -308,15 +310,14 @@ def _render_call_overlay(
 ) -> None:
     """Show call assignments for the displayed fellows."""
 
+    st.markdown("#### 24-Hr Call Assignments")
     if not any(
         result.call_assignments[fellow_idx][week]
         for fellow_idx in visible_fellows
         for week in range(config.num_weeks)
     ):
+        st.caption("No displayed fellows are assigned 24-hr call in this schedule view.")
         return
-
-    st.markdown("---")
-    st.markdown("**📞 24-Hr Call Assignments (Displayed Cohort)**")
 
     call_rows: list[dict[str, str]] = []
     for week in range(config.num_weeks):
@@ -345,20 +346,4 @@ def _render_call_overlay(
             use_container_width=True,
             height=220,
             hide_index=True,
-        )
-
-
-def _render_legend() -> None:
-    """Show a color legend for block names."""
-
-    st.markdown("---")
-    st.markdown("**🎨 Block Legend**")
-    columns = st.columns(5)
-    for index, (name, color) in enumerate(BLOCK_COLORS.items()):
-        column = columns[index % 5]
-        column.markdown(
-            f'<span style="background-color:{color}; color:white; '
-            f'padding:2px 8px; border-radius:4px; font-size:0.8em;">'
-            f"{name}</span>",
-            unsafe_allow_html=True,
         )

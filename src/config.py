@@ -50,7 +50,7 @@ ACADEMIC_YEAR_START = date(2026, 7, 13)
 NUM_WEEKS = 52
 FIRST_YEAR_CCU_START_WEEK = 4
 FIRST_YEAR_NF_START_WEEK = 5
-FIRST_YEAR_PTO_BLACKOUT_END_WEEK = 7
+FIRST_YEAR_PTO_RESTRICTED_END_WEEK = 7
 
 
 def get_default_blocks() -> list[BlockConfig]:
@@ -144,7 +144,7 @@ def get_default_fellows(
 
 
 def get_default_coverage_rules() -> list[CoverageRule]:
-    """Return default staffing rules derived from scheduling_rules.txt."""
+    """Return default staffing rules for the built-in rule set."""
 
     any_year = [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
     return [
@@ -422,7 +422,7 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             min_weeks=0,
             max_weeks=0,
             start_week=0,
-            end_week=FIRST_YEAR_PTO_BLACKOUT_END_WEEK,
+            end_week=FIRST_YEAR_PTO_RESTRICTED_END_WEEK,
         ),
         WeekCountRule(
             name="F1 White Consults",
@@ -712,7 +712,6 @@ def get_default_config() -> ScheduleConfig:
         start_date=ACADEMIC_YEAR_START,
         pto_weeks_granted=4,
         pto_weeks_to_rank=6,
-        pto_blackout_weeks=[],
         max_concurrent_pto=12,
         max_consecutive_night_float=2,
         call_day="saturday",

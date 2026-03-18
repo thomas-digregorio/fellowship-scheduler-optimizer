@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -27,40 +26,18 @@ from src.models import (
 )
 
 
-RULES_FILE_PATH = Path(__file__).resolve().parents[2] / "scheduling_rules.txt"
-
-
 def render_rules_tab(config: ScheduleConfig) -> None:
     """Render schedule config, cohort setup, and rule summaries/editors."""
 
     st.subheader("📏 Rules")
-    st.caption(
-        "Schedule configuration, cohort metadata, and solver rules all live here. "
-        "Hard rules become mandatory constraints. Soft rules add weighted bonuses "
-        "or penalties to the objective."
-    )
 
-    hard_rule_count = (
-        len(config.coverage_rules)
-        + len(config.eligibility_rules)
-        + len(config.week_count_rules)
-        + len(config.cohort_limit_rules)
-        + len(config.individual_fellow_requirement_rules)
-        + len(config.prerequisite_rules)
-        + len(config.forbidden_transition_rules)
-    )
-    active_soft_rules = [rule for rule in config.soft_sequence_rules if rule.is_active]
-    active_bonus_weight = sum(rule.weight for rule in active_soft_rules if rule.weight > 0)
-    active_penalty_weight = sum(-rule.weight for rule in active_soft_rules if rule.weight < 0)
-
-    summary_left, summary_middle, summary_right, summary_far_right = st.columns(4)
-    summary_left.metric("Hard rules", hard_rule_count)
-    summary_middle.metric("Soft rules", len(config.soft_sequence_rules))
-    summary_right.metric("Active bonus weight", active_bonus_weight)
-    summary_far_right.metric("Active penalty weight", active_penalty_weight)
-
-    program_tab, f1_tab, s2_tab, t3_tab, hard_tab, soft_tab = st.tabs(
-        ["Program Setup", "F1", "S2", "T3", "Hard Rules", "Soft Rules"]
+    program_tab, f1_tab, s2_tab, t3_tab = st.tabs(
+        [
+            "Program-wide Rules",
+            "F1 Fellow Rules",
+            "S2 Fellow Rules",
+            "T3 Fellow Rules",
+        ]
     )
 
     with program_tab:
@@ -75,19 +52,6 @@ def render_rules_tab(config: ScheduleConfig) -> None:
     with t3_tab:
         _render_cohort_setup(config, TrainingYear.T3)
 
-    with hard_tab:
-        _render_hard_rules_summary(config)
-
-    with soft_tab:
-        st.info(
-            "The solver adds each active soft-rule weight whenever the adjacent "
-            "pattern matches. Positive weights are bonuses. Negative weights are penalties."
-        )
-        config.soft_sequence_rules = _render_soft_sequence_rules_editor(
-            config.soft_sequence_rules,
-            key_prefix="all_soft",
-        )
-
     config.num_fellows = len(config.fellows)
     set_config(config)
 
@@ -95,15 +59,8 @@ def render_rules_tab(config: ScheduleConfig) -> None:
 def _render_program_setup(config: ScheduleConfig) -> None:
     """Render global schedule config, shared rules, and block metadata."""
 
-    configuration_tab, shared_rules_tab, source_tab = st.tabs(
-        ["Configuration", "Shared Hard Rules", "Source Reference"]
-    )
-
-    with configuration_tab:
-        st.caption(
-            "Combined program-wide schedule settings and shared block catalog metadata."
-        )
-        st.markdown("**Global Schedule Config**")
+    with st.container(border=True):
+        st.markdown("#### Schedule Basics")
         left_col, middle_col, right_col = st.columns(3)
         config.start_date = left_col.date_input(
             "Academic year start",
@@ -126,6 +83,8 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_timeout",
         )
 
+    with st.container(border=True):
+        st.markdown("#### PTO & Coverage Limits")
         left_col, middle_col, right_col = st.columns(3)
         config.pto_weeks_granted = left_col.number_input(
             "PTO weeks granted",
@@ -149,6 +108,8 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_max_pto",
         )
 
+    with st.container(border=True):
+        st.markdown("#### Call & Hours")
         left_col, middle_col, right_col = st.columns(3)
         config.max_consecutive_night_float = left_col.number_input(
             "Max consecutive Night Float weeks",
@@ -200,41 +161,20 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_call_excluded",
         )
 
-        st.markdown("**Global PTO Blackout Weeks**")
-        week_options = _build_week_options(config)
-        selected_blackouts = st.multiselect(
-            "Weeks blocked for every cohort",
-            options=list(week_options.keys()),
-            default=[
-                label
-                for label, week in week_options.items()
-                if week in config.pto_blackout_weeks
-            ],
-            key="program_global_blackouts",
-        )
-        config.pto_blackout_weeks = [week_options[label] for label in selected_blackouts]
-        st.caption(
-            "The source file only defines a same-year PTO cap. The global PTO cap "
-            "above is an additional program-wide safety valve."
-        )
-
-        st.divider()
-        st.markdown("**Global Block Metadata**")
+    with st.container(border=True):
+        st.markdown("#### Block Catalog")
         st.caption(
             "These fields apply to the shared block catalog. Cohort-specific staffing, "
             "eligibility, and per-fellow block requirements are managed in the cohort "
-            "Configuration tabs and the shared hard-rule editor."
+            "Configuration tabs. Shared multi-cohort hard rules are edited below."
         )
         config.blocks = _render_block_metadata_editor(config.blocks, key_prefix="program_blocks")
-        _render_structured_staffing_summary(config)
 
-    with shared_rules_tab:
-        st.markdown("**Shared Hard Rules**")
-        st.caption(
-            "Edit rules that span multiple cohorts here. Exact single-cohort rules are edited "
-            "inside the F1 / S2 / T3 tabs."
-        )
-
+    st.caption(
+        "Edit rules that span multiple cohorts here. Exact single-cohort rules are edited "
+        "inside the F1 / S2 / T3 tabs."
+    )
+    with st.container(border=True):
         shared_coverage = _select_shared_coverage_rules(config.coverage_rules)
         config.coverage_rules = _merge_coverage_rules(
             config.coverage_rules,
@@ -247,6 +187,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             predicate=_is_shared_coverage_rule,
         )
 
+    with st.container(border=True):
         shared_eligibility = _select_shared_eligibility_rules(config.eligibility_rules)
         config.eligibility_rules = _merge_eligibility_rules(
             config.eligibility_rules,
@@ -259,6 +200,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             predicate=_is_shared_eligibility_rule,
         )
 
+    with st.container(border=True):
         shared_week_counts = _select_shared_year_rules(config.week_count_rules)
         config.week_count_rules = _merge_year_rules(
             config.week_count_rules,
@@ -271,26 +213,60 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             predicate=_is_shared_year_rule,
         )
 
-    with source_tab:
-        _render_source_reference(config)
-
+    with st.container(border=True):
+        shared_soft_rules = _select_shared_soft_rules(config.soft_sequence_rules)
+        config.soft_sequence_rules = _merge_year_rules(
+            config.soft_sequence_rules,
+            _render_soft_sequence_rules_editor(
+                shared_soft_rules,
+                key_prefix="shared_soft",
+                title="Weighted Soft Rules",
+                caption=(
+                    "Cross-cohort weighted bonuses or penalties that apply to more than "
+                    "one cohort."
+                ),
+            ),
+            predicate=_is_shared_soft_rule,
+        )
 
 def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
     """Render cohort-specific schedule config and block metadata."""
 
-    (configuration_tab,) = st.tabs(["Configuration"])
+    st.caption(
+        f"Combined cohort roster, PTO, and exact {year.value} block-rule configuration."
+    )
 
-    with configuration_tab:
-        st.caption(
-            f"Combined cohort roster, PTO, and exact {year.value} block-rule configuration."
-        )
-        st.markdown(f"**{year.value} Schedule Config**")
-        cohort_counts = config.cohort_counts
+    cohort_counts = config.cohort_counts
+    target_count = int(st.session_state.get(f"{year.value}_count", cohort_counts[year]))
+    updated_counts = cohort_counts.copy()
+    updated_counts[year] = target_count
+    _sync_fellows_by_year(
+        config,
+        updated_counts[TrainingYear.F1],
+        updated_counts[TrainingYear.S2],
+        updated_counts[TrainingYear.T3],
+    )
+
+    fellows_in_year = [
+        (index, fellow)
+        for index, fellow in enumerate(config.fellows)
+        if fellow.training_year == year
+    ]
+
+    with st.container(border=True):
+        st.markdown("#### Roster, PTO Preferences, and Availability")
+        if not fellows_in_year:
+            st.info(f"No fellows are currently configured for {year.value}.")
+        else:
+            _render_fellow_editors(config, year)
+
+    with st.container(border=True):
+        st.markdown(f"#### {year.value} Configuration")
         target_count = st.number_input(
             f"{year.value} fellows",
             min_value=0,
             max_value=30,
-            value=cohort_counts[year],
+            value=target_count,
             key=f"{year.value}_count",
         )
         updated_counts = cohort_counts.copy()
@@ -309,6 +285,7 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         ]
         st.caption(f"{len(fellows_in_year)} fellows currently assigned to {year.value}.")
 
+    with st.container(border=True):
         cohort_limits = [
             rule
             for rule in config.cohort_limit_rules
@@ -325,6 +302,7 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
             predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
         )
 
+    with st.container(border=True):
         pto_window_rules = [
             rule
             for rule in config.week_count_rules
@@ -337,20 +315,14 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
                 pto_window_rules,
                 key_prefix=f"{year.value}_pto_windows",
                 title="Cohort PTO Windows",
-                caption="Use PTO week-count rules to encode cohort-specific PTO blackout windows.",
+                caption="Use PTO week-count rules to encode cohort-specific PTO restricted windows.",
             ),
             predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year)
             and _is_pto_rule(rule.block_names),
         )
 
-        st.markdown("**Roster Names, PTO Preferences, and Availability**")
-        if not fellows_in_year:
-            st.info(f"No fellows are currently configured for {year.value}.")
-        else:
-            _render_fellow_editors(config, year)
-
-        st.divider()
-        st.markdown(f"**{year.value} Block Metadata**")
+    with st.container(border=True):
+        st.markdown(f"#### {year.value} Block Rules")
         st.caption(
             "These are the exact single-cohort hard rules wired into the solver for "
             f"{year.value}. Shared multi-cohort rules stay in Program Setup."
@@ -438,7 +410,7 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
             predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
         )
 
-        st.divider()
+    with st.container(border=True):
         individual_rules = [
             rule
             for rule in config.individual_fellow_requirement_rules
@@ -455,171 +427,28 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
             predicate=lambda rule: rule.training_year == year,
         )
 
-        st.divider()
+    with st.container(border=True):
+        cohort_soft_rules = [
+            rule
+            for rule in config.soft_sequence_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.soft_sequence_rules = _merge_year_rules(
+            config.soft_sequence_rules,
+            _render_soft_sequence_rules_editor(
+                cohort_soft_rules,
+                key_prefix=f"{year.value}_soft",
+                title=f"{year.value} Weighted Soft Rules",
+                caption=(
+                    f"Weighted bonuses or penalties applied only to {year.value} schedules."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+
+    with st.container(border=True):
         _render_pto_preference_weights_editor(config, year)
-
-
-def _render_source_reference(config: ScheduleConfig) -> None:
-    """Render the scheduling_rules.txt source file and mapped examples."""
-
-    st.markdown("**Source Reference: scheduling_rules.txt**")
-    st.caption(
-        "The default cohort counts, coverage rules, F1 requirements, and soft-rule "
-        "weights were loaded from this source file."
-    )
-
-    hard_col, soft_col = st.columns(2)
-    with hard_col:
-        st.markdown("**Hard Rule Examples**")
-        st.markdown(
-            "- `white consults- 1 First year Fellow` -> `CoverageRule`\n"
-            "- `No vacation in the first 2 months for first year fellows` -> `WeekCountRule` on `PTO`\n"
-            "- `All first year fellows must complete ... before having a Night Float rotation` -> `PrerequisiteRule`\n"
-            "- `Night float cannot come after ... vacation` -> `ForbiddenTransitionRule`"
-        )
-    with soft_col:
-        st.markdown("**Soft Rule Weight Examples**")
-        st.markdown(
-            "- `CHF should be immediately before the 1st night float rotation if possible` -> `+30` bonus\n"
-            "- `1 week of Research should be before or after 1 week vacation blocks if possible` -> `+12` bonus\n"
-            "- `4 weeks of vacation ideally divided into 1 two-week vacation ...` -> `+8` bonus for `PTO -> PTO` adjacency"
-        )
-
-    imported_but_inactive = [
-        rule.name
-        for rule in config.week_count_rules
-        if not rule.is_active and rule.name.startswith("F1 ")
-    ] + [
-        rule.name
-        for rule in config.prerequisite_rules + config.forbidden_transition_rules
-        if not rule.is_active
-    ]
-    if imported_but_inactive:
-        st.warning(
-            "Some source rules are loaded but inactive by default because the full "
-            "rule set in `scheduling_rules.txt` over-constrains the schedule when "
-            "combined. They remain editable and can be activated selectively."
-        )
-
-    if RULES_FILE_PATH.exists():
-        with st.expander("View scheduling_rules.txt", expanded=False):
-            st.code(RULES_FILE_PATH.read_text(encoding="utf-8"), language="text")
-    else:
-        st.info("Could not find `scheduling_rules.txt` in the project root.")
-
-
-def _render_hard_rules_summary(config: ScheduleConfig) -> None:
-    """Render a read-only summary of every enforced hard rule."""
-
-    st.info(
-        "This page shows the hard rules currently wired into the solver. Edit exact "
-        "single-cohort hard rules in the F1 / S2 / T3 tabs and cross-cohort hard rules in "
-        "Program Setup."
-    )
-
-    _render_summary_table(
-        "Coverage Rules",
-        [
-            {
-                "Name": rule.name,
-                "Block": rule.block_name,
-                "Eligible Years": _years_to_text(rule.eligible_years),
-                "Min Fellows": rule.min_fellows,
-                "Max Fellows": rule.max_fellows,
-                "Start Week": _display_week_index(rule.start_week),
-                "End Week": _display_optional_week_index(rule.end_week),
-                "Active": rule.is_active,
-            }
-            for rule in config.coverage_rules
-        ],
-    )
-    _render_summary_table(
-        "Eligibility Rules",
-        [
-            {
-                "Name": rule.name,
-                "Blocks": _list_to_text(rule.block_names),
-                "Allowed Years": _years_to_text(rule.allowed_years),
-                "Start Week": _display_week_index(rule.start_week),
-                "End Week": _display_optional_week_index(rule.end_week),
-                "Active": rule.is_active,
-            }
-            for rule in config.eligibility_rules
-        ],
-    )
-    _render_summary_table(
-        "Week Count Rules",
-        [
-            {
-                "Name": rule.name,
-                "Years": _years_to_text(rule.applicable_years),
-                "Blocks": _list_to_text(rule.block_names),
-                "Min Weeks": rule.min_weeks,
-                "Max Weeks": rule.max_weeks,
-                "Start Week": _display_week_index(rule.start_week),
-                "End Week": _display_optional_week_index(rule.end_week),
-                "Each Fellow": rule.applies_to_each_fellow,
-                "Active": rule.is_active,
-            }
-            for rule in config.week_count_rules
-        ],
-    )
-    _render_summary_table(
-        "Cohort Limit Rules",
-        [
-            {
-                "Name": rule.name,
-                "Years": _years_to_text(rule.applicable_years),
-                "State": rule.state_name,
-                "Max Fellows": rule.max_fellows,
-                "Start Week": _display_week_index(rule.start_week),
-                "End Week": _display_optional_week_index(rule.end_week),
-                "Active": rule.is_active,
-            }
-            for rule in config.cohort_limit_rules
-        ],
-    )
-    _render_summary_table(
-        "Individual Fellow Requirements",
-        [
-            {
-                "Cohort": rule.training_year.value,
-                "Fellow": rule.fellow_name,
-                "Block": rule.block_name,
-                "Min Weeks": rule.min_weeks,
-                "Max Weeks": rule.max_weeks,
-                "Active": rule.is_active,
-            }
-            for rule in config.individual_fellow_requirement_rules
-        ],
-    )
-    _render_summary_table(
-        "Prerequisite Rules",
-        [
-            {
-                "Name": rule.name,
-                "Years": _years_to_text(rule.applicable_years),
-                "Target Block": rule.target_block,
-                "Prerequisites": _list_to_text(rule.prerequisite_blocks),
-                "Min Each": rule.prerequisite_min_weeks,
-                "Active": rule.is_active,
-            }
-            for rule in config.prerequisite_rules
-        ],
-    )
-    _render_summary_table(
-        "Forbidden Transition Rules",
-        [
-            {
-                "Name": rule.name,
-                "Years": _years_to_text(rule.applicable_years),
-                "Target Block": rule.target_block,
-                "Forbidden Previous": _list_to_text(rule.forbidden_previous_blocks),
-                "Active": rule.is_active,
-            }
-            for rule in config.forbidden_transition_rules
-        ],
-    )
 
 
 def _render_summary_table(title: str, rows: list[dict[str, object]]) -> None:
@@ -650,33 +479,6 @@ def _render_summary_table(title: str, rows: list[dict[str, object]]) -> None:
     )
 
 
-def _render_structured_staffing_summary(config: ScheduleConfig) -> None:
-    """Show the peak structured coverage load."""
-
-    available = len(config.fellows)
-    weekly_required = [0] * config.num_weeks
-    for rule in config.coverage_rules:
-        if not rule.is_active:
-            continue
-        end_week = config.num_weeks - 1 if rule.end_week is None else min(
-            rule.end_week,
-            config.num_weeks - 1,
-        )
-        for week in range(max(0, rule.start_week), end_week + 1):
-            weekly_required[week] += rule.min_fellows
-    peak_required = max(weekly_required, default=0)
-    if peak_required > available:
-        st.error(
-            f"Structured staffing warning: peak minimum coverage is {peak_required} "
-            f"fellows/week but only {available} total fellows exist."
-        )
-    else:
-        st.success(
-            f"Structured staffing check: peak minimum coverage is {peak_required} "
-            f"fellows/week with {available} total fellows available."
-        )
-
-
 def _render_fellow_editors(config: ScheduleConfig, year: TrainingYear) -> None:
     """Render roster and PTO editors for one cohort."""
 
@@ -685,8 +487,7 @@ def _render_fellow_editors(config: ScheduleConfig, year: TrainingYear) -> None:
         for index, fellow in enumerate(config.fellows)
         if fellow.training_year == year
     ]
-    week_options = _build_week_options(config, exclude_global_blackouts=False)
-    rankable_week_options = _build_week_options(config, exclude_global_blackouts=True)
+    week_options = _build_week_options(config)
 
     st.markdown("**Roster Names**")
     st.caption(f"Edit the fellow names for {year.value}.")
@@ -725,20 +526,18 @@ def _render_fellow_editors(config: ScheduleConfig, year: TrainingYear) -> None:
 
             current_labels: list[str] = []
             for week in fellow.pto_rankings:
-                for label, week_idx in rankable_week_options.items():
+                for label, week_idx in week_options.items():
                     if week == week_idx:
                         current_labels.append(label)
                         break
             selected_ranked = st.multiselect(
                 "Ranked PTO weeks",
-                options=list(rankable_week_options.keys()),
+                options=list(week_options.keys()),
                 default=current_labels,
                 max_selections=config.pto_weeks_to_rank,
                 key=f"{year.value}_fellow_pto_{fellow_idx}",
             )
-            fellow.pto_rankings = [
-                rankable_week_options[label] for label in selected_ranked
-            ]
+            fellow.pto_rankings = [week_options[label] for label in selected_ranked]
 
             unavailable = st.multiselect(
                 "Unavailable weeks",
@@ -1298,18 +1097,22 @@ def _render_soft_sequence_rules_editor(
     rules: list[SoftSequenceRule],
     *,
     key_prefix: str,
+    title: str = "Weighted Soft Rules",
+    caption: str = (
+        "Each time the adjacent sequence matches, the solver adds the configured "
+        "weight to the objective. Positive = bonus. Negative = penalty."
+    ),
+    fixed_years: list[TrainingYear] | None = None,
 ) -> list[SoftSequenceRule]:
     """Render the weighted soft-rule table."""
 
-    st.markdown("**Weighted Soft Rules**")
-    st.caption(
-        "Each time the adjacent sequence matches, the solver adds the configured "
-        "weight to the objective. Positive = bonus. Negative = penalty."
-    )
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
     st.caption("Week windows in this table use human-readable week numbers starting at 1.")
     columns = [
         "Name",
-        "Years",
         "Left States",
         "Right States",
         "Direction",
@@ -1319,10 +1122,11 @@ def _render_soft_sequence_rules_editor(
         "End Week",
         "Active",
     ]
+    if show_years:
+        columns.insert(1, "Years")
     rows = [
         {
             "Name": rule.name,
-            "Years": _years_to_text(rule.applicable_years),
             "Left States": _list_to_text(rule.left_states),
             "Right States": _list_to_text(rule.right_states),
             "Direction": rule.direction.value,
@@ -1331,6 +1135,11 @@ def _render_soft_sequence_rules_editor(
             "Start Week": _display_week_index(rule.start_week),
             "End Week": _display_optional_week_index(rule.end_week),
             "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
         }
         for rule in rules
     ]
@@ -1369,7 +1178,11 @@ def _render_soft_sequence_rules_editor(
         updated_rules.append(
             SoftSequenceRule(
                 name=str(row["Name"]).strip(),
-                applicable_years=_parse_years(row.get("Years")),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
                 left_states=_parse_list(row.get("Left States")),
                 right_states=_parse_list(row.get("Right States")),
                 weight=_to_int(row.get("Weight"), default=0),
@@ -1382,17 +1195,11 @@ def _render_soft_sequence_rules_editor(
     return updated_rules
 
 
-def _build_week_options(
-    config: ScheduleConfig,
-    *,
-    exclude_global_blackouts: bool = False,
-) -> dict[str, int]:
+def _build_week_options(config: ScheduleConfig) -> dict[str, int]:
     """Return labeled week options for multiselect inputs."""
 
     week_options: dict[str, int] = {}
     for week in range(config.num_weeks):
-        if exclude_global_blackouts and week in config.pto_blackout_weeks:
-            continue
         week_date = config.start_date + timedelta(weeks=week)
         week_options[f"W{week + 1}: {week_date.strftime('%b %d')}"] = week
     return week_options
@@ -1460,6 +1267,12 @@ def _select_shared_year_rules(rules: list[WeekCountRule]) -> list[WeekCountRule]
     return [rule for rule in rules if _is_shared_year_rule(rule)]
 
 
+def _select_shared_soft_rules(rules: list[SoftSequenceRule]) -> list[SoftSequenceRule]:
+    """Return weighted soft rules that span multiple cohorts."""
+
+    return [rule for rule in rules if _is_shared_soft_rule(rule)]
+
+
 def _merge_coverage_rules(
     original: list[CoverageRule],
     replacement: list[CoverageRule],
@@ -1498,6 +1311,12 @@ def _is_shared_year_rule(rule) -> bool:
     """Return True when a rule spans multiple cohorts or all cohorts."""
 
     return len(rule.applicable_years) != 1
+
+
+def _is_shared_soft_rule(rule: SoftSequenceRule) -> bool:
+    """Return True when a weighted soft rule spans multiple cohorts."""
+
+    return _is_shared_year_rule(rule)
 
 
 def _is_shared_coverage_rule(rule: CoverageRule) -> bool:

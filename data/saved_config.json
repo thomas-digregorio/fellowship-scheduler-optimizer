@@ -4,7 +4,6 @@
   "start_date": "2026-07-13",
   "pto_weeks_granted": 4,
   "pto_weeks_to_rank": 6,
-  "pto_blackout_weeks": [],
   "max_concurrent_pto": 12,
   "max_consecutive_night_float": 2,
   "call_day": "saturday",

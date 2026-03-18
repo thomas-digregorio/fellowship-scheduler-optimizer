@@ -490,7 +490,6 @@ class ScheduleConfig:
     start_date: date = field(default_factory=lambda: date(2026, 7, 13))
     pto_weeks_granted: int = 4
     pto_weeks_to_rank: int = 6
-    pto_blackout_weeks: list[int] = field(default_factory=list)
     max_concurrent_pto: int = 1
     max_consecutive_night_float: int = 2
     call_day: str = "saturday"
@@ -632,7 +631,6 @@ class ScheduleConfig:
             "start_date": self.start_date.isoformat(),
             "pto_weeks_granted": self.pto_weeks_granted,
             "pto_weeks_to_rank": self.pto_weeks_to_rank,
-            "pto_blackout_weeks": self.pto_blackout_weeks,
             "max_concurrent_pto": self.max_concurrent_pto,
             "max_consecutive_night_float": self.max_consecutive_night_float,
             "call_day": self.call_day,
@@ -673,6 +671,8 @@ class ScheduleConfig:
         """Deserialize from a JSON dictionary."""
 
         payload = _normalize_legacy_year_aliases(data.copy())
+        # Older saved configs may still carry the retired global PTO restriction key.
+        payload.pop("pto_blackout_weeks", None)
         payload["start_date"] = date.fromisoformat(payload["start_date"])
         payload["pto_preference_weight_overrides"] = _normalize_pto_preference_weight_overrides(
             payload.get("pto_preference_weight_overrides")

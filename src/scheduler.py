@@ -21,7 +21,6 @@ from src.constraints import (
     add_no_consecutive_same_block,
     add_one_assignment_per_week,
     add_prerequisite_rules,
-    add_pto_blackout,
     add_pto_count,
     add_staffing_coverage,
     add_unavailable_weeks,
@@ -335,7 +334,6 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
     add_one_assignment_per_week(model, assign, config, num_blocks, pto_idx)
     add_unavailable_weeks(model, assign, config, pto_idx)
     add_pto_count(model, assign, config, pto_idx)
-    add_pto_blackout(model, assign, config, pto_idx)
     add_max_concurrent_pto(model, assign, config, pto_idx)
     add_no_consecutive_same_block(model, assign, config, num_blocks)
 

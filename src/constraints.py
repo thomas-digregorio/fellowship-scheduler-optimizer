@@ -67,20 +67,6 @@ def add_pto_count(
         )
 
 
-def add_pto_blackout(
-    model: cp_model.CpModel,
-    assign: dict[tuple[int, int, int], cp_model.IntVar],
-    config: ScheduleConfig,
-    pto_idx: int,
-) -> None:
-    """Forbid PTO during globally configured blackout weeks."""
-
-    for fellow_idx in range(config.num_fellows):
-        for week in config.pto_blackout_weeks:
-            if 0 <= week < config.num_weeks:
-                model.Add(assign[fellow_idx, week, pto_idx] == 0)
-
-
 def add_max_concurrent_pto(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],

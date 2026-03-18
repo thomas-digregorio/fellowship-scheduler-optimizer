@@ -74,23 +74,6 @@ def render_config_sidebar() -> None:
             key="cfg_timeout",
         )
 
-    with st.sidebar.expander("🚫 Global PTO Blackout Weeks", expanded=False):
-        week_options: dict[str, int] = {}
-        for week in range(config.num_weeks):
-            week_date = config.start_date + timedelta(weeks=week)
-            week_options[f"W{week + 1}: {week_date.strftime('%b %d')}"] = week
-        selected_labels = st.multiselect(
-            "Weeks blocked for every cohort",
-            options=list(week_options.keys()),
-            default=[
-                label
-                for label, week in week_options.items()
-                if week in config.pto_blackout_weeks
-            ],
-            key="cfg_blackout",
-        )
-        config.pto_blackout_weeks = [week_options[label] for label in selected_labels]
-
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔄 Block Metadata")
     st.sidebar.caption(
@@ -123,8 +106,6 @@ def render_config_sidebar() -> None:
                 value=block.requires_call_coverage,
                 key=f"blk_call_{block_idx}",
             )
-
-    _render_structured_staffing_summary(config)
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("📞 24-Hr Call Settings", expanded=False):
@@ -171,33 +152,6 @@ def render_config_sidebar() -> None:
     if st.sidebar.button("💾 Save Config", use_container_width=True):
         persist_config()
         st.sidebar.success("Configuration saved.")
-
-
-def _render_structured_staffing_summary(config: ScheduleConfig) -> None:
-    """Show the peak structured coverage load."""
-
-    available = len(config.fellows) - config.max_concurrent_pto
-    weekly_required = [0] * config.num_weeks
-    for rule in config.coverage_rules:
-        if not rule.is_active:
-            continue
-        end_week = config.num_weeks - 1 if rule.end_week is None else min(
-            rule.end_week,
-            config.num_weeks - 1,
-        )
-        for week in range(max(0, rule.start_week), end_week + 1):
-            weekly_required[week] += rule.min_fellows
-    peak_required = max(weekly_required, default=0)
-    if peak_required > available:
-        st.sidebar.error(
-            f"⚠️ Structured staffing: peak {peak_required} needed > {available} available"
-        )
-    else:
-        st.sidebar.success(
-            f"✅ Structured staffing: peak {peak_required} needed / {available} available"
-        )
-
-
 def _render_fellow_sections(config: ScheduleConfig) -> None:
     """Render fellow PTO editors grouped by cohort."""
 
@@ -223,11 +177,10 @@ def _render_fellow_sections(config: ScheduleConfig) -> None:
                 )
                 week_options: dict[str, int] = {}
                 for week in range(config.num_weeks):
-                    if week not in config.pto_blackout_weeks:
-                        week_date = config.start_date + timedelta(weeks=week)
-                        week_options[
-                            f"W{week + 1}: {week_date.strftime('%b %d')}"
-                        ] = week
+                    week_date = config.start_date + timedelta(weeks=week)
+                    week_options[
+                        f"W{week + 1}: {week_date.strftime('%b %d')}"
+                    ] = week
                 current_labels: list[str] = []
                 for week in fellow.pto_rankings:
                     for label, idx in week_options.items():

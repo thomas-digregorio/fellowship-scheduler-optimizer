@@ -38,32 +38,25 @@ def render_checks_panel(
 
     checks = build_schedule_checks(config, result)
 
-    top_left, top_right = st.columns(2)
-    top_left.metric(
-        "NF -> next call",
-        checks["night_float_followed_by_call"].value,
-    )
-    top_right.metric(
-        "CCU weeks > 2",
-        checks["weeks_with_gt_two_ccu"].value,
-    )
+    top_left, top_right, bottom_left, bottom_right = st.columns(4)
+    top_left.metric("NF -> next call", checks["night_float_followed_by_call"].value)
+    top_right.metric("CCU weeks > 2", checks["weeks_with_gt_two_ccu"].value)
+    bottom_left.metric("Max CCU / week", checks["max_ccu_per_week"].value)
+    bottom_right.metric("Call spread", checks["call_spread"].value)
 
-    bottom_left, bottom_right = st.columns(2)
-    bottom_left.metric(
-        "Max CCU / week",
-        checks["max_ccu_per_week"].value,
-    )
-    bottom_right.metric(
-        "Call spread",
-        checks["call_spread"].value,
-    )
-
-    _render_check_message(checks["night_float_followed_by_call"])
-    _render_check_message(checks["weeks_with_gt_two_ccu"])
-
-    st.caption(checks["weeks_without_exactly_one_call"].detail)
-    st.caption(checks["max_concurrent_pto"].detail)
-    st.caption(checks["max_night_float_streak"].detail)
+    detail_left, detail_right = st.columns(2, gap="large")
+    with detail_left:
+        with st.container(border=True):
+            st.markdown("#### Coverage & Call")
+            _render_check_message(checks["night_float_followed_by_call"])
+            _render_check_message(checks["weeks_with_gt_two_ccu"])
+            st.caption(checks["weeks_without_exactly_one_call"].detail)
+    with detail_right:
+        with st.container(border=True):
+            st.markdown("#### PTO & Night Float")
+            st.info(checks["max_concurrent_pto"].detail)
+            st.info(checks["max_night_float_streak"].detail)
+            st.info(checks["call_spread"].detail)
 
 
 def build_schedule_checks(

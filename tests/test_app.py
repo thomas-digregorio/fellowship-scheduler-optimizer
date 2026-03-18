@@ -19,6 +19,7 @@ from app.components.rules_tab import (
     _to_optional_zero_based_week_index,
     _to_zero_based_week_index,
 )
+from src.config import get_default_config
 from src.io_utils import save_config
 from src.models import (
     BlockConfig,
@@ -37,6 +38,14 @@ from src.models import (
 APP_PATH = Path(__file__).resolve().parent.parent / "app" / "app.py"
 
 
+def _click_workspace(at: AppTest, label: str) -> AppTest:
+    """Navigate to a workspace using the sidebar button menu."""
+
+    return next(button for button in at.button if button.label == label).click().run(
+        timeout=20
+    )
+
+
 def make_small_ui_config() -> ScheduleConfig:
     """Build a compact cohort-aware config for fast UI tests."""
 
@@ -53,7 +62,6 @@ def make_small_ui_config() -> ScheduleConfig:
         start_date=date(2026, 7, 13),
         pto_weeks_granted=0,
         pto_weeks_to_rank=1,
-        pto_blackout_weeks=[],
         max_concurrent_pto=1,
         max_consecutive_night_float=2,
         call_day="saturday",
@@ -126,7 +134,6 @@ def make_legacy_saved_config() -> ScheduleConfig:
         start_date=date(2026, 7, 1),
         pto_weeks_granted=4,
         pto_weeks_to_rank=6,
-        pto_blackout_weeks=[],
         max_concurrent_pto=1,
         max_consecutive_night_float=2,
         call_day="saturday",
@@ -156,7 +163,7 @@ def test_app_renders_and_generates_schedule(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """The dashboard should render, show the new tabs, and generate a schedule."""
+    """The dashboard should render, navigate, and generate a schedule."""
 
     config_path = tmp_path / "saved_config.json"
     schedule_path = tmp_path / "schedule_output.json"
@@ -168,28 +175,51 @@ def test_app_renders_and_generates_schedule(
     at.run(timeout=20)
 
     assert not at.exception
-    assert any(title.value == "🏥 Fellowship Schedule Dashboard" for title in at.title)
+    nav_labels = [button.label for button in at.button[:4]]
+    assert nav_labels == [
+        "Overview",
+        "Set Rules",
+        "Generate Schedule",
+        "Fellow Breakdown",
+    ]
+    assert any(subheader.value == "🏁 Overview" for subheader in at.subheader)
+    assert not any(markdown.value == "#### Next Best Action" for markdown in at.markdown)
+    assert not any(button.label == "🔄 Generate Schedule" for button in at.button)
+    assert not any(subheader.value == "🧭 Validation Center" for subheader in at.subheader)
+
+    at = _click_workspace(at, "Set Rules")
+
+    assert not at.exception
     assert any(subheader.value == "📏 Rules" for subheader in at.subheader)
-    assert any(subheader.value == "📋 Master Schedule" for subheader in at.subheader)
+    assert not any(button.label == "🔄 Generate Schedule" for button in at.button)
+    assert any(subheader.value == "🧭 Validation Center" for subheader in at.subheader)
     tab_labels = [tab.label for tab in at.tabs]
-    assert tab_labels.count("Configuration") == 4
+    assert "Program-wide Rules" in tab_labels
+    assert "F1 Fellow Rules" in tab_labels
+    assert "S2 Fellow Rules" in tab_labels
+    assert "T3 Fellow Rules" in tab_labels
+    assert "Soft Rules" not in tab_labels
+    assert "Hard Rules" not in tab_labels
+    assert "Shared Hard Rules" not in tab_labels
     assert "Schedule Config" not in tab_labels
     assert "Block Metadata" not in tab_labels
-    assert sum(markdown.value == "**Roster Names**" for markdown in at.markdown) == 3
-    assert sum(markdown.value == "**Individual Fellow Requirements**" for markdown in at.markdown) == 4
-    assert sum(markdown.value == "**PTO Preference Weights**" for markdown in at.markdown) == 3
+    assert any(markdown.value == "**Weighted Soft Rules**" for markdown in at.markdown)
 
+    at = _click_workspace(at, "Generate Schedule")
+
+    assert not at.exception
     generate = next(button for button in at.button if button.label == "🔄 Generate Schedule")
     at = generate.click().run(timeout=20)
 
     assert not at.exception
     assert schedule_path.exists()
+    assert any(subheader.value == "📋 Master Schedule Workspace" for subheader in at.subheader)
+    assert any(subheader.value == "📋 Master Schedule" for subheader in at.subheader)
     assert len(at.dataframe) >= 1
-    schedule_tab = next(tab for tab in at.tabs if tab.label == "Master Schedule & Checks")
-    assert any(markdown.value == "**Counts**" for markdown in schedule_tab.markdown)
+    assert any(markdown.value == "#### Counts" for markdown in at.markdown)
     objective_breakdown_frames = [
         dataframe.value
-        for dataframe in schedule_tab.dataframe
+        for dataframe in at.dataframe
         if {"Category", "F1", "S2", "T3", "Total"}.issubset(
             set(dataframe.value.columns)
         )
@@ -198,12 +228,17 @@ def test_app_renders_and_generates_schedule(
     assert "Total" in objective_breakdown_frames[0]["Category"].tolist()
     counts_frames = [
         dataframe.value
-        for dataframe in schedule_tab.dataframe
+        for dataframe in at.dataframe
         if "Rotation" in dataframe.value.columns
     ]
     assert counts_frames
     assert "White Consults" in counts_frames[0]["Rotation"].tolist()
     assert any(subheader.value == "✅ Checks" for subheader in at.subheader)
+
+    at = _click_workspace(at, "Fellow Breakdown")
+
+    assert not at.exception
+    assert any(subheader.value == "👥 Fellow Breakdown" for subheader in at.subheader)
 
 
 def test_app_surfaces_blocking_feasibility_issues(
@@ -221,12 +256,24 @@ def test_app_surfaces_blocking_feasibility_issues(
     at = AppTest.from_file(APP_PATH, default_timeout=10)
     at.run(timeout=20)
 
+    at = _click_workspace(at, "Generate Schedule")
+
     generate = next(button for button in at.button if button.label == "🔄 Generate Schedule")
     at = generate.click().run(timeout=20)
 
-    warning_values = [warning.value for warning in at.warning]
     assert not at.exception
-    assert any("Staffing conflict" in value for value in warning_values)
+    assert not any(subheader.value == "🧭 Validation Center" for subheader in at.subheader)
+
+    at = _click_workspace(at, "Set Rules")
+
+    assert not at.exception
+    assert any(subheader.value == "🧭 Validation Center" for subheader in at.subheader)
+    surfaced_values = (
+        [warning.value for warning in at.warning]
+        + [error.value for error in at.error]
+        + [markdown.value for markdown in at.markdown]
+    )
+    assert any("Staffing conflict" in value for value in surfaced_values)
     assert not schedule_path.exists()
 
 
@@ -241,8 +288,8 @@ def test_legacy_saved_config_migrates_to_cohort_defaults() -> None:
     assert migrated.cohort_counts[TrainingYear.T3] == 7
 
 
-def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
-    """Persisted older source-backed defaults should be upgraded in place."""
+def test_saved_defaults_upgrade_to_latest_defaults() -> None:
+    """Persisted older defaults should be upgraded in place."""
 
     config = make_small_ui_config()
     config.coverage_rules.append(
@@ -451,6 +498,15 @@ def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
     assert nf_penalty.right_states == ["Night Float"]
     assert nf_penalty.weight == -40
     assert nf_penalty.is_active
+
+
+def test_current_built_in_defaults_do_not_trigger_upgrade_notice() -> None:
+    """Already-current defaults should not report a migration notice."""
+
+    migrated, notice = app_state._normalize_loaded_config(get_default_config())
+
+    assert notice is None
+    assert migrated.pto_preference_weight_overrides == get_default_config().pto_preference_weight_overrides
 
 
 def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
