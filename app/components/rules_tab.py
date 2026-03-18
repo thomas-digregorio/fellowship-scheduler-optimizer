@@ -447,10 +447,6 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
             predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
         )
 
-    with st.container(border=True):
-        _render_pto_preference_weights_editor(config, year)
-
-
 def _render_summary_table(title: str, rows: list[dict[str, object]]) -> None:
     """Render a read-only dataframe summary."""
 
@@ -550,6 +546,9 @@ def _render_fellow_editors(config: ScheduleConfig, year: TrainingYear) -> None:
                 key=f"{year.value}_fellow_unavailable_{fellow_idx}",
             )
             fellow.unavailable_weeks = [week_options[label] for label in unavailable]
+
+    with st.container(border=True):
+        _render_pto_preference_weights_editor(config, year)
 
 
 def _render_pto_preference_weights_editor(
