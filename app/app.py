@@ -131,9 +131,9 @@ with rules_tab:
 with schedule_tab:
     filter_options = {
         "All Cohorts": None,
-        TrainingYear.PGY1.value: TrainingYear.PGY1,
-        TrainingYear.PGY2.value: TrainingYear.PGY2,
-        TrainingYear.PGY3.value: TrainingYear.PGY3,
+        TrainingYear.F1.value: TrainingYear.F1,
+        TrainingYear.S2.value: TrainingYear.S2,
+        TrainingYear.T3.value: TrainingYear.T3,
     }
     selected_label = st.selectbox(
         "Visible cohort in master schedule",

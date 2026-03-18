@@ -26,7 +26,9 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    ForbiddenTransitionRule,
     ScheduleConfig,
+    SoftSequenceRule,
     TrainingYear,
     WeekCountRule,
 )
@@ -39,11 +41,11 @@ def make_small_ui_config() -> ScheduleConfig:
     """Build a compact cohort-aware config for fast UI tests."""
 
     fellows = [
-        FellowConfig("PGY1 A", training_year=TrainingYear.PGY1, pto_rankings=[3]),
-        FellowConfig("PGY1 B", training_year=TrainingYear.PGY1, pto_rankings=[4]),
-        FellowConfig("PGY2 A", training_year=TrainingYear.PGY2, pto_rankings=[3]),
-        FellowConfig("PGY2 B", training_year=TrainingYear.PGY2, pto_rankings=[2]),
-        FellowConfig("PGY3 A", training_year=TrainingYear.PGY3, pto_rankings=[4]),
+        FellowConfig("F1 A", training_year=TrainingYear.F1, pto_rankings=[3]),
+        FellowConfig("F1 B", training_year=TrainingYear.F1, pto_rankings=[4]),
+        FellowConfig("S2 A", training_year=TrainingYear.S2, pto_rankings=[3]),
+        FellowConfig("S2 B", training_year=TrainingYear.S2, pto_rankings=[2]),
+        FellowConfig("T3 A", training_year=TrainingYear.T3, pto_rankings=[4]),
     ]
     return ScheduleConfig(
         num_fellows=len(fellows),
@@ -69,35 +71,35 @@ def make_small_ui_config() -> ScheduleConfig:
         fellows=fellows,
         coverage_rules=[
             CoverageRule(
-                name="White PGY1",
+                name="White F1",
                 block_name="White Consults",
-                eligible_years=[TrainingYear.PGY1],
+                eligible_years=[TrainingYear.F1],
                 min_fellows=1,
                 max_fellows=1,
             ),
             CoverageRule(
-                name="CCU PGY2",
+                name="CCU S2",
                 block_name="CCU",
-                eligible_years=[TrainingYear.PGY2],
+                eligible_years=[TrainingYear.S2],
                 min_fellows=1,
                 max_fellows=1,
             ),
         ],
         eligibility_rules=[
             EligibilityRule(
-                name="White PGY1 only",
+                name="White F1 only",
                 block_names=["White Consults"],
-                allowed_years=[TrainingYear.PGY1],
+                allowed_years=[TrainingYear.F1],
             ),
             EligibilityRule(
-                name="CCU PGY2 only",
+                name="CCU S2 only",
                 block_names=["CCU"],
-                allowed_years=[TrainingYear.PGY2],
+                allowed_years=[TrainingYear.S2],
             ),
             EligibilityRule(
                 name="Research any year",
                 block_names=["Research", "Elective"],
-                allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2, TrainingYear.PGY3],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
             ),
         ],
     )
@@ -173,6 +175,8 @@ def test_app_renders_and_generates_schedule(
     assert tab_labels.count("Configuration") == 4
     assert "Schedule Config" not in tab_labels
     assert "Block Metadata" not in tab_labels
+    assert sum(markdown.value == "**Roster Names**" for markdown in at.markdown) == 3
+    assert sum(markdown.value == "**Individual Fellow Requirements**" for markdown in at.markdown) == 4
     assert sum(markdown.value == "**PTO Preference Weights**" for markdown in at.markdown) == 3
 
     generate = next(button for button in at.button if button.label == "🔄 Generate Schedule")
@@ -186,7 +190,7 @@ def test_app_renders_and_generates_schedule(
     objective_breakdown_frames = [
         dataframe.value
         for dataframe in schedule_tab.dataframe
-        if {"Category", "PGY1", "PGY2", "PGY3", "Total"}.issubset(
+        if {"Category", "F1", "S2", "T3", "Total"}.issubset(
             set(dataframe.value.columns)
         )
     ]
@@ -232,9 +236,9 @@ def test_legacy_saved_config_migrates_to_cohort_defaults() -> None:
     migrated, notice = app_state._normalize_loaded_config(make_legacy_saved_config())
 
     assert notice is not None
-    assert migrated.cohort_counts[TrainingYear.PGY1] == 9
-    assert migrated.cohort_counts[TrainingYear.PGY2] == 9
-    assert migrated.cohort_counts[TrainingYear.PGY3] == 7
+    assert migrated.cohort_counts[TrainingYear.F1] == 9
+    assert migrated.cohort_counts[TrainingYear.S2] == 9
+    assert migrated.cohort_counts[TrainingYear.T3] == 7
 
 
 def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
@@ -243,17 +247,17 @@ def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
     config = make_small_ui_config()
     config.coverage_rules.append(
         CoverageRule(
-            name="Yale Nuclear PGY1 slot",
+            name="Yale Nuclear F1 slot",
             block_name="Yale Nuclear",
-            eligible_years=[TrainingYear.PGY1],
+            eligible_years=[TrainingYear.F1],
             min_fellows=1,
             max_fellows=1,
         )
     )
     config.week_count_rules = [
         WeekCountRule(
-            name="PGY1 no PTO in first two months",
-            applicable_years=[TrainingYear.PGY1],
+            name="F1 no PTO in first two months",
+            applicable_years=[TrainingYear.F1],
             block_names=["PTO"],
             min_weeks=0,
             max_weeks=0,
@@ -265,120 +269,120 @@ def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
     config.week_count_rules.extend(
         [
             WeekCountRule(
-                name="PGY1 White Consults",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 White Consults",
+                applicable_years=[TrainingYear.F1],
                 block_names=["White Consults"],
                 min_weeks=4,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 SRC Consults",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 SRC Consults",
+                applicable_years=[TrainingYear.F1],
                 block_names=["SRC Consults"],
                 min_weeks=3,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 VA Consults",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 VA Consults",
+                applicable_years=[TrainingYear.F1],
                 block_names=["VA Consults"],
                 min_weeks=3,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Consult total",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Consult total",
+                applicable_years=[TrainingYear.F1],
                 block_names=["White Consults", "SRC Consults", "VA Consults"],
                 min_weeks=10,
                 max_weeks=11,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Yale Nuclear",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Yale Nuclear",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Nuclear"],
                 min_weeks=2,
                 max_weeks=3,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 VA Nuclear",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 VA Nuclear",
+                applicable_years=[TrainingYear.F1],
                 block_names=["VA Nuclear"],
                 min_weeks=1,
                 max_weeks=2,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Nuclear total",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Nuclear total",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Nuclear", "VA Nuclear"],
                 min_weeks=4,
                 max_weeks=7,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Yale Echo",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Yale Echo",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Echo"],
                 min_weeks=3,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 VA Echo",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 VA Echo",
+                applicable_years=[TrainingYear.F1],
                 block_names=["VA Echo"],
                 min_weeks=3,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 SRC Echo",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 SRC Echo",
+                applicable_years=[TrainingYear.F1],
                 block_names=["SRC Echo"],
                 min_weeks=1,
                 max_weeks=1,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Echo total",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Echo total",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Echo", "VA Echo", "SRC Echo"],
                 min_weeks=8,
                 max_weeks=9,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Yale Cath",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Yale Cath",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Cath"],
                 min_weeks=3,
                 max_weeks=4,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 VA Cath",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 VA Cath",
+                applicable_years=[TrainingYear.F1],
                 block_names=["VA Cath"],
                 min_weeks=1,
                 max_weeks=2,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 SRC Cath",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 SRC Cath",
+                applicable_years=[TrainingYear.F1],
                 block_names=["SRC Cath"],
                 min_weeks=1,
                 max_weeks=2,
                 is_active=False,
             ),
             WeekCountRule(
-                name="PGY1 Cath total",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 Cath total",
+                applicable_years=[TrainingYear.F1],
                 block_names=["Yale Cath", "VA Cath", "SRC Cath"],
                 min_weeks=6,
                 max_weeks=7,
@@ -386,35 +390,67 @@ def test_saved_source_backed_rules_upgrade_to_latest_defaults() -> None:
             ),
         ]
     )
+    config.forbidden_transition_rules = [
+        ForbiddenTransitionRule(
+            name="F1 no consult or PTO directly before Night Float",
+            applicable_years=[TrainingYear.F1],
+            target_block="Night Float",
+            forbidden_previous_blocks=[
+                "White Consults",
+                "SRC Consults",
+                "VA Consults",
+                "CCU",
+                "PTO",
+            ],
+            is_active=False,
+        )
+    ]
 
     migrated, notice = app_state._normalize_loaded_config(config)
 
     assert notice is not None
-    pgy1_white = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 White Consults")
-    pgy1_src = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 SRC Consults")
-    pgy1_va = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 VA Consults")
-    pgy1_consult_total = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 Consult total")
-    pgy1_yn = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 Yale Nuclear")
-    pgy1_va_nuclear = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 VA Nuclear")
-    pgy1_total = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 Nuclear total")
-    pgy1_echo_total = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 Echo total")
-    pgy1_cath_total = next(rule for rule in migrated.week_count_rules if rule.name == "PGY1 Cath total")
-    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.block_name == "Yale Nuclear" and rule.eligible_years == [TrainingYear.PGY1])
+    f1_white = next(rule for rule in migrated.week_count_rules if rule.name == "F1 White Consults")
+    f1_src = next(rule for rule in migrated.week_count_rules if rule.name == "F1 SRC Consults")
+    f1_va = next(rule for rule in migrated.week_count_rules if rule.name == "F1 VA Consults")
+    f1_consult_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Consult total")
+    f1_yn = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Yale Nuclear")
+    f1_va_nuclear = next(rule for rule in migrated.week_count_rules if rule.name == "F1 VA Nuclear")
+    f1_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Nuclear total")
+    f1_echo_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Echo total")
+    f1_cath_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Cath total")
+    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.block_name == "Yale Nuclear" and rule.eligible_years == [TrainingYear.F1])
+    nf_penalty = next(
+        rule
+        for rule in migrated.soft_sequence_rules
+        if rule.name
+        == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
+    )
 
-    assert pgy1_white.max_weeks == 6
-    assert pgy1_white.is_active
-    assert pgy1_src.is_active
-    assert pgy1_va.is_active
-    assert pgy1_consult_total.is_active
-    assert pgy1_consult_total.max_weeks == 12
-    assert pgy1_yn.max_weeks == 6
-    assert pgy1_yn.is_active
-    assert pgy1_va_nuclear.is_active
-    assert pgy1_total.is_active
-    assert pgy1_echo_total.is_active
-    assert pgy1_cath_total.is_active
-    assert yn_coverage.name == "Yale Nuclear optional PGY1 slot"
+    assert f1_white.max_weeks == 6
+    assert f1_white.is_active
+    assert f1_src.is_active
+    assert f1_va.is_active
+    assert f1_consult_total.is_active
+    assert f1_consult_total.max_weeks == 12
+    assert f1_yn.max_weeks == 6
+    assert f1_yn.is_active
+    assert f1_va_nuclear.is_active
+    assert f1_total.is_active
+    assert f1_echo_total.is_active
+    assert f1_cath_total.is_active
+    assert yn_coverage.name == "Yale Nuclear optional F1 slot"
     assert yn_coverage.min_fellows == 0
+    assert not migrated.forbidden_transition_rules
+    assert nf_penalty.left_states == [
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "CCU",
+        "PTO",
+    ]
+    assert nf_penalty.right_states == ["Night Float"]
+    assert nf_penalty.weight == -40
+    assert nf_penalty.is_active
 
 
 def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
@@ -425,13 +461,13 @@ def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
     schedule_df = pd.DataFrame(
         {
             "Week": ["W1", "W2", "W3", "W4"],
-            "PGY1 A": [
+            "F1 A": [
                 "White Consults",
                 "Elective",
                 "White Consults",
                 "Research",
             ],
-            "PGY1 B": [
+            "F1 B": [
                 "Elective",
                 "White Consults",
                 "Research",
@@ -445,11 +481,11 @@ def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
         row["Rotation"]: row for row in counts_df.to_dict("records")
     }
 
-    assert counts_by_rotation["White Consults"]["PGY1 A"] == 2
-    assert counts_by_rotation["White Consults"]["PGY1 B"] == 2
-    assert counts_by_rotation["Research"]["PGY1 A"] == 1
-    assert counts_by_rotation["Research"]["PGY1 B"] == 1
-    assert counts_by_rotation["CCU"]["PGY1 A"] == 0
+    assert counts_by_rotation["White Consults"]["F1 A"] == 2
+    assert counts_by_rotation["White Consults"]["F1 B"] == 2
+    assert counts_by_rotation["Research"]["F1 A"] == 1
+    assert counts_by_rotation["Research"]["F1 B"] == 1
+    assert counts_by_rotation["CCU"]["F1 A"] == 0
 
 
 def test_rules_tab_week_windows_are_1_based_in_the_ui() -> None:

@@ -17,7 +17,15 @@
   "trailing_avg_weeks": 4,
   "solver_timeout_seconds": 300.0,
   "pto_preference_weight_overrides": {
-    "PGY1": [
+    "F1": [
+      120,
+      80,
+      20,
+      4,
+      1,
+      0
+    ],
+    "S2": [
       120,
       80,
       12,
@@ -25,15 +33,7 @@
       1,
       0
     ],
-    "PGY2": [
-      120,
-      80,
-      12,
-      4,
-      1,
-      0
-    ],
-    "PGY3": [
+    "T3": [
       120,
       80,
       12,
@@ -255,8 +255,8 @@
   ],
   "fellows": [
     {
-      "name": "PGY1 Fellow 1",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 1",
+      "training_year": "F1",
       "pto_rankings": [
         44,
         38,
@@ -268,8 +268,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 2",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 2",
+      "training_year": "F1",
       "pto_rankings": [
         22,
         47,
@@ -281,8 +281,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 3",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 3",
+      "training_year": "F1",
       "pto_rankings": [
         15,
         12,
@@ -294,8 +294,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 4",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 4",
+      "training_year": "F1",
       "pto_rankings": [
         7,
         15,
@@ -307,8 +307,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 5",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 5",
+      "training_year": "F1",
       "pto_rankings": [
         30,
         32,
@@ -320,8 +320,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 6",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 6",
+      "training_year": "F1",
       "pto_rankings": [
         22,
         50,
@@ -333,8 +333,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 7",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 7",
+      "training_year": "F1",
       "pto_rankings": [
         18,
         33,
@@ -346,8 +346,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 8",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 8",
+      "training_year": "F1",
       "pto_rankings": [
         21,
         6,
@@ -359,8 +359,8 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY1 Fellow 9",
-      "training_year": "PGY1",
+      "name": "F1 Fellow 9",
+      "training_year": "F1",
       "pto_rankings": [
         49,
         2,
@@ -372,98 +372,134 @@
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 1",
-      "training_year": "PGY2",
+      "name": "Ambrosini",
+      "training_year": "S2",
+      "pto_rankings": [
+        12,
+        4,
+        32
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Fishman",
+      "training_year": "S2",
+      "pto_rankings": [
+        27,
+        49,
+        39
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "DiGregorio",
+      "training_year": "S2",
+      "pto_rankings": [
+        2,
+        38,
+        21
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Chitsazan",
+      "training_year": "S2",
+      "pto_rankings": [
+        19,
+        15,
+        17
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Grant",
+      "training_year": "S2",
+      "pto_rankings": [
+        17,
+        13,
+        2
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Jang",
+      "training_year": "S2",
+      "pto_rankings": [
+        36,
+        49,
+        25
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Vicente",
+      "training_year": "S2",
+      "pto_rankings": [
+        16,
+        12,
+        7
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Thangaraj",
+      "training_year": "S2",
+      "pto_rankings": [
+        50,
+        39,
+        28
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Varrias",
+      "training_year": "S2",
+      "pto_rankings": [
+        1,
+        3,
+        21
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "T3 Fellow 1",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 2",
-      "training_year": "PGY2",
+      "name": "T3 Fellow 2",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 3",
-      "training_year": "PGY2",
+      "name": "T3 Fellow 3",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 4",
-      "training_year": "PGY2",
+      "name": "T3 Fellow 4",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 5",
-      "training_year": "PGY2",
+      "name": "T3 Fellow 5",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 6",
-      "training_year": "PGY2",
+      "name": "T3 Fellow 6",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "PGY2 Fellow 7",
-      "training_year": "PGY2",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY2 Fellow 8",
-      "training_year": "PGY2",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY2 Fellow 9",
-      "training_year": "PGY2",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 1",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 2",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 3",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 4",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 5",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 6",
-      "training_year": "PGY3",
-      "pto_rankings": [],
-      "unavailable_weeks": []
-    },
-    {
-      "name": "PGY3 Fellow 7",
-      "training_year": "PGY3",
+      "name": "T3 Fellow 7",
+      "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     }
@@ -473,9 +509,9 @@
       "name": "SRC Consults staffed",
       "block_name": "SRC Consults",
       "eligible_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -487,9 +523,9 @@
       "name": "VA Consults staffed",
       "block_name": "VA Consults",
       "eligible_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -498,11 +534,11 @@
       "is_active": true
     },
     {
-      "name": "EP staffed by PGY1 or PGY2",
+      "name": "EP staffed by F1 or S2",
       "block_name": "EP",
       "eligible_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -511,11 +547,11 @@
       "is_active": true
     },
     {
-      "name": "CHF staffed by PGY1 or PGY2",
+      "name": "CHF staffed by F1 or S2",
       "block_name": "CHF",
       "eligible_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -524,11 +560,11 @@
       "is_active": true
     },
     {
-      "name": "VA Nuclear staffed by PGY1 or PGY2",
+      "name": "VA Nuclear staffed by F1 or S2",
       "block_name": "VA Nuclear",
       "eligible_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -540,8 +576,8 @@
       "name": "Yale Echo senior range",
       "block_name": "Yale Echo",
       "eligible_years": [
-        "PGY2",
-        "PGY3"
+        "S2",
+        "T3"
       ],
       "min_fellows": 2,
       "max_fellows": 3,
@@ -550,11 +586,11 @@
       "is_active": true
     },
     {
-      "name": "VA Echo staffed by PGY1 or PGY2",
+      "name": "VA Echo staffed by F1 or S2",
       "block_name": "VA Echo",
       "eligible_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -566,9 +602,9 @@
       "name": "SRC Echo staffed",
       "block_name": "SRC Echo",
       "eligible_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -580,9 +616,9 @@
       "name": "Yale Cath range",
       "block_name": "Yale Cath",
       "eligible_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 2,
@@ -591,11 +627,11 @@
       "is_active": true
     },
     {
-      "name": "VA Cath staffed by PGY1 or PGY2",
+      "name": "VA Cath staffed by F1 or S2",
       "block_name": "VA Cath",
       "eligible_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -607,9 +643,9 @@
       "name": "SRC Cath staffed",
       "block_name": "SRC Cath",
       "eligible_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -618,10 +654,10 @@
       "is_active": true
     },
     {
-      "name": "White Consults staffed by PGY1",
+      "name": "White Consults staffed by F1",
       "block_name": "White Consults",
       "eligible_years": [
-        "PGY1"
+        "F1"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -630,10 +666,10 @@
       "is_active": true
     },
     {
-      "name": "CCU later by PGY1",
+      "name": "CCU later by F1",
       "block_name": "CCU",
       "eligible_years": [
-        "PGY1"
+        "F1"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -642,10 +678,10 @@
       "is_active": true
     },
     {
-      "name": "Night Float later by PGY1",
+      "name": "Night Float later by F1",
       "block_name": "Night Float",
       "eligible_years": [
-        "PGY1"
+        "F1"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -654,22 +690,22 @@
       "is_active": true
     },
     {
-      "name": "Yale Nuclear optional PGY1 slot",
+      "name": "Yale Nuclear optional F1 slot",
       "block_name": "Yale Nuclear",
       "eligible_years": [
-        "PGY1"
+        "F1"
       ],
       "min_fellows": 0,
-      "max_fellows": 1,
+      "max_fellows": 2,
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "Yale Echo PGY1 range",
+      "name": "Yale Echo F1 range",
       "block_name": "Yale Echo",
       "eligible_years": [
-        "PGY1"
+        "F1"
       ],
       "min_fellows": 0,
       "max_fellows": 3,
@@ -678,10 +714,10 @@
       "is_active": true
     },
     {
-      "name": "Goodyer staffed by PGY2",
+      "name": "Goodyer staffed by S2",
       "block_name": "Goodyer Consults",
       "eligible_years": [
-        "PGY2"
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -690,10 +726,10 @@
       "is_active": true
     },
     {
-      "name": "CCU early by PGY2",
+      "name": "CCU early by S2",
       "block_name": "CCU",
       "eligible_years": [
-        "PGY2"
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -702,10 +738,10 @@
       "is_active": true
     },
     {
-      "name": "Night Float early by PGY2",
+      "name": "Night Float early by S2",
       "block_name": "Night Float",
       "eligible_years": [
-        "PGY2"
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -714,10 +750,10 @@
       "is_active": true
     },
     {
-      "name": "Yale Nuclear PGY2 slot",
+      "name": "Yale Nuclear S2 slot",
       "block_name": "Yale Nuclear",
       "eligible_years": [
-        "PGY2"
+        "S2"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -733,9 +769,9 @@
         "SRC Consults"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
@@ -747,61 +783,61 @@
         "VA Consults"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "EP limited to PGY1 and PGY2",
+      "name": "EP limited to F1 and S2",
       "block_names": [
         "EP"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "CHF limited to PGY1 and PGY2",
+      "name": "CHF limited to F1 and S2",
       "block_names": [
         "CHF"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "Yale Nuclear limited to PGY1 and PGY2",
+      "name": "Yale Nuclear limited to F1 and S2",
       "block_names": [
         "Yale Nuclear"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "VA Nuclear limited to PGY1 and PGY2",
+      "name": "VA Nuclear limited to F1 and S2",
       "block_names": [
         "VA Nuclear"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
@@ -813,22 +849,22 @@
         "Yale Echo"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "VA Echo limited to PGY1 and PGY2",
+      "name": "VA Echo limited to F1 and S2",
       "block_names": [
         "VA Echo"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
@@ -840,9 +876,9 @@
         "SRC Echo"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
@@ -854,22 +890,22 @@
         "Yale Cath"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "VA Cath limited to PGY1 and PGY2",
+      "name": "VA Cath limited to F1 and S2",
       "block_names": [
         "VA Cath"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2"
+        "F1",
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
@@ -881,9 +917,9 @@
         "SRC Cath"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
@@ -897,81 +933,83 @@
         "Elective"
       ],
       "allowed_years": [
-        "PGY1",
-        "PGY2",
-        "PGY3"
+        "F1",
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "White Consults only PGY1",
-      "block_names": [
-        "White Consults"
-      ],
-      "allowed_years": [
-        "PGY1"
-      ],
-      "start_week": 0,
-      "end_week": null,
-      "is_active": true
-    },
-    {
-      "name": "CCU later PGY1 only",
+      "name": "CCU later F1 or S2",
       "block_names": [
         "CCU"
       ],
       "allowed_years": [
-        "PGY1"
+        "F1",
+        "S2"
       ],
       "start_week": 4,
       "end_week": 51,
       "is_active": true
     },
     {
-      "name": "Night Float later PGY1 only",
+      "name": "Night Float later F1 or S2",
       "block_names": [
         "Night Float"
       ],
       "allowed_years": [
-        "PGY1"
+        "F1",
+        "S2"
       ],
       "start_week": 5,
       "end_week": 51,
       "is_active": true
     },
     {
-      "name": "Goodyer only PGY2",
+      "name": "White Consults only F1",
       "block_names": [
-        "Goodyer Consults"
+        "White Consults"
       ],
       "allowed_years": [
-        "PGY2"
+        "F1"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "CCU early PGY2 only",
+      "name": "Goodyer only S2",
+      "block_names": [
+        "Goodyer Consults"
+      ],
+      "allowed_years": [
+        "S2"
+      ],
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "CCU early S2 only",
       "block_names": [
         "CCU"
       ],
       "allowed_years": [
-        "PGY2"
+        "S2"
       ],
       "start_week": 0,
       "end_week": 3,
       "is_active": true
     },
     {
-      "name": "Night Float early PGY2 only",
+      "name": "Night Float early S2 only",
       "block_names": [
         "Night Float"
       ],
       "allowed_years": [
-        "PGY2"
+        "S2"
       ],
       "start_week": 0,
       "end_week": 4,
@@ -980,9 +1018,9 @@
   ],
   "week_count_rules": [
     {
-      "name": "PGY1 no PTO in first two months",
+      "name": "F1 no PTO in first two months",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "PTO"
@@ -995,9 +1033,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 White Consults",
+      "name": "F1 White Consults",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "White Consults"
@@ -1010,9 +1048,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 SRC Consults",
+      "name": "F1 SRC Consults",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "SRC Consults"
@@ -1025,9 +1063,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 VA Consults",
+      "name": "F1 VA Consults",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "VA Consults"
@@ -1040,9 +1078,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Consult total",
+      "name": "F1 Consult total",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "White Consults",
@@ -1057,9 +1095,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Goodyer prohibited",
+      "name": "F1 Goodyer prohibited",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Goodyer Consults"
@@ -1072,9 +1110,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 CCU after orientation",
+      "name": "F1 CCU after orientation",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "CCU"
@@ -1087,9 +1125,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Night Float after onboarding",
+      "name": "F1 Night Float after onboarding",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Night Float"
@@ -1102,9 +1140,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 EP",
+      "name": "F1 EP",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "EP"
@@ -1117,9 +1155,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 CHF",
+      "name": "F1 CHF",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "CHF"
@@ -1132,9 +1170,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Yale Nuclear",
+      "name": "F1 Yale Nuclear",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Nuclear"
@@ -1147,9 +1185,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 VA Nuclear",
+      "name": "F1 VA Nuclear",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "VA Nuclear"
@@ -1162,9 +1200,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Nuclear total",
+      "name": "F1 Nuclear total",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Nuclear",
@@ -1178,9 +1216,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Yale Echo",
+      "name": "F1 Yale Echo",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Echo"
@@ -1193,9 +1231,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 VA Echo",
+      "name": "F1 VA Echo",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "VA Echo"
@@ -1208,9 +1246,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 SRC Echo",
+      "name": "F1 SRC Echo",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "SRC Echo"
@@ -1223,9 +1261,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Echo total",
+      "name": "F1 Echo total",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Echo",
@@ -1240,9 +1278,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Yale Cath",
+      "name": "F1 Yale Cath",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Cath"
@@ -1255,9 +1293,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 VA Cath",
+      "name": "F1 VA Cath",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "VA Cath"
@@ -1270,9 +1308,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 SRC Cath",
+      "name": "F1 SRC Cath",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "SRC Cath"
@@ -1285,9 +1323,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Cath total",
+      "name": "F1 Cath total",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Yale Cath",
@@ -1302,9 +1340,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Research",
+      "name": "F1 Research",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Research"
@@ -1317,9 +1355,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 CT-MRI prohibited",
+      "name": "F1 CT-MRI prohibited",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "CT-MRI"
@@ -1332,9 +1370,9 @@
       "is_active": true
     },
     {
-      "name": "PGY1 Elective prohibited",
+      "name": "F1 Elective prohibited",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "block_names": [
         "Elective"
@@ -1349,9 +1387,9 @@
   ],
   "cohort_limit_rules": [
     {
-      "name": "PGY1 PTO cap",
+      "name": "F1 PTO cap",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "state_name": "PTO",
       "max_fellows": 4,
@@ -1360,9 +1398,9 @@
       "is_active": true
     },
     {
-      "name": "PGY2 PTO cap",
+      "name": "S2 PTO cap",
       "applicable_years": [
-        "PGY2"
+        "S2"
       ],
       "state_name": "PTO",
       "max_fellows": 4,
@@ -1371,9 +1409,9 @@
       "is_active": true
     },
     {
-      "name": "PGY3 PTO cap",
+      "name": "T3 PTO cap",
       "applicable_years": [
-        "PGY3"
+        "T3"
       ],
       "state_name": "PTO",
       "max_fellows": 4,
@@ -1382,11 +1420,21 @@
       "is_active": true
     }
   ],
+  "individual_fellow_requirement_rules": [
+    {
+      "training_year": "S2",
+      "fellow_name": "Fishman",
+      "block_name": "Night Float",
+      "min_weeks": 5,
+      "max_weeks": 5,
+      "is_active": true
+    }
+  ],
   "prerequisite_rules": [
     {
-      "name": "PGY1 before Night Float needs core exposure",
+      "name": "F1 before Night Float needs core exposure",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "target_block": "Night Float",
       "prerequisite_blocks": [
@@ -1400,28 +1448,33 @@
       "is_active": true
     }
   ],
-  "forbidden_transition_rules": [
+  "forbidden_transition_rules": [],
+  "soft_sequence_rules": [
     {
-      "name": "PGY1 no consult or PTO directly before Night Float",
+      "name": "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
-      "target_block": "Night Float",
-      "forbidden_previous_blocks": [
+      "left_states": [
         "White Consults",
         "SRC Consults",
         "VA Consults",
         "CCU",
         "PTO"
       ],
-      "is_active": false
-    }
-  ],
-  "soft_sequence_rules": [
+      "right_states": [
+        "Night Float"
+      ],
+      "weight": -40,
+      "direction": "forward",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
     {
-      "name": "Bonus: PGY1 CHF immediately before Night Float",
+      "name": "Bonus: F1 CHF immediately before Night Float",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "left_states": [
         "CHF"
@@ -1436,9 +1489,9 @@
       "is_active": true
     },
     {
-      "name": "Bonus: PGY1 Research adjacent to PTO",
+      "name": "Bonus: F1 Research adjacent to PTO",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "left_states": [
         "Research"
@@ -1453,9 +1506,9 @@
       "is_active": true
     },
     {
-      "name": "Bonus: PGY1 two-week PTO block",
+      "name": "Bonus: F1 two-week PTO block",
       "applicable_years": [
-        "PGY1"
+        "F1"
       ],
       "left_states": [
         "PTO"

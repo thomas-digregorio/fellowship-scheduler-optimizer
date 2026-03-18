@@ -105,7 +105,7 @@ def add_no_consecutive_same_block(
     """Forbid repeating the same block in consecutive weeks.
 
     Night Float is exempt because it has its own dedicated consecutive-week
-    limit and the new PGY1 defaults require multi-week Night Float exposure.
+    limit and the new F1 defaults require multi-week Night Float exposure.
     PTO is also exempt.
     """
 
@@ -303,6 +303,29 @@ def add_cohort_limit_rules(
                 sum(assign[fellow_idx, week, state_idx] for fellow_idx in fellow_indices)
                 <= rule.max_fellows
             )
+
+
+def add_individual_fellow_requirement_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Apply exact named-fellow block week-count requirements."""
+
+    for rule in config.individual_fellow_requirement_rules:
+        if not rule.is_active or rule.block_name not in block_name_to_idx:
+            continue
+        fellow_idx = config.fellow_index_for_year_and_name(
+            rule.training_year,
+            rule.fellow_name,
+        )
+        if fellow_idx is None:
+            continue
+        block_idx = block_name_to_idx[rule.block_name]
+        total = sum(assign[fellow_idx, week, block_idx] for week in range(config.num_weeks))
+        model.Add(total >= rule.min_weeks)
+        model.Add(total <= rule.max_weeks)
 
 
 def add_prerequisite_rules(

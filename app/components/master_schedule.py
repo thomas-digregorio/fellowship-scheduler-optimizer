@@ -90,7 +90,7 @@ def _render_objective_breakdown(result: ScheduleResult) -> None:
         return
 
     breakdown_df = pd.DataFrame(result.objective_breakdown)
-    ordered_columns = ["Category", "PGY1", "PGY2", "PGY3", "Total"]
+    ordered_columns = ["Category", "F1", "S2", "T3", "Total"]
     available_columns = [
         column for column in ordered_columns if column in breakdown_df.columns
     ]
@@ -103,9 +103,9 @@ def _render_objective_breakdown(result: ScheduleResult) -> None:
         hide_index=True,
         column_config={
             "Category": st.column_config.TextColumn("Category", width="large"),
-            "PGY1": st.column_config.NumberColumn("PGY1", format="%d"),
-            "PGY2": st.column_config.NumberColumn("PGY2", format="%d"),
-            "PGY3": st.column_config.NumberColumn("PGY3", format="%d"),
+            "F1": st.column_config.NumberColumn("F1", format="%d"),
+            "S2": st.column_config.NumberColumn("S2", format="%d"),
+            "T3": st.column_config.NumberColumn("T3", format="%d"),
             "Total": st.column_config.NumberColumn("Total", format="%d"),
         },
     )

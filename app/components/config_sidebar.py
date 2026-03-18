@@ -20,28 +20,28 @@ def render_config_sidebar() -> None:
 
     with st.sidebar.expander("📋 Global Settings", expanded=False):
         cohort_counts = config.cohort_counts
-        pgy1_count = st.number_input(
-            "PGY1 fellows",
+        f1_count = st.number_input(
+            "F1 fellows",
             min_value=0,
             max_value=30,
-            value=cohort_counts[TrainingYear.PGY1],
-            key="cfg_pgy1_count",
+            value=cohort_counts[TrainingYear.F1],
+            key="cfg_f1_count",
         )
-        pgy2_count = st.number_input(
-            "PGY2 fellows",
+        s2_count = st.number_input(
+            "S2 fellows",
             min_value=0,
             max_value=30,
-            value=cohort_counts[TrainingYear.PGY2],
-            key="cfg_pgy2_count",
+            value=cohort_counts[TrainingYear.S2],
+            key="cfg_s2_count",
         )
-        pgy3_count = st.number_input(
-            "PGY3 fellows",
+        t3_count = st.number_input(
+            "T3 fellows",
             min_value=0,
             max_value=30,
-            value=cohort_counts[TrainingYear.PGY3],
-            key="cfg_pgy3_count",
+            value=cohort_counts[TrainingYear.T3],
+            key="cfg_t3_count",
         )
-        _sync_fellows_by_year(config, pgy1_count, pgy2_count, pgy3_count)
+        _sync_fellows_by_year(config, f1_count, s2_count, t3_count)
         st.caption(f"Total fellows: {len(config.fellows)}")
 
         config.pto_weeks_granted = st.number_input(
@@ -259,9 +259,9 @@ def _render_fellow_sections(config: ScheduleConfig) -> None:
 
 def _sync_fellows_by_year(
     config: ScheduleConfig,
-    pgy1_count: int,
-    pgy2_count: int,
-    pgy3_count: int,
+    f1_count: int,
+    s2_count: int,
+    t3_count: int,
 ) -> None:
     """Resize the roster by cohort while preserving existing fellow data."""
 
@@ -274,9 +274,9 @@ def _sync_fellows_by_year(
         for year in TrainingYear
     }
     target_counts = {
-        TrainingYear.PGY1: pgy1_count,
-        TrainingYear.PGY2: pgy2_count,
-        TrainingYear.PGY3: pgy3_count,
+        TrainingYear.F1: f1_count,
+        TrainingYear.S2: s2_count,
+        TrainingYear.T3: t3_count,
     }
 
     new_fellows: list[FellowConfig] = []

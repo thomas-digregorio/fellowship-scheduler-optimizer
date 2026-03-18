@@ -14,6 +14,7 @@ from src.constraints import (
     add_coverage_rules,
     add_eligibility_rules,
     add_forbidden_transition_rules,
+    add_individual_fellow_requirement_rules,
     add_max_concurrent_pto,
     add_min_max_weeks_per_block,
     add_night_float_consecutive_limit,
@@ -199,6 +200,36 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"'{rule.state_name}'."
             )
 
+    for rule in config.individual_fellow_requirement_rules:
+        if not rule.is_active:
+            continue
+        if rule.block_name not in block_names:
+            issues.append(
+                f"⚠️ Individual fellow rule for '{rule.fellow_name}' references "
+                f"unknown block '{rule.block_name}'."
+            )
+        if rule.max_weeks < rule.min_weeks:
+            issues.append(
+                f"⚠️ Individual fellow rule for '{rule.fellow_name}' has "
+                "max_weeks < min_weeks."
+            )
+        matching_fellows = [
+            fellow
+            for fellow in config.fellows
+            if fellow.training_year == rule.training_year
+            and fellow.name == rule.fellow_name
+        ]
+        if not matching_fellows:
+            issues.append(
+                f"⚠️ Individual fellow rule for '{rule.fellow_name}' has no "
+                f"matching fellow in cohort {rule.training_year.value}."
+            )
+        elif len(matching_fellows) > 1:
+            issues.append(
+                f"⚠️ Individual fellow rule for '{rule.fellow_name}' is ambiguous "
+                f"because cohort {rule.training_year.value} has duplicate names."
+            )
+
     for rule in config.prerequisite_rules:
         if not rule.is_active:
             continue
@@ -316,6 +347,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.eligibility_rules
         or config.week_count_rules
         or config.cohort_limit_rules
+        or config.individual_fellow_requirement_rules
         or config.prerequisite_rules
         or config.forbidden_transition_rules
     ):
@@ -323,6 +355,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_coverage_rules(model, assign, config, block_name_to_idx)
         add_week_count_rules(model, assign, config, block_name_to_idx)
         add_cohort_limit_rules(model, assign, config, block_name_to_idx)
+        add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
         add_forbidden_transition_rules(model, assign, config, block_name_to_idx)
     else:

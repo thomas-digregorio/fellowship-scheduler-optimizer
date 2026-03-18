@@ -18,6 +18,7 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    IndividualFellowRequirementRule,
     ScheduleConfig,
     ScheduleResult,
     SoftSequenceRule,
@@ -127,13 +128,13 @@ def structured_config() -> ScheduleConfig:
         BlockConfig(name="Research", hours_per_week=40.0),
     ]
     fellows = [
-        FellowConfig("PGY1 A", training_year=TrainingYear.PGY1, pto_rankings=[6]),
-        FellowConfig("PGY1 B", training_year=TrainingYear.PGY1, pto_rankings=[7]),
-        FellowConfig("PGY1 C", training_year=TrainingYear.PGY1, pto_rankings=[5]),
-        FellowConfig("PGY1 D", training_year=TrainingYear.PGY1, pto_rankings=[4]),
-        FellowConfig("PGY2 A", training_year=TrainingYear.PGY2, pto_rankings=[6]),
-        FellowConfig("PGY2 B", training_year=TrainingYear.PGY2, pto_rankings=[7]),
-        FellowConfig("PGY3 A", training_year=TrainingYear.PGY3, pto_rankings=[5]),
+        FellowConfig("F1 A", training_year=TrainingYear.F1, pto_rankings=[6]),
+        FellowConfig("F1 B", training_year=TrainingYear.F1, pto_rankings=[7]),
+        FellowConfig("F1 C", training_year=TrainingYear.F1, pto_rankings=[5]),
+        FellowConfig("F1 D", training_year=TrainingYear.F1, pto_rankings=[4]),
+        FellowConfig("S2 A", training_year=TrainingYear.S2, pto_rankings=[6]),
+        FellowConfig("S2 B", training_year=TrainingYear.S2, pto_rankings=[7]),
+        FellowConfig("T3 A", training_year=TrainingYear.T3, pto_rankings=[5]),
     ]
     return ScheduleConfig(
         num_fellows=len(fellows),
@@ -156,14 +157,14 @@ def structured_config() -> ScheduleConfig:
             CoverageRule(
                 name="White each week",
                 block_name="White Consults",
-                eligible_years=[TrainingYear.PGY1],
+                eligible_years=[TrainingYear.F1],
                 min_fellows=1,
                 max_fellows=1,
             ),
             CoverageRule(
                 name="CCU early",
                 block_name="CCU",
-                eligible_years=[TrainingYear.PGY2],
+                eligible_years=[TrainingYear.S2],
                 min_fellows=1,
                 max_fellows=1,
                 start_week=0,
@@ -172,7 +173,7 @@ def structured_config() -> ScheduleConfig:
             CoverageRule(
                 name="CCU later",
                 block_name="CCU",
-                eligible_years=[TrainingYear.PGY1],
+                eligible_years=[TrainingYear.F1],
                 min_fellows=1,
                 max_fellows=1,
                 start_week=2,
@@ -181,7 +182,7 @@ def structured_config() -> ScheduleConfig:
             CoverageRule(
                 name="NF early",
                 block_name="Night Float",
-                eligible_years=[TrainingYear.PGY2],
+                eligible_years=[TrainingYear.S2],
                 min_fellows=1,
                 max_fellows=1,
                 start_week=0,
@@ -190,7 +191,7 @@ def structured_config() -> ScheduleConfig:
             CoverageRule(
                 name="NF later",
                 block_name="Night Float",
-                eligible_years=[TrainingYear.PGY1],
+                eligible_years=[TrainingYear.F1],
                 min_fellows=1,
                 max_fellows=1,
                 start_week=2,
@@ -199,48 +200,48 @@ def structured_config() -> ScheduleConfig:
         ],
         eligibility_rules=[
             EligibilityRule(
-                name="White PGY1 only",
+                name="White F1 only",
                 block_names=["White Consults"],
-                allowed_years=[TrainingYear.PGY1],
+                allowed_years=[TrainingYear.F1],
             ),
             EligibilityRule(
-                name="CCU early PGY2 only",
+                name="CCU early S2 only",
                 block_names=["CCU"],
-                allowed_years=[TrainingYear.PGY2],
+                allowed_years=[TrainingYear.S2],
                 start_week=0,
                 end_week=1,
             ),
             EligibilityRule(
-                name="CCU later PGY1 only",
+                name="CCU later F1 or S2",
                 block_names=["CCU"],
-                allowed_years=[TrainingYear.PGY1],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2],
                 start_week=2,
                 end_week=7,
             ),
             EligibilityRule(
-                name="NF early PGY2 only",
+                name="NF early S2 only",
                 block_names=["Night Float"],
-                allowed_years=[TrainingYear.PGY2],
+                allowed_years=[TrainingYear.S2],
                 start_week=0,
                 end_week=1,
             ),
             EligibilityRule(
-                name="NF later PGY1 only",
+                name="NF later F1 or S2",
                 block_names=["Night Float"],
-                allowed_years=[TrainingYear.PGY1],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2],
                 start_week=2,
                 end_week=7,
             ),
             EligibilityRule(
                 name="Cath any year",
                 block_names=["Yale Cath", "Research"],
-                allowed_years=[TrainingYear.PGY1, TrainingYear.PGY2, TrainingYear.PGY3],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
             ),
         ],
         week_count_rules=[
             WeekCountRule(
-                name="PGY1 no PTO first two weeks",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 no PTO first two weeks",
+                applicable_years=[TrainingYear.F1],
                 block_names=["PTO"],
                 min_weeks=0,
                 max_weeks=0,
@@ -250,20 +251,20 @@ def structured_config() -> ScheduleConfig:
         ],
         cohort_limit_rules=[
             CohortLimitRule(
-                name="PGY1 PTO max 1",
-                applicable_years=[TrainingYear.PGY1],
+                name="F1 PTO max 1",
+                applicable_years=[TrainingYear.F1],
                 state_name="PTO",
                 max_fellows=1,
             ),
             CohortLimitRule(
-                name="PGY2 PTO max 1",
-                applicable_years=[TrainingYear.PGY2],
+                name="S2 PTO max 1",
+                applicable_years=[TrainingYear.S2],
                 state_name="PTO",
                 max_fellows=1,
             ),
             CohortLimitRule(
-                name="PGY3 PTO max 1",
-                applicable_years=[TrainingYear.PGY3],
+                name="T3 PTO max 1",
+                applicable_years=[TrainingYear.T3],
                 state_name="PTO",
                 max_fellows=1,
             ),
@@ -463,12 +464,10 @@ class TestStructuredRules:
             ]
             assert len(white_fellows) == 1
             assert all(
-                fellow_years[fellow_idx] == TrainingYear.PGY1
+                fellow_years[fellow_idx] == TrainingYear.F1
                 for fellow_idx in white_fellows
             )
 
-            ccu_expected_year = TrainingYear.PGY2 if week < 2 else TrainingYear.PGY1
-            nf_expected_year = TrainingYear.PGY2 if week < 2 else TrainingYear.PGY1
             ccu_fellows = [
                 fellow_idx
                 for fellow_idx in range(structured_config.num_fellows)
@@ -479,29 +478,53 @@ class TestStructuredRules:
                 for fellow_idx in range(structured_config.num_fellows)
                 if structured_result.assignments[fellow_idx][week] == "Night Float"
             ]
-            assert len(ccu_fellows) == 1
-            assert len(nf_fellows) == 1
-            assert fellow_years[ccu_fellows[0]] == ccu_expected_year
-            assert fellow_years[nf_fellows[0]] == nf_expected_year
+            assert ccu_fellows
+            assert nf_fellows
+            if week < 2:
+                assert all(
+                    fellow_years[fellow_idx] == TrainingYear.S2
+                    for fellow_idx in ccu_fellows
+                )
+                assert all(
+                    fellow_years[fellow_idx] == TrainingYear.S2
+                    for fellow_idx in nf_fellows
+                )
+            else:
+                assert any(
+                    fellow_years[fellow_idx] == TrainingYear.F1
+                    for fellow_idx in ccu_fellows
+                )
+                assert any(
+                    fellow_years[fellow_idx] == TrainingYear.F1
+                    for fellow_idx in nf_fellows
+                )
+                assert all(
+                    fellow_years[fellow_idx] in (TrainingYear.F1, TrainingYear.S2)
+                    for fellow_idx in ccu_fellows
+                )
+                assert all(
+                    fellow_years[fellow_idx] in (TrainingYear.F1, TrainingYear.S2)
+                    for fellow_idx in nf_fellows
+                )
 
     def test_cohort_pto_cap_and_blackout(
         self,
         structured_config: ScheduleConfig,
         structured_result: ScheduleResult,
     ) -> None:
-        pgy1_indices = [
+        f1_indices = [
             idx
             for idx, fellow in enumerate(structured_config.fellows)
-            if fellow.training_year == TrainingYear.PGY1
+            if fellow.training_year == TrainingYear.F1
         ]
         for week in range(structured_config.num_weeks):
-            pgy1_pto = sum(
+            f1_pto = sum(
                 1
-                for idx in pgy1_indices
+                for idx in f1_indices
                 if structured_result.assignments[idx][week] == "PTO"
             )
-            assert pgy1_pto <= 1
-        for idx in pgy1_indices:
+            assert f1_pto <= 1
+        for idx in f1_indices:
             assert structured_result.assignments[idx][0] != "PTO"
             assert structured_result.assignments[idx][1] != "PTO"
 
@@ -512,14 +535,14 @@ class TestStructuredRules:
     ) -> None:
         for fellow_idx, fellow in enumerate(structured_config.fellows):
             assignments = structured_result.assignments[fellow_idx]
-            if fellow.training_year != TrainingYear.PGY1:
+            if fellow.training_year != TrainingYear.F1:
                 assert "White Consults" not in assignments
-            if fellow.training_year != TrainingYear.PGY2:
+            if fellow.training_year != TrainingYear.S2:
                 assert assignments[0] != "CCU"
                 assert assignments[1] != "CCU"
                 assert assignments[0] != "Night Float"
                 assert assignments[1] != "Night Float"
-            if fellow.training_year != TrainingYear.PGY1:
+            if fellow.training_year == TrainingYear.T3:
                 for week in range(2, structured_config.num_weeks):
                     assert assignments[week] != "CCU"
                     assert assignments[week] != "Night Float"
@@ -549,7 +572,7 @@ class TestStructuredRules:
             fellows=[
                 FellowConfig(
                     name="Solo Fellow",
-                    training_year=TrainingYear.PGY1,
+                    training_year=TrainingYear.F1,
                     pto_rankings=[2],
                 )
             ],
@@ -557,13 +580,13 @@ class TestStructuredRules:
                 EligibilityRule(
                     name="Solo can do all blocks",
                     block_names=["Research", "Elective"],
-                    allowed_years=[TrainingYear.PGY1],
+                    allowed_years=[TrainingYear.F1],
                 )
             ],
             soft_sequence_rules=[
                 SoftSequenceRule(
                     name="Reward Research before PTO",
-                    applicable_years=[TrainingYear.PGY1],
+                    applicable_years=[TrainingYear.F1],
                     left_states=["Research"],
                     right_states=["PTO"],
                     weight=25,
@@ -601,7 +624,7 @@ class TestStructuredRules:
             trailing_avg_weeks=3,
             solver_timeout_seconds=10.0,
             pto_preference_weight_overrides={
-                TrainingYear.PGY1.value: [1, 100],
+                TrainingYear.F1.value: [1, 100],
             },
             blocks=[
                 BlockConfig(name="Research", hours_per_week=40.0),
@@ -610,7 +633,7 @@ class TestStructuredRules:
             fellows=[
                 FellowConfig(
                     name="Solo Fellow",
-                    training_year=TrainingYear.PGY1,
+                    training_year=TrainingYear.F1,
                     pto_rankings=[0, 1],
                 )
             ],
@@ -618,7 +641,7 @@ class TestStructuredRules:
                 EligibilityRule(
                     name="Solo can do all blocks",
                     block_names=["Research", "Elective"],
-                    allowed_years=[TrainingYear.PGY1],
+                    allowed_years=[TrainingYear.F1],
                 )
             ],
         )
@@ -649,7 +672,7 @@ class TestStructuredRules:
             trailing_avg_weeks=3,
             solver_timeout_seconds=10.0,
             pto_preference_weight_overrides={
-                TrainingYear.PGY1.value: [10],
+                TrainingYear.F1.value: [10],
             },
             blocks=[
                 BlockConfig(name="Research", hours_per_week=40.0),
@@ -658,7 +681,7 @@ class TestStructuredRules:
             fellows=[
                 FellowConfig(
                     name="Solo Fellow",
-                    training_year=TrainingYear.PGY1,
+                    training_year=TrainingYear.F1,
                     pto_rankings=[2],
                 )
             ],
@@ -666,13 +689,13 @@ class TestStructuredRules:
                 EligibilityRule(
                     name="Solo can do all blocks",
                     block_names=["Research", "Elective"],
-                    allowed_years=[TrainingYear.PGY1],
+                    allowed_years=[TrainingYear.F1],
                 )
             ],
             soft_sequence_rules=[
                 SoftSequenceRule(
                     name="Reward Research before PTO",
-                    applicable_years=[TrainingYear.PGY1],
+                    applicable_years=[TrainingYear.F1],
                     left_states=["Research"],
                     right_states=["PTO"],
                     weight=7,
@@ -686,15 +709,106 @@ class TestStructuredRules:
         breakdown = {
             str(row["Category"]): row for row in result.objective_breakdown
         }
-        assert breakdown["PTO Preferences"]["PGY1"] == 10
-        assert breakdown["PTO Preferences"]["PGY2"] == 0
-        assert breakdown["PTO Preferences"]["PGY3"] == 0
+        assert breakdown["PTO Preferences"]["F1"] == 10
+        assert breakdown["PTO Preferences"]["S2"] == 0
+        assert breakdown["PTO Preferences"]["T3"] == 0
         assert breakdown["PTO Preferences"]["Total"] == 10
-        assert breakdown["Reward Research before PTO"]["PGY1"] == 7
+        assert breakdown["Reward Research before PTO"]["F1"] == 7
         assert breakdown["Reward Research before PTO"]["Total"] == 7
-        assert breakdown["Total"]["PGY1"] == 17
+        assert breakdown["Total"]["F1"] == 17
         assert breakdown["Total"]["Total"] == 17
         assert result.objective_value >= 17
+
+    def test_individual_fellow_requirement_rule_enforces_exact_block_count(self) -> None:
+        """A named-fellow hard rule should pin one fellow to an exact rotation count."""
+
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            pto_blackout_weeks=[],
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(
+                    name="Night Float",
+                    block_type=BlockType.NIGHT,
+                    hours_per_week=60.0,
+                ),
+                BlockConfig(name="Research", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(name="Emily", training_year=TrainingYear.S2),
+                FellowConfig(name="Alex", training_year=TrainingYear.S2),
+            ],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="S2 can do all blocks",
+                    block_names=["Night Float", "Research"],
+                    allowed_years=[TrainingYear.S2],
+                )
+            ],
+            individual_fellow_requirement_rules=[
+                IndividualFellowRequirementRule(
+                    training_year=TrainingYear.S2,
+                    fellow_name="Emily",
+                    block_name="Night Float",
+                    min_weeks=2,
+                    max_weeks=2,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        emily_idx = next(
+            idx for idx, fellow in enumerate(config.fellows) if fellow.name == "Emily"
+        )
+        assert result.assignments[emily_idx].count("Night Float") == 2
+
+    def test_individual_fellow_requirement_rule_flags_missing_fellow(self) -> None:
+        """Named-fellow rules should warn when no matching roster entry exists."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            pto_blackout_weeks=[],
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[BlockConfig(name="Research", hours_per_week=40.0)],
+            fellows=[FellowConfig(name="Alex", training_year=TrainingYear.S2)],
+            individual_fellow_requirement_rules=[
+                IndividualFellowRequirementRule(
+                    training_year=TrainingYear.S2,
+                    fellow_name="Emily",
+                    block_name="Research",
+                    min_weeks=1,
+                    max_weeks=1,
+                )
+            ],
+        )
+
+        issues = check_feasibility(config)
+
+        assert any("Emily" in issue and "matching fellow" in issue for issue in issues)
 
 
 class TestSourceBackedDefaults:
@@ -705,65 +819,69 @@ class TestSourceBackedDefaults:
         expected_pto_weights = [120, 80, 12, 4, 1, 0]
 
         assert config.start_date == date(2026, 7, 13)
-        assert config.cohort_counts[TrainingYear.PGY1] == 9
-        assert config.cohort_counts[TrainingYear.PGY2] == 9
-        assert config.cohort_counts[TrainingYear.PGY3] == 7
+        assert config.cohort_counts[TrainingYear.F1] == 9
+        assert config.cohort_counts[TrainingYear.S2] == 9
+        assert config.cohort_counts[TrainingYear.T3] == 7
         assert config.max_concurrent_pto == 12
         assert (
-            config.pto_preference_weights_for_year(TrainingYear.PGY1)
+            config.pto_preference_weights_for_year(TrainingYear.F1)
             == expected_pto_weights
         )
         assert (
-            config.pto_preference_weights_for_year(TrainingYear.PGY2)
+            config.pto_preference_weights_for_year(TrainingYear.S2)
             == expected_pto_weights
         )
         assert (
-            config.pto_preference_weights_for_year(TrainingYear.PGY3)
+            config.pto_preference_weights_for_year(TrainingYear.T3)
             == expected_pto_weights
         )
 
         coverage_rule_names = {rule.name for rule in config.coverage_rules}
-        assert "White Consults staffed by PGY1" in coverage_rule_names
-        assert "Goodyer staffed by PGY2" in coverage_rule_names
-        assert "Yale Nuclear optional PGY1 slot" in coverage_rule_names
-        assert "Yale Nuclear PGY2 slot" in coverage_rule_names
+        assert "White Consults staffed by F1" in coverage_rule_names
+        assert "Goodyer staffed by S2" in coverage_rule_names
+        assert "Yale Nuclear optional F1 slot" in coverage_rule_names
+        assert "Yale Nuclear S2 slot" in coverage_rule_names
 
         week_rules = {rule.name: rule for rule in config.week_count_rules}
-        assert "PGY1 no PTO in first two months" in week_rules
-        assert "PGY1 White Consults" in week_rules
-        assert "PGY1 Research" in week_rules
-        assert week_rules["PGY1 White Consults"].min_weeks == 4
-        assert week_rules["PGY1 White Consults"].max_weeks == 6
-        assert week_rules["PGY1 White Consults"].is_active
-        assert week_rules["PGY1 SRC Consults"].is_active
-        assert week_rules["PGY1 VA Consults"].is_active
-        assert week_rules["PGY1 Consult total"].max_weeks == 12
-        assert week_rules["PGY1 Consult total"].is_active
-        assert week_rules["PGY1 Yale Nuclear"].min_weeks == 2
-        assert week_rules["PGY1 Yale Nuclear"].max_weeks == 6
-        assert week_rules["PGY1 Yale Nuclear"].is_active
-        assert week_rules["PGY1 VA Nuclear"].min_weeks == 1
-        assert week_rules["PGY1 VA Nuclear"].max_weeks == 2
-        assert week_rules["PGY1 VA Nuclear"].is_active
-        assert week_rules["PGY1 Nuclear total"].min_weeks == 4
-        assert week_rules["PGY1 Nuclear total"].max_weeks == 7
-        assert week_rules["PGY1 Nuclear total"].is_active
-        assert week_rules["PGY1 Yale Echo"].is_active
-        assert week_rules["PGY1 Echo total"].is_active
-        assert week_rules["PGY1 Yale Cath"].is_active
-        assert week_rules["PGY1 Cath total"].is_active
+        assert "F1 no PTO in first two months" in week_rules
+        assert "F1 White Consults" in week_rules
+        assert "F1 Research" in week_rules
+        assert week_rules["F1 White Consults"].min_weeks == 4
+        assert week_rules["F1 White Consults"].max_weeks == 6
+        assert week_rules["F1 White Consults"].is_active
+        assert week_rules["F1 SRC Consults"].is_active
+        assert week_rules["F1 VA Consults"].is_active
+        assert week_rules["F1 Consult total"].max_weeks == 12
+        assert week_rules["F1 Consult total"].is_active
+        assert week_rules["F1 Yale Nuclear"].min_weeks == 2
+        assert week_rules["F1 Yale Nuclear"].max_weeks == 6
+        assert week_rules["F1 Yale Nuclear"].is_active
+        assert week_rules["F1 VA Nuclear"].min_weeks == 1
+        assert week_rules["F1 VA Nuclear"].max_weeks == 2
+        assert week_rules["F1 VA Nuclear"].is_active
+        assert week_rules["F1 Nuclear total"].min_weeks == 4
+        assert week_rules["F1 Nuclear total"].max_weeks == 7
+        assert week_rules["F1 Nuclear total"].is_active
+        assert week_rules["F1 Yale Echo"].is_active
+        assert week_rules["F1 Echo total"].is_active
+        assert week_rules["F1 Yale Cath"].is_active
+        assert week_rules["F1 Cath total"].is_active
 
         assert any(
-            rule.name == "PGY1 before Night Float needs core exposure"
+            rule.name == "F1 before Night Float needs core exposure"
             and rule.is_active
             for rule in config.prerequisite_rules
         )
+        assert not config.forbidden_transition_rules
         assert any(
-            rule.name == "PGY1 no consult or PTO directly before Night Float"
-            for rule in config.forbidden_transition_rules
+            rule.name
+            == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
+            and rule.weight == -40
+            and rule.is_active
+            for rule in config.soft_sequence_rules
         )
         assert any(
-            rule.name == "Bonus: PGY1 CHF immediately before Night Float"
+            rule.name == "Bonus: F1 CHF immediately before Night Float"
             and rule.weight == 30
             for rule in config.soft_sequence_rules
         )
@@ -775,7 +893,9 @@ class TestSourceBackedDefaults:
 
         assert not any("Staffing conflict" in issue for issue in issues)
 
-    def test_default_config_with_all_pgy1_rules_solves_without_pto(self) -> None:
+    def test_default_config_with_all_f1_rules_solves_without_pto(
+        self,
+    ) -> None:
         config = get_default_config()
         config.pto_weeks_granted = 0
         config.pto_weeks_to_rank = 0

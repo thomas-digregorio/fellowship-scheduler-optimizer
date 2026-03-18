@@ -7,8 +7,8 @@ white consults- 1 First year Fellow
 SRC consults- 1 First year, Second year, or Third year fellow
 VA consults- 1 First year, Second year, or Third year fellow
 Goodyer consults- 1 Second year fellow
-CCU- 1 Second year fellow from 7/13/26 – 8/9/26, 1 First year fellow beginning 8/10/2026
-Night Float- 1 Second year fellow from 7/13/26 – 8/16/261 First year fellow
+CCU- 1 Second year fellow from 7/13/26 – 8/9/26, 1 First year fellow beginning 8/10/2026. Second year fellows may also cover CCU after 8/10/2026
+Night Float- 1 Second year fellow from 7/13/26 – 8/16/26, 1 First year fellow beginning 8/17/2026. Second year fellows may also cover Night Float after 8/17/2026
 EP- 1 First year or Second year Fellow
 CHF- 1 First year or Second year Fellow
 Yale nuclear- 1 second year Fellow, with no weekly first year minimum
@@ -51,5 +51,5 @@ For First year fellows, the total weeks of Yale nuclear + VA nuclear = 4-7 weeks
 For First year fellows, 1 week of Research should be before or after 1 week vacation blocks if possible
 All first year fellows must complete 1 week of yale echo, 1 week of yale cath, 1 week of white consults, 1 week of CCU, and 1 week of EP before having a Night Float rotation.
 For First year fellows, 1 week of CHF should be immediately before the 1st night float rotation if possible
-For First year fellows, Night float cannot come after the following rotations: white consults, SRC consults, VA consults, CCU, vacation 
+For First year fellows, Night float should ideally not come after the following rotations: white consults, SRC consults, VA consults, CCU, vacation 
 No vacation in the first 2 months for first year fellows

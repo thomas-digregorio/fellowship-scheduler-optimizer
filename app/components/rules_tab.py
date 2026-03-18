@@ -17,6 +17,7 @@ from src.models import (
     EligibilityRule,
     FellowConfig,
     ForbiddenTransitionRule,
+    IndividualFellowRequirementRule,
     PrerequisiteRule,
     ScheduleConfig,
     SoftRuleDirection,
@@ -44,6 +45,7 @@ def render_rules_tab(config: ScheduleConfig) -> None:
         + len(config.eligibility_rules)
         + len(config.week_count_rules)
         + len(config.cohort_limit_rules)
+        + len(config.individual_fellow_requirement_rules)
         + len(config.prerequisite_rules)
         + len(config.forbidden_transition_rules)
     )
@@ -57,21 +59,21 @@ def render_rules_tab(config: ScheduleConfig) -> None:
     summary_right.metric("Active bonus weight", active_bonus_weight)
     summary_far_right.metric("Active penalty weight", active_penalty_weight)
 
-    program_tab, pgy1_tab, pgy2_tab, pgy3_tab, hard_tab, soft_tab = st.tabs(
-        ["Program Setup", "PGY1", "PGY2", "PGY3", "Hard Rules", "Soft Rules"]
+    program_tab, f1_tab, s2_tab, t3_tab, hard_tab, soft_tab = st.tabs(
+        ["Program Setup", "F1", "S2", "T3", "Hard Rules", "Soft Rules"]
     )
 
     with program_tab:
         _render_program_setup(config)
 
-    with pgy1_tab:
-        _render_cohort_setup(config, TrainingYear.PGY1)
+    with f1_tab:
+        _render_cohort_setup(config, TrainingYear.F1)
 
-    with pgy2_tab:
-        _render_cohort_setup(config, TrainingYear.PGY2)
+    with s2_tab:
+        _render_cohort_setup(config, TrainingYear.S2)
 
-    with pgy3_tab:
-        _render_cohort_setup(config, TrainingYear.PGY3)
+    with t3_tab:
+        _render_cohort_setup(config, TrainingYear.T3)
 
     with hard_tab:
         _render_hard_rules_summary(config)
@@ -230,7 +232,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
         st.markdown("**Shared Hard Rules**")
         st.caption(
             "Edit rules that span multiple cohorts here. Exact single-cohort rules are edited "
-            "inside the PGY1 / PGY2 / PGY3 tabs."
+            "inside the F1 / S2 / T3 tabs."
         )
 
         shared_coverage = _select_shared_coverage_rules(config.coverage_rules)
@@ -295,9 +297,9 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         updated_counts[year] = target_count
         _sync_fellows_by_year(
             config,
-            updated_counts[TrainingYear.PGY1],
-            updated_counts[TrainingYear.PGY2],
-            updated_counts[TrainingYear.PGY3],
+            updated_counts[TrainingYear.F1],
+            updated_counts[TrainingYear.S2],
+            updated_counts[TrainingYear.T3],
         )
 
         fellows_in_year = [
@@ -341,7 +343,7 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
             and _is_pto_rule(rule.block_names),
         )
 
-        st.markdown("**Roster, PTO Preferences, and Availability**")
+        st.markdown("**Roster Names, PTO Preferences, and Availability**")
         if not fellows_in_year:
             st.info(f"No fellows are currently configured for {year.value}.")
         else:
@@ -437,6 +439,23 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         )
 
         st.divider()
+        individual_rules = [
+            rule
+            for rule in config.individual_fellow_requirement_rules
+            if rule.training_year == year
+        ]
+        config.individual_fellow_requirement_rules = _merge_year_rules(
+            config.individual_fellow_requirement_rules,
+            _render_individual_fellow_requirement_rules_editor(
+                config,
+                year,
+                individual_rules,
+                key_prefix=f"{year.value}_individual_fellow_requirements",
+            ),
+            predicate=lambda rule: rule.training_year == year,
+        )
+
+        st.divider()
         _render_pto_preference_weights_editor(config, year)
 
 
@@ -445,7 +464,7 @@ def _render_source_reference(config: ScheduleConfig) -> None:
 
     st.markdown("**Source Reference: scheduling_rules.txt**")
     st.caption(
-        "The default cohort counts, coverage rules, PGY1 requirements, and soft-rule "
+        "The default cohort counts, coverage rules, F1 requirements, and soft-rule "
         "weights were loaded from this source file."
     )
 
@@ -469,7 +488,7 @@ def _render_source_reference(config: ScheduleConfig) -> None:
     imported_but_inactive = [
         rule.name
         for rule in config.week_count_rules
-        if not rule.is_active and rule.name.startswith("PGY1 ")
+        if not rule.is_active and rule.name.startswith("F1 ")
     ] + [
         rule.name
         for rule in config.prerequisite_rules + config.forbidden_transition_rules
@@ -494,7 +513,7 @@ def _render_hard_rules_summary(config: ScheduleConfig) -> None:
 
     st.info(
         "This page shows the hard rules currently wired into the solver. Edit exact "
-        "single-cohort hard rules in the PGY tabs and cross-cohort hard rules in "
+        "single-cohort hard rules in the F1 / S2 / T3 tabs and cross-cohort hard rules in "
         "Program Setup."
     )
 
@@ -558,6 +577,20 @@ def _render_hard_rules_summary(config: ScheduleConfig) -> None:
                 "Active": rule.is_active,
             }
             for rule in config.cohort_limit_rules
+        ],
+    )
+    _render_summary_table(
+        "Individual Fellow Requirements",
+        [
+            {
+                "Cohort": rule.training_year.value,
+                "Fellow": rule.fellow_name,
+                "Block": rule.block_name,
+                "Min Weeks": rule.min_weeks,
+                "Max Weeks": rule.max_weeks,
+                "Active": rule.is_active,
+            }
+            for rule in config.individual_fellow_requirement_rules
         ],
     )
     _render_summary_table(
@@ -655,13 +688,37 @@ def _render_fellow_editors(config: ScheduleConfig, year: TrainingYear) -> None:
     week_options = _build_week_options(config, exclude_global_blackouts=False)
     rankable_week_options = _build_week_options(config, exclude_global_blackouts=True)
 
+    st.markdown("**Roster Names**")
+    st.caption(f"Edit the fellow names for {year.value}.")
+    roster_rows = [
+        {
+            "Slot": idx + 1,
+            "Name": fellow.name.strip(),
+        }
+        for idx, (_, fellow) in enumerate(fellows)
+    ]
+    edited_roster = st.data_editor(
+        _build_dataframe(roster_rows, ["Slot", "Name"]),
+        num_rows="fixed",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{year.value}_roster_names_editor",
+        column_config={
+            "Slot": st.column_config.NumberColumn("Slot", disabled=True, format="%d"),
+            "Name": st.column_config.TextColumn("Name"),
+        },
+    )
+    for idx, (fellow_idx, fellow) in enumerate(fellows):
+        fallback_name = f"{year.value} Fellow {idx + 1}"
+        fellow.name = str(edited_roster.at[idx, "Name"]).strip() or fallback_name
+        config.fellows[fellow_idx] = fellow
+
+    st.markdown("**PTO Preferences and Availability**")
+    st.caption(
+        "Edit ranked PTO weeks and unavailable weeks for each fellow below."
+    )
     for fellow_idx, fellow in fellows:
         with st.expander(f"👤 {fellow.name}", expanded=False):
-            fellow.name = st.text_input(
-                "Name",
-                value=fellow.name.strip(),
-                key=f"{year.value}_fellow_name_{fellow_idx}",
-            )
             st.caption(
                 f"Select up to {config.pto_weeks_to_rank} preferred PTO weeks, ranked best → worst."
             )
@@ -743,6 +800,99 @@ def _render_pto_preference_weights_editor(
         f"highest-weight ranked choices, that cohort member could contribute up to "
         f"{max_ranked_score} PTO objective points before any soft-rule bonuses."
     )
+
+
+def _render_individual_fellow_requirement_rules_editor(
+    config: ScheduleConfig,
+    year: TrainingYear,
+    rules: list[IndividualFellowRequirementRule],
+    *,
+    key_prefix: str,
+) -> list[IndividualFellowRequirementRule]:
+    """Render exact named-fellow hard requirements for one cohort."""
+
+    st.markdown("**Individual Fellow Requirements**")
+    st.caption(
+        "Use this for named-fellow hard rules such as one fellow needing an exact "
+        "number of weeks on a specific rotation."
+    )
+
+    fellow_names = [
+        fellow.name
+        for fellow in config.fellows
+        if fellow.training_year == year
+    ]
+    block_names = [block.name for block in config.blocks]
+    if not fellow_names:
+        st.info(f"No fellows are available in {year.value} to attach individual rules.")
+        return []
+    if not block_names:
+        st.info("No rotations are available yet. Add block metadata first.")
+        return []
+
+    columns = ["Fellow", "Rotation", "Min Weeks", "Max Weeks", "Active"]
+    rows = [
+        {
+            "Fellow": rule.fellow_name,
+            "Rotation": rule.block_name,
+            "Min Weeks": rule.min_weeks,
+            "Max Weeks": rule.max_weeks,
+            "Active": rule.is_active,
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["Min Weeks", "Max Weeks"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+        column_config={
+            "Fellow": st.column_config.SelectboxColumn(
+                "Fellow",
+                options=fellow_names,
+                required=True,
+            ),
+            "Rotation": st.column_config.SelectboxColumn(
+                "Rotation",
+                options=block_names,
+                required=True,
+            ),
+        },
+    )
+
+    invalid_rows: list[str] = []
+    updated_rules: list[IndividualFellowRequirementRule] = []
+    for row in edited.to_dict("records"):
+        fellow_name = str(row.get("Fellow") or "").strip()
+        block_name = str(row.get("Rotation") or "").strip()
+        if not fellow_name or not block_name:
+            continue
+        if fellow_name not in fellow_names or block_name not in block_names:
+            invalid_rows.append(f"{fellow_name or '<blank>'} / {block_name or '<blank>'}")
+            continue
+        updated_rules.append(
+            IndividualFellowRequirementRule(
+                training_year=year,
+                fellow_name=fellow_name,
+                block_name=block_name,
+                min_weeks=_to_int(row.get("Min Weeks"), default=0),
+                max_weeks=_to_int(row.get("Max Weeks"), default=52),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+
+    if invalid_rows:
+        st.error(
+            "Skipped invalid individual-fellow rows because the fellow or rotation "
+            f"no longer exists in the live roster/catalog: {', '.join(invalid_rows)}"
+        )
+
+    return updated_rules
 
 
 def _render_block_metadata_editor(
@@ -1250,9 +1400,9 @@ def _build_week_options(
 
 def _sync_fellows_by_year(
     config: ScheduleConfig,
-    pgy1_count: int,
-    pgy2_count: int,
-    pgy3_count: int,
+    f1_count: int,
+    s2_count: int,
+    t3_count: int,
 ) -> None:
     """Resize the roster by cohort while preserving existing fellow data."""
 
@@ -1265,9 +1415,9 @@ def _sync_fellows_by_year(
         for year in TrainingYear
     }
     target_counts = {
-        TrainingYear.PGY1: pgy1_count,
-        TrainingYear.PGY2: pgy2_count,
-        TrainingYear.PGY3: pgy3_count,
+        TrainingYear.F1: f1_count,
+        TrainingYear.S2: s2_count,
+        TrainingYear.T3: t3_count,
     }
 
     new_fellows: list[FellowConfig] = []

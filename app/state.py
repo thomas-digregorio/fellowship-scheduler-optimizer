@@ -23,7 +23,7 @@ from src.config import (
     get_default_pto_preference_weight_overrides,
 )
 from src.io_utils import load_config, load_schedule, save_config, save_schedule
-from src.models import ScheduleConfig, ScheduleResult, TrainingYear
+from src.models import ScheduleConfig, ScheduleResult, SoftSequenceRule, TrainingYear
 
 # Default paths for persisting state between app restarts
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -51,9 +51,9 @@ def _looks_like_legacy_saved_config(config: ScheduleConfig) -> bool:
     cohort_counts = config.cohort_counts
     return (
         not config.uses_structured_rules
-        and cohort_counts[TrainingYear.PGY2] == 0
-        and cohort_counts[TrainingYear.PGY3] == 0
-        and cohort_counts[TrainingYear.PGY1] == len(config.fellows)
+        and cohort_counts[TrainingYear.S2] == 0
+        and cohort_counts[TrainingYear.T3] == 0
+        and cohort_counts[TrainingYear.F1] == len(config.fellows)
         and len(config.fellows) == 9
     )
 
@@ -94,19 +94,39 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
 
     for rule in config.coverage_rules:
         if (
-            rule.name == "Yale Nuclear PGY1 slot"
+            rule.name == "Yale Nuclear F1 slot"
             and rule.block_name == "Yale Nuclear"
-            and rule.eligible_years == [TrainingYear.PGY1]
+            and rule.eligible_years == [TrainingYear.F1]
             and rule.min_fellows == 1
             and rule.max_fellows == 1
         ):
-            rule.name = "Yale Nuclear optional PGY1 slot"
+            rule.name = "Yale Nuclear optional F1 slot"
             rule.min_fellows = 0
+            changed = True
+
+    for rule in config.eligibility_rules:
+        if (
+            rule.name == "CCU later F1 only"
+            and rule.block_names == ["CCU"]
+            and rule.allowed_years == [TrainingYear.F1]
+            and rule.start_week == 4
+        ):
+            rule.name = "CCU later F1 or S2"
+            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2]
+            changed = True
+        elif (
+            rule.name == "Night Float later F1 only"
+            and rule.block_names == ["Night Float"]
+            and rule.allowed_years == [TrainingYear.F1]
+            and rule.start_week == 5
+        ):
+            rule.name = "Night Float later F1 or S2"
+            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2]
             changed = True
 
     for rule in config.week_count_rules:
         if (
-            rule.name == "PGY1 White Consults"
+            rule.name == "F1 White Consults"
             and rule.block_names == ["White Consults"]
             and rule.min_weeks == 4
             and rule.max_weeks == 4
@@ -116,7 +136,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 SRC Consults"
+            rule.name == "F1 SRC Consults"
             and rule.block_names == ["SRC Consults"]
             and rule.min_weeks == 3
             and rule.max_weeks == 4
@@ -125,7 +145,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 VA Consults"
+            rule.name == "F1 VA Consults"
             and rule.block_names == ["VA Consults"]
             and rule.min_weeks == 3
             and rule.max_weeks == 4
@@ -134,7 +154,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Consult total"
+            rule.name == "F1 Consult total"
             and rule.block_names == ["White Consults", "SRC Consults", "VA Consults"]
             and rule.min_weeks == 10
             and rule.max_weeks in {11, 12}
@@ -143,7 +163,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Yale Nuclear"
+            rule.name == "F1 Yale Nuclear"
             and rule.block_names == ["Yale Nuclear"]
             and rule.min_weeks == 2
             and rule.max_weeks == 3
@@ -153,7 +173,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Yale Echo"
+            rule.name == "F1 Yale Echo"
             and rule.block_names == ["Yale Echo"]
             and rule.min_weeks == 3
             and rule.max_weeks == 4
@@ -162,7 +182,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 VA Echo"
+            rule.name == "F1 VA Echo"
             and rule.block_names == ["VA Echo"]
             and rule.min_weeks == 3
             and rule.max_weeks == 4
@@ -171,7 +191,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 SRC Echo"
+            rule.name == "F1 SRC Echo"
             and rule.block_names == ["SRC Echo"]
             and rule.min_weeks == 1
             and rule.max_weeks == 1
@@ -180,7 +200,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Echo total"
+            rule.name == "F1 Echo total"
             and rule.block_names == ["Yale Echo", "VA Echo", "SRC Echo"]
             and rule.min_weeks == 8
             and rule.max_weeks == 9
@@ -189,7 +209,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Yale Cath"
+            rule.name == "F1 Yale Cath"
             and rule.block_names == ["Yale Cath"]
             and rule.min_weeks == 3
             and rule.max_weeks == 4
@@ -198,7 +218,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 VA Cath"
+            rule.name == "F1 VA Cath"
             and rule.block_names == ["VA Cath"]
             and rule.min_weeks == 1
             and rule.max_weeks == 2
@@ -207,7 +227,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 SRC Cath"
+            rule.name == "F1 SRC Cath"
             and rule.block_names == ["SRC Cath"]
             and rule.min_weeks == 1
             and rule.max_weeks == 2
@@ -216,7 +236,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Cath total"
+            rule.name == "F1 Cath total"
             and rule.block_names == ["Yale Cath", "VA Cath", "SRC Cath"]
             and rule.min_weeks == 6
             and rule.max_weeks == 7
@@ -225,7 +245,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 VA Nuclear"
+            rule.name == "F1 VA Nuclear"
             and rule.block_names == ["VA Nuclear"]
             and rule.min_weeks == 1
             and rule.max_weeks == 2
@@ -234,13 +254,70 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.is_active = True
             changed = True
         elif (
-            rule.name == "PGY1 Nuclear total"
+            rule.name == "F1 Nuclear total"
             and rule.block_names == ["Yale Nuclear", "VA Nuclear"]
             and rule.min_weeks == 4
             and rule.max_weeks == 7
             and not rule.is_active
         ):
             rule.is_active = True
+            changed = True
+
+    legacy_nf_forbidden_previous_blocks = [
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "CCU",
+        "PTO",
+    ]
+    filtered_transition_rules = [
+        rule
+        for rule in config.forbidden_transition_rules
+        if not (
+            rule.target_block == "Night Float"
+            and rule.applicable_years == [TrainingYear.F1]
+            and rule.forbidden_previous_blocks == legacy_nf_forbidden_previous_blocks
+        )
+    ]
+    if len(filtered_transition_rules) != len(config.forbidden_transition_rules):
+        config.forbidden_transition_rules = filtered_transition_rules
+        changed = True
+
+    soft_penalty_name = (
+        "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, "
+        "CCU, or PTO"
+    )
+    matching_soft_penalty = next(
+        (
+            rule
+            for rule in config.soft_sequence_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.left_states == legacy_nf_forbidden_previous_blocks
+            and rule.right_states == ["Night Float"]
+        ),
+        None,
+    )
+    if matching_soft_penalty is None:
+        config.soft_sequence_rules.insert(
+            0,
+            SoftSequenceRule(
+                name=soft_penalty_name,
+                applicable_years=[TrainingYear.F1],
+                left_states=legacy_nf_forbidden_previous_blocks,
+                right_states=["Night Float"],
+                weight=-40,
+            ),
+        )
+        changed = True
+    else:
+        if matching_soft_penalty.name != soft_penalty_name:
+            matching_soft_penalty.name = soft_penalty_name
+            changed = True
+        if matching_soft_penalty.weight != -40:
+            matching_soft_penalty.weight = -40
+            changed = True
+        if not matching_soft_penalty.is_active:
+            matching_soft_penalty.is_active = True
             changed = True
 
     return changed

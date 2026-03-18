@@ -13,6 +13,13 @@ from datetime import date
 from enum import Enum
 
 
+LEGACY_YEAR_ALIASES = {
+    "PGY1": "F1",
+    "PGY2": "S2",
+    "PGY3": "T3",
+}
+
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -21,9 +28,9 @@ from enum import Enum
 class TrainingYear(Enum):
     """Training year / cohort for a fellow."""
 
-    PGY1 = "PGY1"
-    PGY2 = "PGY2"
-    PGY3 = "PGY3"
+    F1 = "F1"
+    S2 = "S2"
+    T3 = "T3"
 
 
 class BlockType(Enum):
@@ -48,6 +55,24 @@ class SoftRuleDirection(Enum):
 
     FORWARD = "forward"
     EITHER = "either"
+
+
+def _normalize_legacy_year_aliases(value):
+    """Recursively replace legacy cohort labels with the new terminology."""
+
+    if isinstance(value, str):
+        normalized = value
+        for legacy, replacement in LEGACY_YEAR_ALIASES.items():
+            normalized = normalized.replace(legacy, replacement)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_legacy_year_aliases(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            _normalize_legacy_year_aliases(key): _normalize_legacy_year_aliases(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +126,7 @@ class FellowConfig:
     """Settings for a single fellow."""
 
     name: str
-    training_year: TrainingYear = TrainingYear.PGY1
+    training_year: TrainingYear = TrainingYear.F1
     pto_rankings: list[int] = field(default_factory=list)
     unavailable_weeks: list[int] = field(default_factory=list)
 
@@ -119,12 +144,12 @@ class FellowConfig:
         """Deserialize from a JSON dictionary.
 
         Legacy configs may not include ``training_year``. Those fellows
-        default to PGY1 so older saved files still load successfully.
+        default to F1 so older saved files still load successfully.
         """
 
-        payload = data.copy()
+        payload = _normalize_legacy_year_aliases(data.copy())
         payload["training_year"] = TrainingYear(
-            payload.get("training_year", TrainingYear.PGY1.value)
+            payload.get("training_year", TrainingYear.F1.value)
         )
         return cls(**payload)
 
@@ -141,7 +166,7 @@ def _serialize_years(years: list[TrainingYear]) -> list[str]:
 
 def _deserialize_years(values: list[str] | None) -> list[TrainingYear]:
     """Parse training-year strings from JSON."""
-    return [TrainingYear(value) for value in values or []]
+    return [TrainingYear(_normalize_legacy_year_aliases(value)) for value in values or []]
 
 
 def _default_pto_preference_weights(num_ranked_weeks: int) -> list[int]:
@@ -161,6 +186,7 @@ def _normalize_pto_preference_weight_overrides(
     valid_years = {year.value for year in TrainingYear}
     normalized: dict[str, list[int]] = {}
     for year_value, weights in values.items():
+        year_value = _normalize_legacy_year_aliases(year_value)
         if year_value not in valid_years or not isinstance(weights, list):
             continue
         parsed_weights: list[int] = []
@@ -314,6 +340,40 @@ class CohortLimitRule:
 
 
 @dataclass
+class IndividualFellowRequirementRule:
+    """Require an exact fellow to spend a min/max number of weeks on one block."""
+
+    training_year: TrainingYear
+    fellow_name: str
+    block_name: str
+    min_weeks: int = 0
+    max_weeks: int = 52
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "training_year": self.training_year.value,
+            "fellow_name": self.fellow_name,
+            "block_name": self.block_name,
+            "min_weeks": self.min_weeks,
+            "max_weeks": self.max_weeks,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> IndividualFellowRequirementRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["training_year"] = TrainingYear(
+            _normalize_legacy_year_aliases(
+                payload.get("training_year", TrainingYear.F1.value)
+            )
+        )
+        return cls(**payload)
+
+
+@dataclass
 class PrerequisiteRule:
     """Require certain prior experience before a target rotation."""
 
@@ -448,6 +508,9 @@ class ScheduleConfig:
     eligibility_rules: list[EligibilityRule] = field(default_factory=list)
     week_count_rules: list[WeekCountRule] = field(default_factory=list)
     cohort_limit_rules: list[CohortLimitRule] = field(default_factory=list)
+    individual_fellow_requirement_rules: list[IndividualFellowRequirementRule] = field(
+        default_factory=list
+    )
     prerequisite_rules: list[PrerequisiteRule] = field(default_factory=list)
     forbidden_transition_rules: list[ForbiddenTransitionRule] = field(
         default_factory=list
@@ -488,6 +551,7 @@ class ScheduleConfig:
                 self.eligibility_rules,
                 self.week_count_rules,
                 self.cohort_limit_rules,
+                self.individual_fellow_requirement_rules,
                 self.prerequisite_rules,
                 self.forbidden_transition_rules,
                 self.soft_sequence_rules,
@@ -544,6 +608,22 @@ class ScheduleConfig:
         else:
             self.pto_preference_weight_overrides[year.value] = full_weights
 
+    def fellow_index_for_year_and_name(
+        self,
+        year: TrainingYear,
+        fellow_name: str,
+    ) -> int | None:
+        """Return the unique fellow index for one cohort/name pair, if any."""
+
+        matches = [
+            index
+            for index, fellow in enumerate(self.fellows)
+            if fellow.training_year == year and fellow.name == fellow_name
+        ]
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
     def to_dict(self) -> dict:
         """Serialize the full config to a JSON-friendly dictionary."""
         return {
@@ -574,6 +654,9 @@ class ScheduleConfig:
             "cohort_limit_rules": [
                 rule.to_dict() for rule in self.cohort_limit_rules
             ],
+            "individual_fellow_requirement_rules": [
+                rule.to_dict() for rule in self.individual_fellow_requirement_rules
+            ],
             "prerequisite_rules": [
                 rule.to_dict() for rule in self.prerequisite_rules
             ],
@@ -589,7 +672,7 @@ class ScheduleConfig:
     def from_dict(cls, data: dict) -> ScheduleConfig:
         """Deserialize from a JSON dictionary."""
 
-        payload = data.copy()
+        payload = _normalize_legacy_year_aliases(data.copy())
         payload["start_date"] = date.fromisoformat(payload["start_date"])
         payload["pto_preference_weight_overrides"] = _normalize_pto_preference_weight_overrides(
             payload.get("pto_preference_weight_overrides")
@@ -616,6 +699,10 @@ class ScheduleConfig:
         payload["cohort_limit_rules"] = [
             CohortLimitRule.from_dict(rule)
             for rule in payload.get("cohort_limit_rules", [])
+        ]
+        payload["individual_fellow_requirement_rules"] = [
+            IndividualFellowRequirementRule.from_dict(rule)
+            for rule in payload.get("individual_fellow_requirement_rules", [])
         ]
         payload["prerequisite_rules"] = [
             PrerequisiteRule.from_dict(rule)
@@ -665,6 +752,6 @@ class ScheduleResult:
     @classmethod
     def from_dict(cls, data: dict) -> ScheduleResult:
         """Deserialize from a JSON dictionary."""
-        payload = data.copy()
+        payload = _normalize_legacy_year_aliases(data.copy())
         payload["solver_status"] = SolverStatus(payload["solver_status"])
         return cls(**payload)
