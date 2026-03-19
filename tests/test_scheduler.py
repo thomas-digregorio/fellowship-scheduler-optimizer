@@ -18,7 +18,9 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    FirstAssignmentPairingRule,
     IndividualFellowRequirementRule,
+    RollingWindowRule,
     ScheduleConfig,
     ScheduleResult,
     SoftSequenceRule,
@@ -794,6 +796,116 @@ class TestStructuredRules:
 
         assert any("Emily" in issue and "matching fellow" in issue for issue in issues)
 
+    def test_rolling_window_rule_enforces_multi_state_cap(self) -> None:
+        """Rolling-window rules should cap per-fellow state clustering."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=2,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Research", hours_per_week=40.0),
+                BlockConfig(name="Elective", hours_per_week=40.0),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="Research/Elective F1",
+                    block_names=["Research", "Elective"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="Research exact 2",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Research"],
+                    min_weeks=2,
+                    max_weeks=2,
+                )
+            ],
+            rolling_window_rules=[
+                RollingWindowRule(
+                    name="No more than 3 PTO or Research in 4 weeks",
+                    applicable_years=[TrainingYear.F1],
+                    state_names=["PTO", "Research"],
+                    window_size_weeks=4,
+                    max_weeks_in_window=3,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
+    def test_first_assignment_pairing_rule_requires_supervision(self) -> None:
+        """A first-time F1 Yale Nuclear week should need an S2 or experienced F1 partner."""
+
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Yale Nuclear", hours_per_week=40.0),
+                BlockConfig(name="Research", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(name="F1 A", training_year=TrainingYear.F1),
+                FellowConfig(name="F1 B", training_year=TrainingYear.F1),
+            ],
+            coverage_rules=[
+                CoverageRule(
+                    name="Yale Nuclear exact 1",
+                    block_name="Yale Nuclear",
+                    eligible_years=[TrainingYear.F1],
+                    min_fellows=1,
+                    max_fellows=1,
+                )
+            ],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="Yale Nuclear or Research F1",
+                    block_names=["Yale Nuclear", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            first_assignment_pairing_rules=[
+                FirstAssignmentPairingRule(
+                    name="F1 first Yale Nuclear week needs experienced pairing",
+                    trainee_years=[TrainingYear.F1],
+                    block_name="Yale Nuclear",
+                    mentor_years=[TrainingYear.S2],
+                    experienced_peer_years=[TrainingYear.F1],
+                    required_prior_weeks=1,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
 
 class TestBuiltInDefaults:
     """The shipped defaults should reflect the built-in rule set."""
@@ -823,33 +935,54 @@ class TestBuiltInDefaults:
         coverage_rule_names = {rule.name for rule in config.coverage_rules}
         assert "White Consults staffed by F1" in coverage_rule_names
         assert "Goodyer staffed by S2" in coverage_rule_names
-        assert "Yale Nuclear optional F1 slot" in coverage_rule_names
-        assert "Yale Nuclear S2 slot" in coverage_rule_names
+        assert "Yale Nuclear staffed by F1 or S2" in coverage_rule_names
+        assert "CT-MRI staffed by S2 or T3" in coverage_rule_names
+        assert "Peripheral vascular optional T3" in coverage_rule_names
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "Yale Echo F1 range"
+        ).max_fellows == 2
 
         week_rules = {rule.name: rule for rule in config.week_count_rules}
-        assert "F1 no PTO in first two months" in week_rules
+        assert "F1 no PTO before 8/10/26" in week_rules
+        assert "F1 no Research before 8/10/26" in week_rules
         assert "F1 White Consults" in week_rules
         assert "F1 Research" in week_rules
-        assert week_rules["F1 White Consults"].min_weeks == 4
+        assert week_rules["F1 White Consults"].min_weeks == 5
         assert week_rules["F1 White Consults"].max_weeks == 6
         assert week_rules["F1 White Consults"].is_active
         assert week_rules["F1 SRC Consults"].is_active
         assert week_rules["F1 VA Consults"].is_active
         assert week_rules["F1 Consult total"].max_weeks == 12
         assert week_rules["F1 Consult total"].is_active
+        assert week_rules["F1 EP"].min_weeks == 4
+        assert week_rules["F1 EP"].max_weeks == 5
         assert week_rules["F1 Yale Nuclear"].min_weeks == 2
-        assert week_rules["F1 Yale Nuclear"].max_weeks == 6
+        assert week_rules["F1 Yale Nuclear"].max_weeks == 4
         assert week_rules["F1 Yale Nuclear"].is_active
         assert week_rules["F1 VA Nuclear"].min_weeks == 1
-        assert week_rules["F1 VA Nuclear"].max_weeks == 2
+        assert week_rules["F1 VA Nuclear"].max_weeks == 3
         assert week_rules["F1 VA Nuclear"].is_active
         assert week_rules["F1 Nuclear total"].min_weeks == 4
         assert week_rules["F1 Nuclear total"].max_weeks == 7
         assert week_rules["F1 Nuclear total"].is_active
         assert week_rules["F1 Yale Echo"].is_active
+        assert week_rules["F1 Echo total"].min_weeks == 7
         assert week_rules["F1 Echo total"].is_active
         assert week_rules["F1 Yale Cath"].is_active
         assert week_rules["F1 Cath total"].is_active
+        assert "F1 Peripheral vascular prohibited" in week_rules
+        assert len(config.rolling_window_rules) == 1
+        assert (
+            config.rolling_window_rules[0].name
+            == "Max 3 PTO or Research weeks in any 4-week period"
+        )
+        assert config.rolling_window_rules[0].window_size_weeks == 4
+        assert config.rolling_window_rules[0].max_weeks_in_window == 3
+        assert len(config.first_assignment_pairing_rules) == 1
+        assert (
+            config.first_assignment_pairing_rules[0].name
+            == "F1 first Yale Nuclear week needs experienced pairing"
+        )
 
         assert any(
             rule.name == "F1 before Night Float needs core exposure"
@@ -889,4 +1022,4 @@ class TestBuiltInDefaults:
 
         result = solve_schedule(config)
 
-        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}

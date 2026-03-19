@@ -340,6 +340,78 @@ class CohortLimitRule:
 
 
 @dataclass
+class RollingWindowRule:
+    """Limit how often a fellow can be in certain states within a rolling window."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    state_names: list[str]
+    window_size_weeks: int
+    max_weeks_in_window: int
+    start_week: int = 0
+    end_week: int | None = None
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "state_names": self.state_names,
+            "window_size_weeks": self.window_size_weeks,
+            "max_weeks_in_window": self.max_weeks_in_window,
+            "start_week": self.start_week,
+            "end_week": self.end_week,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> RollingWindowRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
+class FirstAssignmentPairingRule:
+    """Require supervision when a fellow starts a block for the first time."""
+
+    name: str
+    trainee_years: list[TrainingYear]
+    block_name: str
+    mentor_years: list[TrainingYear]
+    experienced_peer_years: list[TrainingYear]
+    required_prior_weeks: int = 1
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "trainee_years": _serialize_years(self.trainee_years),
+            "block_name": self.block_name,
+            "mentor_years": _serialize_years(self.mentor_years),
+            "experienced_peer_years": _serialize_years(self.experienced_peer_years),
+            "required_prior_weeks": self.required_prior_weeks,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FirstAssignmentPairingRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["trainee_years"] = _deserialize_years(payload.get("trainee_years"))
+        payload["mentor_years"] = _deserialize_years(payload.get("mentor_years"))
+        payload["experienced_peer_years"] = _deserialize_years(
+            payload.get("experienced_peer_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
 class IndividualFellowRequirementRule:
     """Require an exact fellow to spend a min/max number of weeks on one block."""
 
@@ -507,6 +579,10 @@ class ScheduleConfig:
     eligibility_rules: list[EligibilityRule] = field(default_factory=list)
     week_count_rules: list[WeekCountRule] = field(default_factory=list)
     cohort_limit_rules: list[CohortLimitRule] = field(default_factory=list)
+    rolling_window_rules: list[RollingWindowRule] = field(default_factory=list)
+    first_assignment_pairing_rules: list[FirstAssignmentPairingRule] = field(
+        default_factory=list
+    )
     individual_fellow_requirement_rules: list[IndividualFellowRequirementRule] = field(
         default_factory=list
     )
@@ -550,6 +626,8 @@ class ScheduleConfig:
                 self.eligibility_rules,
                 self.week_count_rules,
                 self.cohort_limit_rules,
+                self.rolling_window_rules,
+                self.first_assignment_pairing_rules,
                 self.individual_fellow_requirement_rules,
                 self.prerequisite_rules,
                 self.forbidden_transition_rules,
@@ -652,6 +730,12 @@ class ScheduleConfig:
             "cohort_limit_rules": [
                 rule.to_dict() for rule in self.cohort_limit_rules
             ],
+            "rolling_window_rules": [
+                rule.to_dict() for rule in self.rolling_window_rules
+            ],
+            "first_assignment_pairing_rules": [
+                rule.to_dict() for rule in self.first_assignment_pairing_rules
+            ],
             "individual_fellow_requirement_rules": [
                 rule.to_dict() for rule in self.individual_fellow_requirement_rules
             ],
@@ -699,6 +783,14 @@ class ScheduleConfig:
         payload["cohort_limit_rules"] = [
             CohortLimitRule.from_dict(rule)
             for rule in payload.get("cohort_limit_rules", [])
+        ]
+        payload["rolling_window_rules"] = [
+            RollingWindowRule.from_dict(rule)
+            for rule in payload.get("rolling_window_rules", [])
+        ]
+        payload["first_assignment_pairing_rules"] = [
+            FirstAssignmentPairingRule.from_dict(rule)
+            for rule in payload.get("first_assignment_pairing_rules", [])
         ]
         payload["individual_fellow_requirement_rules"] = [
             IndividualFellowRequirementRule.from_dict(rule)

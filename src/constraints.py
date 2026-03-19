@@ -291,6 +291,131 @@ def add_cohort_limit_rules(
             )
 
 
+def add_rolling_window_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Apply per-fellow rolling-window hard limits across selected states."""
+
+    for rule in config.rolling_window_rules:
+        if not rule.is_active or rule.window_size_weeks <= 0:
+            continue
+        state_indices = [
+            block_name_to_idx[name]
+            for name in rule.state_names
+            if name in block_name_to_idx
+        ]
+        if not state_indices:
+            continue
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        week_indices = list(_week_range(rule.start_week, rule.end_week, config.num_weeks))
+        if len(week_indices) < rule.window_size_weeks:
+            continue
+
+        start_week = week_indices[0]
+        last_window_start = week_indices[-1] - rule.window_size_weeks + 1
+        for fellow_idx in fellow_indices:
+            for window_start in range(start_week, last_window_start + 1):
+                model.Add(
+                    sum(
+                        assign[fellow_idx, week, state_idx]
+                        for week in range(window_start, window_start + rule.window_size_weeks)
+                        for state_idx in state_indices
+                )
+                    <= rule.max_weeks_in_window
+                )
+
+
+def add_first_assignment_pairing_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Require supervision for first-time assignments on selected blocks."""
+
+    for rule in config.first_assignment_pairing_rules:
+        if not rule.is_active or rule.block_name not in block_name_to_idx:
+            continue
+
+        block_idx = block_name_to_idx[rule.block_name]
+        trainee_indices = config.fellow_indices_for_years(rule.trainee_years)
+        mentor_indices = set(config.fellow_indices_for_years(rule.mentor_years))
+        experienced_peer_indices = set(
+            config.fellow_indices_for_years(rule.experienced_peer_years)
+        )
+
+        for fellow_idx in trainee_indices:
+            for week in range(config.num_weeks):
+                current_assignment = assign[fellow_idx, week, block_idx]
+                if week == 0:
+                    first_assignment = current_assignment
+                else:
+                    prior_total = sum(
+                        assign[fellow_idx, prior_week, block_idx]
+                        for prior_week in range(week)
+                    )
+                    has_prior = model.NewBoolVar(
+                        f"pair_prior_{rule.block_name}_f{fellow_idx}_w{week}"
+                    )
+                    model.Add(prior_total >= rule.required_prior_weeks).OnlyEnforceIf(
+                        has_prior
+                    )
+                    model.Add(prior_total < rule.required_prior_weeks).OnlyEnforceIf(
+                        has_prior.Not()
+                    )
+
+                    first_assignment = model.NewBoolVar(
+                        f"pair_first_{rule.block_name}_f{fellow_idx}_w{week}"
+                    )
+                    model.Add(first_assignment <= current_assignment)
+                    model.Add(first_assignment <= has_prior.Not())
+                    model.Add(first_assignment >= current_assignment - has_prior)
+
+                supervision_terms: list[cp_model.IntVar] = []
+                for mentor_idx in mentor_indices:
+                    if mentor_idx == fellow_idx:
+                        continue
+                    supervision_terms.append(assign[mentor_idx, week, block_idx])
+
+                for peer_idx in experienced_peer_indices:
+                    if peer_idx == fellow_idx:
+                        continue
+                    if week == 0:
+                        continue
+                    prior_total = sum(
+                        assign[peer_idx, prior_week, block_idx]
+                        for prior_week in range(week)
+                    )
+                    has_prior = model.NewBoolVar(
+                        f"pair_peer_prior_{rule.block_name}_f{peer_idx}_w{week}"
+                    )
+                    model.Add(prior_total >= rule.required_prior_weeks).OnlyEnforceIf(
+                        has_prior
+                    )
+                    model.Add(prior_total < rule.required_prior_weeks).OnlyEnforceIf(
+                        has_prior.Not()
+                    )
+
+                    experienced_peer = model.NewBoolVar(
+                        f"pair_peer_{rule.block_name}_f{peer_idx}_w{week}"
+                    )
+                    model.Add(experienced_peer <= assign[peer_idx, week, block_idx])
+                    model.Add(experienced_peer <= has_prior)
+                    model.Add(
+                        experienced_peer
+                        >= assign[peer_idx, week, block_idx] + has_prior - 1
+                    )
+                    supervision_terms.append(experienced_peer)
+
+                if supervision_terms:
+                    model.Add(sum(supervision_terms) >= 1).OnlyEnforceIf(first_assignment)
+                else:
+                    model.Add(first_assignment == 0)
+
+
 def add_individual_fellow_requirement_rules(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],

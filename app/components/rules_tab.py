@@ -18,6 +18,7 @@ from src.models import (
     ForbiddenTransitionRule,
     IndividualFellowRequirementRule,
     PrerequisiteRule,
+    RollingWindowRule,
     ScheduleConfig,
     SoftRuleDirection,
     SoftSequenceRule,
@@ -211,6 +212,17 @@ def _render_program_setup(config: ScheduleConfig) -> None:
                 caption="Week-count rules that span more than one cohort.",
             ),
             predicate=_is_shared_year_rule,
+        )
+
+    with st.container(border=True):
+        config.rolling_window_rules = _render_rolling_window_rules_editor(
+            config.rolling_window_rules,
+            key_prefix="shared_rolling_window",
+            title="Rolling Window Limits",
+            caption=(
+                "Per-fellow hard caps across multi-week windows, such as limiting "
+                "how often PTO and Research can cluster together."
+            ),
         )
 
     with st.container(border=True):
@@ -992,6 +1004,76 @@ def _render_cohort_limit_rules_editor(
                 applicable_years=_parse_years(row.get("Years")),
                 state_name=str(row["State"]).strip(),
                 max_fellows=_to_int(row.get("Max Fellows"), default=0),
+                start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
+                end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
+def _render_rolling_window_rules_editor(
+    rules: list[RollingWindowRule],
+    *,
+    key_prefix: str,
+    title: str = "Rolling Window Limits",
+    caption: str = "Limit how often a fellow can be in selected states inside a rolling window.",
+) -> list[RollingWindowRule]:
+    """Render rolling-window hard rules."""
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week windows in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "Years",
+        "States",
+        "Window Size",
+        "Max Weeks",
+        "Start Week",
+        "End Week",
+        "Active",
+    ]
+    rows = [
+        {
+            "Name": rule.name,
+            "Years": _years_to_text(rule.applicable_years),
+            "States": _list_to_text(rule.state_names),
+            "Window Size": rule.window_size_weeks,
+            "Max Weeks": rule.max_weeks_in_window,
+            "Start Week": _display_week_index(rule.start_week),
+            "End Week": _display_optional_week_index(rule.end_week),
+            "Active": rule.is_active,
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=[
+                "Window Size",
+                "Max Weeks",
+                "Start Week",
+                "End Week",
+            ],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[RollingWindowRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("States"):
+            continue
+        updated_rules.append(
+            RollingWindowRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=_parse_years(row.get("Years")),
+                state_names=_parse_list(row.get("States")),
+                window_size_weeks=_to_int(row.get("Window Size"), default=4),
+                max_weeks_in_window=_to_int(row.get("Max Weeks"), default=0),
                 start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
                 end_week=_to_optional_zero_based_week_index(row.get("End Week")),
                 is_active=bool(row.get("Active", True)),

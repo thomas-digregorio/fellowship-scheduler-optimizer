@@ -13,6 +13,7 @@ from src.constraints import (
     add_cohort_limit_rules,
     add_coverage_rules,
     add_eligibility_rules,
+    add_first_assignment_pairing_rules,
     add_forbidden_transition_rules,
     add_individual_fellow_requirement_rules,
     add_max_concurrent_pto,
@@ -22,6 +23,7 @@ from src.constraints import (
     add_one_assignment_per_week,
     add_prerequisite_rules,
     add_pto_count,
+    add_rolling_window_rules,
     add_staffing_coverage,
     add_unavailable_weeks,
     add_week_count_rules,
@@ -199,6 +201,61 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"'{rule.state_name}'."
             )
 
+    for rule in config.rolling_window_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in rule.state_names
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Rolling-window rule '{rule.name}' references unknown states: "
+                f"{', '.join(sorted(set(unknown_states)))}."
+            )
+        if rule.window_size_weeks <= 0:
+            issues.append(
+                f"⚠️ Rolling-window rule '{rule.name}' must use a positive window size."
+            )
+        if rule.max_weeks_in_window < 0:
+            issues.append(
+                f"⚠️ Rolling-window rule '{rule.name}' must use a non-negative max."
+            )
+        if (
+            rule.window_size_weeks > 0
+            and rule.max_weeks_in_window > rule.window_size_weeks
+        ):
+            issues.append(
+                f"⚠️ Rolling-window rule '{rule.name}' allows more weeks than fit "
+                "in its window."
+            )
+        if not config.fellow_indices_for_years(rule.applicable_years):
+            issues.append(
+                f"⚠️ Rolling-window rule '{rule.name}' has no fellows in the selected cohorts."
+            )
+
+    for rule in config.first_assignment_pairing_rules:
+        if not rule.is_active:
+            continue
+        if rule.block_name not in block_names:
+            issues.append(
+                f"⚠️ Pairing rule '{rule.name}' references unknown block "
+                f"'{rule.block_name}'."
+            )
+        if not config.fellow_indices_for_years(rule.trainee_years):
+            issues.append(
+                f"⚠️ Pairing rule '{rule.name}' has no trainee fellows in the selected cohorts."
+            )
+        if not config.fellow_indices_for_years(rule.mentor_years):
+            issues.append(
+                f"⚠️ Pairing rule '{rule.name}' has no mentor fellows in the selected cohorts."
+            )
+        if rule.required_prior_weeks < 1:
+            issues.append(
+                f"⚠️ Pairing rule '{rule.name}' must require at least one prior week."
+            )
+
     for rule in config.individual_fellow_requirement_rules:
         if not rule.is_active:
             continue
@@ -345,6 +402,8 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.eligibility_rules
         or config.week_count_rules
         or config.cohort_limit_rules
+        or config.rolling_window_rules
+        or config.first_assignment_pairing_rules
         or config.individual_fellow_requirement_rules
         or config.prerequisite_rules
         or config.forbidden_transition_rules
@@ -353,6 +412,8 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_coverage_rules(model, assign, config, block_name_to_idx)
         add_week_count_rules(model, assign, config, block_name_to_idx)
         add_cohort_limit_rules(model, assign, config, block_name_to_idx)
+        add_rolling_window_rules(model, assign, config, block_name_to_idx)
+        add_first_assignment_pairing_rules(model, assign, config, block_name_to_idx)
         add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
         add_forbidden_transition_rules(model, assign, config, block_name_to_idx)

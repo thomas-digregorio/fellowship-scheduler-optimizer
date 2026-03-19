@@ -164,6 +164,7 @@ def _short_name(block_name: str) -> str:
         "Research": "Res",
         "CT-MRI": "MRI",
         "Elective": "Ele",
+        "Peripheral vascular": "PV",
         "PTO": "PTO",
     }
     return abbreviations.get(block_name, block_name[:3])

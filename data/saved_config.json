@@ -250,6 +250,17 @@
       "is_active": true,
       "has_weekend_off": false,
       "requires_call_coverage": false
+    },
+    {
+      "name": "Peripheral vascular",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 40.0,
+      "min_weeks": 0,
+      "max_weeks": 52,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": false
     }
   ],
   "fellows": [
@@ -540,7 +551,7 @@
         "S2"
       ],
       "min_fellows": 1,
-      "max_fellows": 1,
+      "max_fellows": 2,
       "start_week": 0,
       "end_week": null,
       "is_active": true
@@ -639,20 +650,6 @@
       "is_active": true
     },
     {
-      "name": "SRC Cath staffed",
-      "block_name": "SRC Cath",
-      "eligible_years": [
-        "F1",
-        "S2",
-        "T3"
-      ],
-      "min_fellows": 1,
-      "max_fellows": 1,
-      "start_week": 0,
-      "end_week": null,
-      "is_active": true
-    },
-    {
       "name": "White Consults staffed by F1",
       "block_name": "White Consults",
       "eligible_years": [
@@ -672,7 +669,7 @@
       ],
       "min_fellows": 1,
       "max_fellows": 1,
-      "start_week": 4,
+      "start_week": 5,
       "end_week": 51,
       "is_active": true
     },
@@ -684,20 +681,8 @@
       ],
       "min_fellows": 1,
       "max_fellows": 1,
-      "start_week": 5,
+      "start_week": 6,
       "end_week": 51,
-      "is_active": true
-    },
-    {
-      "name": "Yale Nuclear optional F1 slot",
-      "block_name": "Yale Nuclear",
-      "eligible_years": [
-        "F1"
-      ],
-      "min_fellows": 0,
-      "max_fellows": 2,
-      "start_week": 0,
-      "end_week": null,
       "is_active": true
     },
     {
@@ -707,7 +692,7 @@
         "F1"
       ],
       "min_fellows": 0,
-      "max_fellows": 3,
+      "max_fellows": 2,
       "start_week": 0,
       "end_week": null,
       "is_active": true
@@ -733,7 +718,7 @@
       "min_fellows": 1,
       "max_fellows": 1,
       "start_week": 0,
-      "end_week": 3,
+      "end_week": 4,
       "is_active": true
     },
     {
@@ -745,16 +730,55 @@
       "min_fellows": 1,
       "max_fellows": 1,
       "start_week": 0,
-      "end_week": 4,
+      "end_week": 5,
       "is_active": true
     },
     {
-      "name": "Yale Nuclear S2 slot",
+      "name": "Yale Nuclear staffed by F1 or S2",
       "block_name": "Yale Nuclear",
       "eligible_years": [
+        "F1",
         "S2"
       ],
       "min_fellows": 1,
+      "max_fellows": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "SRC Cath optional F1 or S2",
+      "block_name": "SRC Cath",
+      "eligible_years": [
+        "F1",
+        "S2"
+      ],
+      "min_fellows": 0,
+      "max_fellows": 1,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "CT-MRI staffed by S2 or T3",
+      "block_name": "CT-MRI",
+      "eligible_years": [
+        "S2",
+        "T3"
+      ],
+      "min_fellows": 1,
+      "max_fellows": 1,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Peripheral vascular optional T3",
+      "block_name": "Peripheral vascular",
+      "eligible_years": [
+        "T3"
+      ],
+      "min_fellows": 0,
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
@@ -911,14 +935,13 @@
       "is_active": true
     },
     {
-      "name": "SRC Cath any year",
+      "name": "SRC Cath limited to F1 and S2",
       "block_names": [
         "SRC Cath"
       ],
       "allowed_years": [
         "F1",
-        "S2",
-        "T3"
+        "S2"
       ],
       "start_week": 0,
       "end_week": null,
@@ -927,9 +950,7 @@
     {
       "name": "Research any year",
       "block_names": [
-        "Research",
-        "CT-MRI",
-        "Elective"
+        "Research"
       ],
       "allowed_years": [
         "F1",
@@ -949,7 +970,7 @@
         "F1",
         "S2"
       ],
-      "start_week": 4,
+      "start_week": 5,
       "end_week": 51,
       "is_active": true
     },
@@ -962,7 +983,7 @@
         "F1",
         "S2"
       ],
-      "start_week": 5,
+      "start_week": 6,
       "end_week": 51,
       "is_active": true
     },
@@ -999,7 +1020,7 @@
         "S2"
       ],
       "start_week": 0,
-      "end_week": 3,
+      "end_week": 4,
       "is_active": true
     },
     {
@@ -1011,13 +1032,50 @@
         "S2"
       ],
       "start_week": 0,
-      "end_week": 4,
+      "end_week": 5,
+      "is_active": true
+    },
+    {
+      "name": "CT-MRI limited to S2 and T3",
+      "block_names": [
+        "CT-MRI"
+      ],
+      "allowed_years": [
+        "S2",
+        "T3"
+      ],
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Elective only T3",
+      "block_names": [
+        "Elective"
+      ],
+      "allowed_years": [
+        "T3"
+      ],
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Peripheral vascular only T3",
+      "block_names": [
+        "Peripheral vascular"
+      ],
+      "allowed_years": [
+        "T3"
+      ],
+      "start_week": 0,
+      "end_week": null,
       "is_active": true
     }
   ],
   "week_count_rules": [
     {
-      "name": "F1 no PTO in first two months",
+      "name": "F1 no PTO before 8/10/26",
       "applicable_years": [
         "F1"
       ],
@@ -1027,7 +1085,7 @@
       "min_weeks": 0,
       "max_weeks": 0,
       "start_week": 0,
-      "end_week": 7,
+      "end_week": 3,
       "applies_to_each_fellow": true,
       "is_active": true
     },
@@ -1039,7 +1097,7 @@
       "block_names": [
         "White Consults"
       ],
-      "min_weeks": 4,
+      "min_weeks": 5,
       "max_weeks": 6,
       "start_week": 0,
       "end_week": null,
@@ -1118,7 +1176,7 @@
       ],
       "min_weeks": 5,
       "max_weeks": 6,
-      "start_week": 4,
+      "start_week": 5,
       "end_week": 51,
       "applies_to_each_fellow": true,
       "is_active": true
@@ -1133,7 +1191,7 @@
       ],
       "min_weeks": 5,
       "max_weeks": 6,
-      "start_week": 5,
+      "start_week": 6,
       "end_week": 51,
       "applies_to_each_fellow": true,
       "is_active": true
@@ -1146,7 +1204,7 @@
       "block_names": [
         "EP"
       ],
-      "min_weeks": 3,
+      "min_weeks": 4,
       "max_weeks": 5,
       "start_week": 0,
       "end_week": null,
@@ -1177,7 +1235,7 @@
         "Yale Nuclear"
       ],
       "min_weeks": 2,
-      "max_weeks": 6,
+      "max_weeks": 4,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
@@ -1192,7 +1250,7 @@
         "VA Nuclear"
       ],
       "min_weeks": 1,
-      "max_weeks": 2,
+      "max_weeks": 3,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
@@ -1269,7 +1327,7 @@
         "VA Echo",
         "SRC Echo"
       ],
-      "min_weeks": 8,
+      "min_weeks": 7,
       "max_weeks": 9,
       "start_week": 0,
       "end_week": null,
@@ -1382,6 +1440,36 @@
       "end_week": null,
       "applies_to_each_fellow": true,
       "is_active": true
+    },
+    {
+      "name": "F1 no Research before 8/10/26",
+      "applicable_years": [
+        "F1"
+      ],
+      "block_names": [
+        "Research"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": 3,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "F1 Peripheral vascular prohibited",
+      "applicable_years": [
+        "F1"
+      ],
+      "block_names": [
+        "Peripheral vascular"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
     }
   ],
   "cohort_limit_rules": [
@@ -1419,6 +1507,42 @@
       "is_active": true
     }
   ],
+  "rolling_window_rules": [
+    {
+      "name": "Max 3 PTO or Research weeks in any 4-week period",
+      "applicable_years": [
+        "F1",
+        "S2",
+        "T3"
+      ],
+      "state_names": [
+        "PTO",
+        "Research"
+      ],
+      "window_size_weeks": 4,
+      "max_weeks_in_window": 3,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    }
+  ],
+  "first_assignment_pairing_rules": [
+    {
+      "name": "F1 first Yale Nuclear week needs experienced pairing",
+      "trainee_years": [
+        "F1"
+      ],
+      "block_name": "Yale Nuclear",
+      "mentor_years": [
+        "S2"
+      ],
+      "experienced_peer_years": [
+        "F1"
+      ],
+      "required_prior_weeks": 1,
+      "is_active": true
+    }
+  ],
   "individual_fellow_requirement_rules": [
     {
       "training_year": "S2",
@@ -1441,7 +1565,8 @@
         "Yale Cath",
         "White Consults",
         "CCU",
-        "EP"
+        "EP",
+        "CHF"
       ],
       "prerequisite_min_weeks": 1,
       "is_active": true

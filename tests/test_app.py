@@ -292,6 +292,7 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     """Persisted older defaults should be upgraded in place."""
 
     config = make_small_ui_config()
+    config.blocks = get_default_config().blocks
     config.coverage_rules.append(
         CoverageRule(
             name="Yale Nuclear F1 slot",
@@ -301,15 +302,24 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
             max_fellows=1,
         )
     )
+    config.coverage_rules.append(
+        CoverageRule(
+            name="Yale Echo F1 range",
+            block_name="Yale Echo",
+            eligible_years=[TrainingYear.F1],
+            min_fellows=0,
+            max_fellows=3,
+        )
+    )
     config.week_count_rules = [
         WeekCountRule(
-            name="F1 no PTO in first two months",
+            name="F1 no PTO before 8/10/26",
             applicable_years=[TrainingYear.F1],
             block_names=["PTO"],
             min_weeks=0,
             max_weeks=0,
             start_week=0,
-            end_week=7,
+            end_week=3,
             is_active=True,
         ),
     ]
@@ -344,8 +354,16 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
                 applicable_years=[TrainingYear.F1],
                 block_names=["White Consults", "SRC Consults", "VA Consults"],
                 min_weeks=10,
-                max_weeks=11,
+                max_weeks=12,
                 is_active=False,
+            ),
+            WeekCountRule(
+                name="F1 EP",
+                applicable_years=[TrainingYear.F1],
+                block_names=["EP"],
+                min_weeks=3,
+                max_weeks=5,
+                is_active=True,
             ),
             WeekCountRule(
                 name="F1 Yale Nuclear",
@@ -456,6 +474,8 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     migrated, notice = app_state._normalize_loaded_config(config)
 
     assert notice is not None
+    f1_no_pto = next(rule for rule in migrated.week_count_rules if rule.name == "F1 no PTO before 8/10/26")
+    f1_no_research = next(rule for rule in migrated.week_count_rules if rule.name == "F1 no Research before 8/10/26")
     f1_white = next(rule for rule in migrated.week_count_rules if rule.name == "F1 White Consults")
     f1_src = next(rule for rule in migrated.week_count_rules if rule.name == "F1 SRC Consults")
     f1_va = next(rule for rule in migrated.week_count_rules if rule.name == "F1 VA Consults")
@@ -465,7 +485,21 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     f1_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Nuclear total")
     f1_echo_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Echo total")
     f1_cath_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Cath total")
-    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.block_name == "Yale Nuclear" and rule.eligible_years == [TrainingYear.F1])
+    f1_ep = next(rule for rule in migrated.week_count_rules if rule.name == "F1 EP")
+    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Nuclear staffed by F1 or S2")
+    ye_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Echo F1 range")
+    ct_mri_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "CT-MRI staffed by S2 or T3")
+    peripheral_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Peripheral vascular optional T3")
+    rolling_window = next(
+        rule
+        for rule in migrated.rolling_window_rules
+        if rule.name == "Max 3 PTO or Research weeks in any 4-week period"
+    )
+    pairing_rule = next(
+        rule
+        for rule in migrated.first_assignment_pairing_rules
+        if rule.name == "F1 first Yale Nuclear week needs experienced pairing"
+    )
     nf_penalty = next(
         rule
         for rule in migrated.soft_sequence_rules
@@ -473,20 +507,37 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
     )
 
+    assert f1_no_pto.end_week == 3
+    assert f1_no_research.end_week == 3
+    assert f1_white.min_weeks == 5
     assert f1_white.max_weeks == 6
     assert f1_white.is_active
     assert f1_src.is_active
     assert f1_va.is_active
     assert f1_consult_total.is_active
     assert f1_consult_total.max_weeks == 12
-    assert f1_yn.max_weeks == 6
+    assert f1_ep.min_weeks == 4
+    assert f1_ep.max_weeks == 5
+    assert f1_yn.max_weeks == 4
     assert f1_yn.is_active
+    assert f1_va_nuclear.max_weeks == 3
     assert f1_va_nuclear.is_active
+    assert f1_total.min_weeks == 4
     assert f1_total.is_active
+    assert f1_echo_total.min_weeks == 7
     assert f1_echo_total.is_active
     assert f1_cath_total.is_active
-    assert yn_coverage.name == "Yale Nuclear optional F1 slot"
-    assert yn_coverage.min_fellows == 0
+    assert yn_coverage.min_fellows == 1
+    assert yn_coverage.max_fellows == 2
+    assert ye_coverage.max_fellows == 2
+    assert ct_mri_coverage.min_fellows == 1
+    assert peripheral_coverage.max_fellows == 1
+    assert rolling_window.state_names == ["PTO", "Research"]
+    assert rolling_window.window_size_weeks == 4
+    assert rolling_window.max_weeks_in_window == 3
+    assert rolling_window.is_active
+    assert pairing_rule.mentor_years == [TrainingYear.S2]
+    assert pairing_rule.experienced_peer_years == [TrainingYear.F1]
     assert not migrated.forbidden_transition_rules
     assert nf_penalty.left_states == [
         "White Consults",

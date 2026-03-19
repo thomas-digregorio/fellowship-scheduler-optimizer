@@ -11,9 +11,11 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    FirstAssignmentPairingRule,
     ForbiddenTransitionRule,
     IndividualFellowRequirementRule,
     PrerequisiteRule,
+    RollingWindowRule,
     ScheduleConfig,
     SoftRuleDirection,
     SoftSequenceRule,
@@ -42,15 +44,16 @@ BLOCK_COLORS: dict[str, str] = {
     "Research": "#7F8C8D",
     "CT-MRI": "#6C3483",
     "Elective": "#5D6D7E",
+    "Peripheral vascular": "#117A65",
     "PTO": "#BDC3C7",
 }
 
 
 ACADEMIC_YEAR_START = date(2026, 7, 13)
 NUM_WEEKS = 52
-FIRST_YEAR_CCU_START_WEEK = 4
-FIRST_YEAR_NF_START_WEEK = 5
-FIRST_YEAR_PTO_RESTRICTED_END_WEEK = 7
+FIRST_YEAR_CCU_START_WEEK = 5
+FIRST_YEAR_NF_START_WEEK = 6
+FIRST_YEAR_RESEARCH_PTO_START_WEEK = 4
 
 
 def get_default_blocks() -> list[BlockConfig]:
@@ -108,6 +111,7 @@ def get_default_blocks() -> list[BlockConfig]:
         BlockConfig(name="Research", fellows_needed=0, hours_per_week=40.0),
         BlockConfig(name="CT-MRI", fellows_needed=0, hours_per_week=40.0),
         BlockConfig(name="Elective", fellows_needed=0, hours_per_week=40.0),
+        BlockConfig(name="Peripheral vascular", fellows_needed=0, hours_per_week=40.0),
     ]
 
 
@@ -217,7 +221,7 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             block_name="EP",
             eligible_years=[TrainingYear.F1, TrainingYear.S2],
             min_fellows=1,
-            max_fellows=1,
+            max_fellows=2,
         ),
         CoverageRule(
             name="CHF staffed by F1 or S2",
@@ -227,18 +231,11 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             max_fellows=1,
         ),
         CoverageRule(
-            name="Yale Nuclear optional F1 slot",
+            name="Yale Nuclear staffed by F1 or S2",
             block_name="Yale Nuclear",
-            eligible_years=[TrainingYear.F1],
-            min_fellows=0,
-            max_fellows=1,
-        ),
-        CoverageRule(
-            name="Yale Nuclear S2 slot",
-            block_name="Yale Nuclear",
-            eligible_years=[TrainingYear.S2],
+            eligible_years=[TrainingYear.F1, TrainingYear.S2],
             min_fellows=1,
-            max_fellows=1,
+            max_fellows=2,
         ),
         CoverageRule(
             name="VA Nuclear staffed by F1 or S2",
@@ -252,7 +249,7 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             block_name="Yale Echo",
             eligible_years=[TrainingYear.F1],
             min_fellows=0,
-            max_fellows=3,
+            max_fellows=2,
         ),
         CoverageRule(
             name="Yale Echo senior range",
@@ -290,10 +287,24 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             max_fellows=1,
         ),
         CoverageRule(
-            name="SRC Cath staffed",
+            name="SRC Cath optional F1 or S2",
             block_name="SRC Cath",
-            eligible_years=any_year,
+            eligible_years=[TrainingYear.F1, TrainingYear.S2],
+            min_fellows=0,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="CT-MRI staffed by S2 or T3",
+            block_name="CT-MRI",
+            eligible_years=[TrainingYear.S2, TrainingYear.T3],
             min_fellows=1,
+            max_fellows=1,
+        ),
+        CoverageRule(
+            name="Peripheral vascular optional T3",
+            block_name="Peripheral vascular",
+            eligible_years=[TrainingYear.T3],
+            min_fellows=0,
             max_fellows=1,
         ),
     ]
@@ -398,14 +409,29 @@ def get_default_eligibility_rules() -> list[EligibilityRule]:
             allowed_years=[TrainingYear.F1, TrainingYear.S2],
         ),
         EligibilityRule(
-            name="SRC Cath any year",
+            name="SRC Cath limited to F1 and S2",
             block_names=["SRC Cath"],
-            allowed_years=any_year,
+            allowed_years=[TrainingYear.F1, TrainingYear.S2],
         ),
         EligibilityRule(
             name="Research any year",
-            block_names=["Research", "CT-MRI", "Elective"],
+            block_names=["Research"],
             allowed_years=any_year,
+        ),
+        EligibilityRule(
+            name="CT-MRI limited to S2 and T3",
+            block_names=["CT-MRI"],
+            allowed_years=[TrainingYear.S2, TrainingYear.T3],
+        ),
+        EligibilityRule(
+            name="Elective only T3",
+            block_names=["Elective"],
+            allowed_years=[TrainingYear.T3],
+        ),
+        EligibilityRule(
+            name="Peripheral vascular only T3",
+            block_names=["Peripheral vascular"],
+            allowed_years=[TrainingYear.T3],
         ),
     ]
 
@@ -416,19 +442,19 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
     f1 = [TrainingYear.F1]
     return [
         WeekCountRule(
-            name="F1 no PTO in first two months",
+            name="F1 no PTO before 8/10/26",
             applicable_years=f1,
             block_names=["PTO"],
             min_weeks=0,
             max_weeks=0,
             start_week=0,
-            end_week=FIRST_YEAR_PTO_RESTRICTED_END_WEEK,
+            end_week=FIRST_YEAR_RESEARCH_PTO_START_WEEK - 1,
         ),
         WeekCountRule(
             name="F1 White Consults",
             applicable_years=f1,
             block_names=["White Consults"],
-            min_weeks=4,
+            min_weeks=5,
             max_weeks=6,
         ),
         WeekCountRule(
@@ -481,7 +507,7 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             name="F1 EP",
             applicable_years=f1,
             block_names=["EP"],
-            min_weeks=3,
+            min_weeks=4,
             max_weeks=5,
         ),
         WeekCountRule(
@@ -496,14 +522,14 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             applicable_years=f1,
             block_names=["Yale Nuclear"],
             min_weeks=2,
-            max_weeks=6,
+            max_weeks=4,
         ),
         WeekCountRule(
             name="F1 VA Nuclear",
             applicable_years=f1,
             block_names=["VA Nuclear"],
             min_weeks=1,
-            max_weeks=2,
+            max_weeks=3,
         ),
         WeekCountRule(
             name="F1 Nuclear total",
@@ -537,7 +563,7 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             name="F1 Echo total",
             applicable_years=f1,
             block_names=["Yale Echo", "VA Echo", "SRC Echo"],
-            min_weeks=8,
+            min_weeks=7,
             max_weeks=9,
         ),
         WeekCountRule(
@@ -569,6 +595,15 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             max_weeks=7,
         ),
         WeekCountRule(
+            name="F1 no Research before 8/10/26",
+            applicable_years=f1,
+            block_names=["Research"],
+            min_weeks=0,
+            max_weeks=0,
+            start_week=0,
+            end_week=FIRST_YEAR_RESEARCH_PTO_START_WEEK - 1,
+        ),
+        WeekCountRule(
             name="F1 Research",
             applicable_years=f1,
             block_names=["Research"],
@@ -586,6 +621,13 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             name="F1 Elective prohibited",
             applicable_years=f1,
             block_names=["Elective"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="F1 Peripheral vascular prohibited",
+            applicable_years=f1,
+            block_names=["Peripheral vascular"],
             min_weeks=0,
             max_weeks=0,
         ),
@@ -631,8 +673,24 @@ def get_default_prerequisite_rules() -> list[PrerequisiteRule]:
                 "White Consults",
                 "CCU",
                 "EP",
+                "CHF",
             ],
             prerequisite_min_weeks=1,
+        )
+    ]
+
+
+def get_default_first_assignment_pairing_rules() -> list[FirstAssignmentPairingRule]:
+    """Return first-assignment supervision rules."""
+
+    return [
+        FirstAssignmentPairingRule(
+            name="F1 first Yale Nuclear week needs experienced pairing",
+            trainee_years=[TrainingYear.F1],
+            block_name="Yale Nuclear",
+            mentor_years=[TrainingYear.S2],
+            experienced_peer_years=[TrainingYear.F1],
+            required_prior_weeks=1,
         )
     ]
 
@@ -641,6 +699,20 @@ def get_default_individual_fellow_requirement_rules() -> list[IndividualFellowRe
     """Return default named-fellow hard rules."""
 
     return []
+
+
+def get_default_rolling_window_rules() -> list[RollingWindowRule]:
+    """Return default rolling-window hard limits."""
+
+    return [
+        RollingWindowRule(
+            name="Max 3 PTO or Research weeks in any 4-week period",
+            applicable_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
+            state_names=["PTO", "Research"],
+            window_size_weeks=4,
+            max_weeks_in_window=3,
+        )
+    ]
 
 
 def get_default_forbidden_transition_rules() -> list[ForbiddenTransitionRule]:
@@ -727,6 +799,8 @@ def get_default_config() -> ScheduleConfig:
         eligibility_rules=get_default_eligibility_rules(),
         week_count_rules=get_default_week_count_rules(),
         cohort_limit_rules=get_default_cohort_limit_rules(),
+        rolling_window_rules=get_default_rolling_window_rules(),
+        first_assignment_pairing_rules=get_default_first_assignment_pairing_rules(),
         individual_fellow_requirement_rules=get_default_individual_fellow_requirement_rules(),
         prerequisite_rules=get_default_prerequisite_rules(),
         forbidden_transition_rules=get_default_forbidden_transition_rules(),
