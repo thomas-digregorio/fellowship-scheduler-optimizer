@@ -27,6 +27,7 @@ from src.config import (
 from src.io_utils import load_config, load_schedule, save_config, save_schedule
 from src.models import (
     BlockConfig,
+    ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
     FirstAssignmentPairingRule,
@@ -34,6 +35,7 @@ from src.models import (
     ScheduleConfig,
     ScheduleResult,
     SoftSequenceRule,
+    SoftSingleWeekBlockRule,
     TrainingYear,
     WeekCountRule,
 )
@@ -756,6 +758,80 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             changed = True
         if not matching_soft_penalty.is_active:
             matching_soft_penalty.is_active = True
+            changed = True
+
+    matching_nf_cap = next(
+        (
+            rule
+            for rule in config.consecutive_state_limit_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.state_names == ["Night Float"]
+        ),
+        None,
+    )
+    if matching_nf_cap is None:
+        config.consecutive_state_limit_rules.append(
+            ConsecutiveStateLimitRule(
+                name="F1 Night Float max 2 consecutive weeks",
+                applicable_years=[TrainingYear.F1],
+                state_names=["Night Float"],
+                max_consecutive_weeks=2,
+            )
+        )
+        changed = True
+    else:
+        if matching_nf_cap.name != "F1 Night Float max 2 consecutive weeks":
+            matching_nf_cap.name = "F1 Night Float max 2 consecutive weeks"
+            changed = True
+        if matching_nf_cap.max_consecutive_weeks != 2:
+            matching_nf_cap.max_consecutive_weeks = 2
+            changed = True
+        if not matching_nf_cap.is_active:
+            matching_nf_cap.is_active = True
+            changed = True
+
+    matching_single_week_bonus = next(
+        (
+            rule
+            for rule in config.soft_single_week_block_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and "Night Float" in rule.excluded_states
+        ),
+        None,
+    )
+    bonus_name = "Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks"
+    if matching_single_week_bonus is None:
+        config.soft_single_week_block_rules.append(
+            SoftSingleWeekBlockRule(
+                name=bonus_name,
+                applicable_years=[TrainingYear.F1],
+                excluded_states=["Night Float"],
+                weight=1,
+                start_week=8,
+                adjacent_to_first_state_exemption=None,
+            )
+        )
+        changed = True
+    else:
+        if (
+            matching_single_week_bonus.name != bonus_name
+        ):
+            matching_single_week_bonus.name = bonus_name
+            changed = True
+        if matching_single_week_bonus.excluded_states != ["Night Float"]:
+            matching_single_week_bonus.excluded_states = ["Night Float"]
+            changed = True
+        if matching_single_week_bonus.weight != 1:
+            matching_single_week_bonus.weight = 1
+            changed = True
+        if matching_single_week_bonus.start_week != 8:
+            matching_single_week_bonus.start_week = 8
+            changed = True
+        if matching_single_week_bonus.adjacent_to_first_state_exemption is not None:
+            matching_single_week_bonus.adjacent_to_first_state_exemption = None
+            changed = True
+        if not matching_single_week_bonus.is_active:
+            matching_single_week_bonus.is_active = True
             changed = True
 
     return changed

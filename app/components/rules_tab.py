@@ -12,6 +12,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
     FellowConfig,
@@ -22,6 +23,7 @@ from src.models import (
     ScheduleConfig,
     SoftRuleDirection,
     SoftSequenceRule,
+    SoftSingleWeekBlockRule,
     TrainingYear,
     WeekCountRule,
 )
@@ -315,6 +317,24 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         )
 
     with st.container(border=True):
+        consecutive_limits = [
+            rule
+            for rule in config.consecutive_state_limit_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.consecutive_state_limit_rules = _merge_year_rules(
+            config.consecutive_state_limit_rules,
+            _render_consecutive_state_limit_rules_editor(
+                consecutive_limits,
+                key_prefix=f"{year.value}_consecutive_limits",
+                title="Consecutive Rotation Limits",
+                caption="Hard caps on consecutive weeks for selected states in this cohort.",
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+
+    with st.container(border=True):
         pto_window_rules = [
             rule
             for rule in config.week_count_rules
@@ -453,6 +473,25 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
                 title=f"{year.value} Weighted Soft Rules",
                 caption=(
                     f"Weighted bonuses or penalties applied only to {year.value} schedules."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+        single_week_rules = [
+            rule
+            for rule in config.soft_single_week_block_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.soft_single_week_block_rules = _merge_year_rules(
+            config.soft_single_week_block_rules,
+            _render_soft_single_week_block_rules_editor(
+                single_week_rules,
+                key_prefix=f"{year.value}_single_week_soft",
+                title=f"{year.value} Consecutive Rotation Bonuses",
+                caption=(
+                    f"Reward adjacent same-rotation weeks to prefer longer {year.value} "
+                    "blocks. Positive weights are bonuses."
                 ),
                 fixed_years=[year],
             ),
@@ -1082,6 +1121,87 @@ def _render_rolling_window_rules_editor(
     return updated_rules
 
 
+def _render_consecutive_state_limit_rules_editor(
+    rules: list[ConsecutiveStateLimitRule],
+    *,
+    key_prefix: str,
+    title: str = "Consecutive Rotation Limits",
+    caption: str = "Cap consecutive weeks for selected states.",
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[ConsecutiveStateLimitRule]:
+    """Render cohort-aware consecutive-state hard rules."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week windows in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "States",
+        "Max Consecutive Weeks",
+        "Start Week",
+        "End Week",
+        "Active",
+    ]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "States": _list_to_text(rule.state_names),
+            "Max Consecutive Weeks": rule.max_consecutive_weeks,
+            "Start Week": _display_week_index(rule.start_week),
+            "End Week": _display_optional_week_index(rule.end_week),
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=[
+                "Max Consecutive Weeks",
+                "Start Week",
+                "End Week",
+            ],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[ConsecutiveStateLimitRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("States"):
+            continue
+        updated_rules.append(
+            ConsecutiveStateLimitRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                state_names=_parse_list(row.get("States")),
+                max_consecutive_weeks=_to_int(
+                    row.get("Max Consecutive Weeks"),
+                    default=1,
+                ),
+                start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
+                end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
 def _render_prerequisite_rules_editor(
     rules: list[PrerequisiteRule],
     *,
@@ -1270,6 +1390,84 @@ def _render_soft_sequence_rules_editor(
                 direction=SoftRuleDirection(direction),
                 start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
                 end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
+def _render_soft_single_week_block_rules_editor(
+    rules: list[SoftSingleWeekBlockRule],
+    *,
+    key_prefix: str,
+    title: str = "Consecutive Rotation Bonuses",
+    caption: str = (
+        "Each adjacent same-rotation week pair adds the configured weight to the "
+        "objective. Use positive weights to favor longer runs."
+    ),
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[SoftSingleWeekBlockRule]:
+    """Render weighted bonuses for consecutive same-rotation runs."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week windows in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "Excluded States",
+        "Weight",
+        "Start Week",
+        "End Week",
+        "Active",
+    ]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "Excluded States": _list_to_text(rule.excluded_states),
+            "Weight": rule.weight,
+            "Start Week": _display_week_index(rule.start_week),
+            "End Week": _display_optional_week_index(rule.end_week),
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["Weight", "Start Week", "End Week"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[SoftSingleWeekBlockRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name"):
+            continue
+        updated_rules.append(
+            SoftSingleWeekBlockRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                excluded_states=_parse_list(row.get("Excluded States")),
+                weight=_to_int(row.get("Weight"), default=0),
+                start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
+                end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                adjacent_to_first_state_exemption=None,
                 is_active=bool(row.get("Active", True)),
             )
         )

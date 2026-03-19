@@ -11,6 +11,7 @@ from src.call_scheduler import add_call_constraints
 from src.constraints import (
     add_block_completion,
     add_cohort_limit_rules,
+    add_consecutive_state_limit_rules,
     add_coverage_rules,
     add_eligibility_rules,
     add_first_assignment_pairing_rules,
@@ -32,6 +33,7 @@ from src.models import (
     ScheduleConfig,
     ScheduleResult,
     SoftRuleDirection,
+    SoftSingleWeekBlockRule,
     SolverStatus,
     TrainingYear,
 )
@@ -235,6 +237,28 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"⚠️ Rolling-window rule '{rule.name}' has no fellows in the selected cohorts."
             )
 
+    for rule in config.consecutive_state_limit_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in rule.state_names
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Consecutive-state rule '{rule.name}' references unknown states: "
+                f"{', '.join(sorted(set(unknown_states)))}."
+            )
+        if rule.max_consecutive_weeks < 1:
+            issues.append(
+                f"⚠️ Consecutive-state rule '{rule.name}' must allow at least 1 week."
+            )
+        if not config.fellow_indices_for_years(rule.applicable_years):
+            issues.append(
+                f"⚠️ Consecutive-state rule '{rule.name}' has no matching fellows."
+            )
+
     for rule in config.first_assignment_pairing_rules:
         if not rule.is_active:
             continue
@@ -403,6 +427,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.week_count_rules
         or config.cohort_limit_rules
         or config.rolling_window_rules
+        or config.consecutive_state_limit_rules
         or config.first_assignment_pairing_rules
         or config.individual_fellow_requirement_rules
         or config.prerequisite_rules
@@ -413,6 +438,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_week_count_rules(model, assign, config, block_name_to_idx)
         add_cohort_limit_rules(model, assign, config, block_name_to_idx)
         add_rolling_window_rules(model, assign, config, block_name_to_idx)
+        add_consecutive_state_limit_rules(model, assign, config, block_name_to_idx)
         add_first_assignment_pairing_rules(model, assign, config, block_name_to_idx)
         add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
@@ -490,6 +516,14 @@ def _build_objective_terms(
     objective_terms.extend(_build_pto_objective_terms(assign, config, pto_idx))
     objective_terms.extend(
         _build_soft_sequence_objective_terms(
+            model,
+            assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_soft_single_week_block_objective_terms(
             model,
             assign,
             config,
@@ -578,6 +612,41 @@ def _build_soft_sequence_objective_terms(
     return objective_terms
 
 
+def _build_soft_single_week_block_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted bonus terms for consecutive same-rotation weeks."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for rule_idx, rule in enumerate(config.soft_single_week_block_rules):
+        if not rule.is_active:
+            continue
+        block_indices = _single_week_rule_block_indices(rule, config, block_name_to_idx)
+        if not block_indices:
+            continue
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for fellow_idx in fellow_indices:
+            for week in range(max(0, rule.start_week), end_week):
+                for block_idx in block_indices:
+                    objective_terms.extend(
+                        _build_sequence_match_terms(
+                            model,
+                            assign,
+                            fellow_idx,
+                            week,
+                            [block_idx],
+                            [block_idx],
+                            rule.weight,
+                            f"same_rotation_r{rule_idx}_f{fellow_idx}_w{week}_b{block_idx}",
+                        )
+                    )
+    return objective_terms
+
+
 def _build_sequence_match_terms(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
@@ -599,6 +668,109 @@ def _build_sequence_match_terms(
     model.Add(match_var <= right_expr)
     model.Add(match_var >= left_expr + right_expr - 1)
     return [match_var * weight]
+
+
+def _single_week_rule_block_indices(
+    rule: SoftSingleWeekBlockRule,
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[int]:
+    """Return active block indices targeted by a same-rotation bonus rule."""
+
+    excluded_states = set(rule.excluded_states)
+    return [
+        block_name_to_idx[block.name]
+        for block in config.blocks
+        if block.is_active
+        and block.name in block_name_to_idx
+        and block.name not in excluded_states
+    ]
+
+
+def _first_state_adjacent_exempt_weeks(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    fellow_idx: int,
+    state_idx: int | None,
+    name_prefix: str,
+) -> dict[int, cp_model.IntVar]:
+    """Return bool vars marking weeks immediately before a first state start."""
+
+    if state_idx is None:
+        return {}
+
+    first_start_vars: list[cp_model.IntVar] = []
+    for week in range(config.num_weeks):
+        start_var = model.NewBoolVar(f"{name_prefix}_start_w{week}")
+        current = assign[fellow_idx, week, state_idx]
+        if week == 0:
+            model.Add(start_var == current)
+        else:
+            prior_total = sum(assign[fellow_idx, prior_week, state_idx] for prior_week in range(week))
+            has_prior = model.NewBoolVar(f"{name_prefix}_has_prior_w{week}")
+            model.Add(prior_total >= 1).OnlyEnforceIf(has_prior)
+            model.Add(prior_total == 0).OnlyEnforceIf(has_prior.Not())
+            model.Add(start_var <= current)
+            model.Add(start_var + has_prior <= 1)
+            model.Add(start_var >= current - has_prior)
+        first_start_vars.append(start_var)
+
+    exempt_weeks: dict[int, cp_model.IntVar] = {}
+    for week in range(config.num_weeks):
+        exempt_var = model.NewBoolVar(f"{name_prefix}_adjacent_w{week}")
+        if week + 1 >= config.num_weeks:
+            model.Add(exempt_var == 0)
+        else:
+            model.Add(exempt_var == first_start_vars[week + 1])
+        exempt_weeks[week] = exempt_var
+    return exempt_weeks
+
+
+def _build_single_week_match_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    fellow_idx: int,
+    week: int,
+    block_idx: int,
+    weight: int,
+    exempt_weeks: dict[int, cp_model.IntVar],
+    name_prefix: str,
+) -> list[cp_model.LinearExpr]:
+    """Build one conjunction variable for a one-week run of one block."""
+
+    current = assign[fellow_idx, week, block_idx]
+    previous = assign[fellow_idx, week - 1, block_idx] if week > 0 else None
+    next_assignment = (
+        assign[fellow_idx, week + 1, block_idx]
+        if week + 1 < config.num_weeks
+        else None
+    )
+
+    single_week = model.NewBoolVar(name_prefix)
+    model.Add(single_week <= current)
+    if previous is not None:
+        model.Add(single_week + previous <= 1)
+    if next_assignment is not None:
+        model.Add(single_week + next_assignment <= 1)
+
+    lower_bound = current
+    if previous is not None:
+        lower_bound -= previous
+    if next_assignment is not None:
+        lower_bound -= next_assignment
+    model.Add(single_week >= lower_bound)
+
+    exempt_var = exempt_weeks.get(week)
+    if exempt_var is None:
+        return [single_week * weight]
+
+    active_single_week = model.NewBoolVar(f"{name_prefix}_active")
+    model.Add(active_single_week <= single_week)
+    model.Add(active_single_week + exempt_var <= 1)
+    model.Add(active_single_week >= single_week - exempt_var)
+    return [active_single_week * weight]
 
 
 def _extract_solution(
@@ -672,6 +844,7 @@ def _build_objective_breakdown(
     rows: list[dict[str, int | str]] = []
     rows.append(_build_pto_objective_breakdown_row(config, assignments))
     rows.extend(_build_soft_sequence_breakdown_rows(config, assignments))
+    rows.extend(_build_soft_single_week_block_breakdown_rows(config, assignments))
 
     total_row = _empty_cohort_score_row("Total")
     for row in rows:
@@ -741,3 +914,57 @@ def _build_soft_sequence_breakdown_rows(
 
         rows.append(row)
     return rows
+
+
+def _build_soft_single_week_block_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Return one objective-breakdown row per active same-rotation bonus rule."""
+
+    rows: list[dict[str, int | str]] = []
+    for rule in config.soft_single_week_block_rules:
+        if not rule.is_active:
+            continue
+
+        row = _empty_cohort_score_row(rule.name)
+        candidate_states = {
+            block.name
+            for block in config.blocks
+            if block.is_active and block.name not in set(rule.excluded_states)
+        }
+        if not candidate_states:
+            rows.append(row)
+            continue
+
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for fellow_idx in fellow_indices:
+            year = config.fellows[fellow_idx].training_year
+            for week in range(max(0, rule.start_week), end_week):
+                state = assignments[fellow_idx][week]
+                if state not in candidate_states:
+                    continue
+                if assignments[fellow_idx][week + 1] == state:
+                    _add_points_to_row(row, year, rule.weight)
+
+        rows.append(row)
+    return rows
+
+
+def _first_state_adjacent_exempt_weeks_from_assignments(
+    assignments: list[str],
+    exempt_state: str | None,
+) -> set[int]:
+    """Return week indices immediately before the first exempt-state start."""
+
+    if not exempt_state:
+        return set()
+
+    first_index = next(
+        (index for index, state in enumerate(assignments) if state == exempt_state),
+        None,
+    )
+    if first_index is None or first_index == 0:
+        return set()
+    return {first_index - 1}

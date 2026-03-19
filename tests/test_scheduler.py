@@ -15,6 +15,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
     FellowConfig,
@@ -24,6 +25,7 @@ from src.models import (
     ScheduleConfig,
     ScheduleResult,
     SoftSequenceRule,
+    SoftSingleWeekBlockRule,
     SolverStatus,
     TrainingYear,
     WeekCountRule,
@@ -849,6 +851,121 @@ class TestStructuredRules:
 
         assert result.solver_status == SolverStatus.INFEASIBLE
 
+    def test_consecutive_state_limit_rule_caps_selected_cohort(self) -> None:
+        """Cohort-specific consecutive limits should bind even if the global cap is looser."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=3,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=3,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Night Float", block_type=BlockType.NIGHT),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 NF/Research",
+                    block_names=["Night Float", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 NF exact 3",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Night Float"],
+                    min_weeks=3,
+                    max_weeks=3,
+                )
+            ],
+            consecutive_state_limit_rules=[
+                ConsecutiveStateLimitRule(
+                    name="F1 Night Float max 2 consecutive weeks",
+                    applicable_years=[TrainingYear.F1],
+                    state_names=["Night Float"],
+                    max_consecutive_weeks=2,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
+    def test_soft_single_week_block_rule_prefers_two_week_runs(self) -> None:
+        """One-week penalties should push F1 rotations into longer runs when possible."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Research"),
+                BlockConfig(name="EP"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 Research/EP",
+                    block_names=["Research", "EP"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 Research exact 2",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Research"],
+                    min_weeks=2,
+                    max_weeks=2,
+                ),
+                WeekCountRule(
+                    name="F1 EP exact 2",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["EP"],
+                    min_weeks=2,
+                    max_weeks=2,
+                ),
+            ],
+            soft_single_week_block_rules=[
+                SoftSingleWeekBlockRule(
+                    name="Bonus: F1 consecutive rotation weeks",
+                    applicable_years=[TrainingYear.F1],
+                    excluded_states=[],
+                    weight=5,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.assignments[0] in (
+            ["Research", "Research", "EP", "EP"],
+            ["EP", "EP", "Research", "Research"],
+        )
+
     def test_first_assignment_pairing_rule_requires_supervision(self) -> None:
         """A first-time F1 Yale Nuclear week should need an S2 or experienced F1 partner."""
 
@@ -978,6 +1095,12 @@ class TestBuiltInDefaults:
         )
         assert config.rolling_window_rules[0].window_size_weeks == 4
         assert config.rolling_window_rules[0].max_weeks_in_window == 3
+        assert len(config.consecutive_state_limit_rules) == 1
+        assert (
+            config.consecutive_state_limit_rules[0].name
+            == "F1 Night Float max 2 consecutive weeks"
+        )
+        assert config.consecutive_state_limit_rules[0].max_consecutive_weeks == 2
         assert len(config.first_assignment_pairing_rules) == 1
         assert (
             config.first_assignment_pairing_rules[0].name
@@ -1001,6 +1124,15 @@ class TestBuiltInDefaults:
             rule.name == "Bonus: F1 CHF immediately before Night Float"
             and rule.weight == 30
             for rule in config.soft_sequence_rules
+        )
+        assert any(
+            rule.name
+            == "Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks"
+            and rule.weight == 1
+            and rule.start_week == 8
+            and rule.excluded_states == ["Night Float"]
+            and rule.is_active
+            for rule in config.soft_single_week_block_rules
         )
 
     def test_default_config_feasibility_has_no_staffing_conflict(self) -> None:

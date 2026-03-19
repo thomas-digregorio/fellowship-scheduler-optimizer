@@ -376,6 +376,40 @@ class RollingWindowRule:
 
 
 @dataclass
+class ConsecutiveStateLimitRule:
+    """Limit consecutive weeks in selected states for one cohort."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    state_names: list[str]
+    max_consecutive_weeks: int
+    start_week: int = 0
+    end_week: int | None = None
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "state_names": self.state_names,
+            "max_consecutive_weeks": self.max_consecutive_weeks,
+            "start_week": self.start_week,
+            "end_week": self.end_week,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ConsecutiveStateLimitRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
 class FirstAssignmentPairingRule:
     """Require supervision when a fellow starts a block for the first time."""
 
@@ -548,6 +582,42 @@ class SoftSequenceRule:
         return cls(**payload)
 
 
+@dataclass
+class SoftSingleWeekBlockRule:
+    """Weighted bonus / penalty for one-week runs of selected rotations."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    excluded_states: list[str]
+    weight: int
+    start_week: int = 0
+    end_week: int | None = None
+    adjacent_to_first_state_exemption: str | None = None
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "excluded_states": self.excluded_states,
+            "weight": self.weight,
+            "start_week": self.start_week,
+            "end_week": self.end_week,
+            "adjacent_to_first_state_exemption": self.adjacent_to_first_state_exemption,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SoftSingleWeekBlockRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
 # ---------------------------------------------------------------------------
 # Global Schedule Configuration
 # ---------------------------------------------------------------------------
@@ -580,6 +650,9 @@ class ScheduleConfig:
     week_count_rules: list[WeekCountRule] = field(default_factory=list)
     cohort_limit_rules: list[CohortLimitRule] = field(default_factory=list)
     rolling_window_rules: list[RollingWindowRule] = field(default_factory=list)
+    consecutive_state_limit_rules: list[ConsecutiveStateLimitRule] = field(
+        default_factory=list
+    )
     first_assignment_pairing_rules: list[FirstAssignmentPairingRule] = field(
         default_factory=list
     )
@@ -591,6 +664,9 @@ class ScheduleConfig:
         default_factory=list
     )
     soft_sequence_rules: list[SoftSequenceRule] = field(default_factory=list)
+    soft_single_week_block_rules: list[SoftSingleWeekBlockRule] = field(
+        default_factory=list
+    )
 
     @property
     def active_blocks(self) -> list[BlockConfig]:
@@ -627,11 +703,13 @@ class ScheduleConfig:
                 self.week_count_rules,
                 self.cohort_limit_rules,
                 self.rolling_window_rules,
+                self.consecutive_state_limit_rules,
                 self.first_assignment_pairing_rules,
                 self.individual_fellow_requirement_rules,
                 self.prerequisite_rules,
                 self.forbidden_transition_rules,
                 self.soft_sequence_rules,
+                self.soft_single_week_block_rules,
             )
         )
 
@@ -733,6 +811,9 @@ class ScheduleConfig:
             "rolling_window_rules": [
                 rule.to_dict() for rule in self.rolling_window_rules
             ],
+            "consecutive_state_limit_rules": [
+                rule.to_dict() for rule in self.consecutive_state_limit_rules
+            ],
             "first_assignment_pairing_rules": [
                 rule.to_dict() for rule in self.first_assignment_pairing_rules
             ],
@@ -747,6 +828,9 @@ class ScheduleConfig:
             ],
             "soft_sequence_rules": [
                 rule.to_dict() for rule in self.soft_sequence_rules
+            ],
+            "soft_single_week_block_rules": [
+                rule.to_dict() for rule in self.soft_single_week_block_rules
             ],
         }
 
@@ -788,6 +872,10 @@ class ScheduleConfig:
             RollingWindowRule.from_dict(rule)
             for rule in payload.get("rolling_window_rules", [])
         ]
+        payload["consecutive_state_limit_rules"] = [
+            ConsecutiveStateLimitRule.from_dict(rule)
+            for rule in payload.get("consecutive_state_limit_rules", [])
+        ]
         payload["first_assignment_pairing_rules"] = [
             FirstAssignmentPairingRule.from_dict(rule)
             for rule in payload.get("first_assignment_pairing_rules", [])
@@ -807,6 +895,10 @@ class ScheduleConfig:
         payload["soft_sequence_rules"] = [
             SoftSequenceRule.from_dict(rule)
             for rule in payload.get("soft_sequence_rules", [])
+        ]
+        payload["soft_single_week_block_rules"] = [
+            SoftSingleWeekBlockRule.from_dict(rule)
+            for rule in payload.get("soft_single_week_block_rules", [])
         ]
         payload["num_fellows"] = len(payload["fellows"]) or payload.get(
             "num_fellows", 0

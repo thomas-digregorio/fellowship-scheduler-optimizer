@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ortools.sat.python import cp_model
 
-from src.models import ScheduleConfig
+from src.models import ScheduleConfig, TrainingYear
 
 
 def _week_range(
@@ -91,9 +91,15 @@ def add_no_consecutive_same_block(
     """Forbid repeating the same block in consecutive weeks.
 
     Night Float is exempt because it has its own dedicated consecutive-week
-    limit and the new F1 defaults require multi-week Night Float exposure.
-    PTO is also exempt.
+    limit. PTO is also exempt. In structured cohort-aware configs, F1 fellows
+    are exempt from this legacy anti-repeat rule so longer rotation runs can be
+    expressed via cohort-specific hard/soft rules instead.
     """
+
+    if config.uses_structured_rules:
+        relaxed_f1_indices = set(config.fellow_indices_for_years([TrainingYear.F1]))
+    else:
+        relaxed_f1_indices = set()
 
     night_float_indices = {
         index
@@ -101,6 +107,8 @@ def add_no_consecutive_same_block(
         if block.name == "Night Float"
     }
     for fellow_idx in range(config.num_fellows):
+        if fellow_idx in relaxed_f1_indices:
+            continue
         for week in range(config.num_weeks - 1):
             for block_idx in range(num_blocks):
                 if block_idx in night_float_indices:
@@ -325,6 +333,44 @@ def add_rolling_window_rules(
                         for state_idx in state_indices
                 )
                     <= rule.max_weeks_in_window
+                )
+
+
+def add_consecutive_state_limit_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Apply cohort-aware consecutive-week caps for selected states."""
+
+    for rule in config.consecutive_state_limit_rules:
+        if not rule.is_active or rule.max_consecutive_weeks < 1:
+            continue
+        state_indices = [
+            block_name_to_idx[name]
+            for name in rule.state_names
+            if name in block_name_to_idx
+        ]
+        if not state_indices:
+            continue
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        week_indices = list(_week_range(rule.start_week, rule.end_week, config.num_weeks))
+        if len(week_indices) <= rule.max_consecutive_weeks:
+            continue
+
+        start_week = week_indices[0]
+        window = rule.max_consecutive_weeks + 1
+        last_window_start = week_indices[-1] - window + 1
+        for fellow_idx in fellow_indices:
+            for window_start in range(start_week, last_window_start + 1):
+                model.Add(
+                    sum(
+                        assign[fellow_idx, week, state_idx]
+                        for week in range(window_start, window_start + window)
+                        for state_idx in state_indices
+                    )
+                    <= rule.max_consecutive_weeks
                 )
 
 

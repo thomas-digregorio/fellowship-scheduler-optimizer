@@ -1526,6 +1526,21 @@
       "is_active": true
     }
   ],
+  "consecutive_state_limit_rules": [
+    {
+      "name": "F1 Night Float max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "Night Float"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    }
+  ],
   "first_assignment_pairing_rules": [
     {
       "name": "F1 first Yale Nuclear week needs experienced pairing",
@@ -1644,6 +1659,22 @@
       "direction": "forward",
       "start_week": 0,
       "end_week": null,
+      "is_active": true
+    }
+  ],
+  "soft_single_week_block_rules": [
+    {
+      "name": "Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "excluded_states": [
+        "Night Float"
+      ],
+      "weight": 1,
+      "start_week": 8,
+      "end_week": null,
+      "adjacent_to_first_state_exemption": null,
       "is_active": true
     }
   ]

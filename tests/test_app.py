@@ -495,6 +495,11 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.rolling_window_rules
         if rule.name == "Max 3 PTO or Research weeks in any 4-week period"
     )
+    nf_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 Night Float max 2 consecutive weeks"
+    )
     pairing_rule = next(
         rule
         for rule in migrated.first_assignment_pairing_rules
@@ -505,6 +510,12 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.soft_sequence_rules
         if rule.name
         == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
+    )
+    single_week_bonus = next(
+        rule
+        for rule in migrated.soft_single_week_block_rules
+        if rule.name
+        == "Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks"
     )
 
     assert f1_no_pto.end_week == 3
@@ -536,6 +547,9 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert rolling_window.window_size_weeks == 4
     assert rolling_window.max_weeks_in_window == 3
     assert rolling_window.is_active
+    assert nf_consecutive_limit.state_names == ["Night Float"]
+    assert nf_consecutive_limit.max_consecutive_weeks == 2
+    assert nf_consecutive_limit.is_active
     assert pairing_rule.mentor_years == [TrainingYear.S2]
     assert pairing_rule.experienced_peer_years == [TrainingYear.F1]
     assert not migrated.forbidden_transition_rules
@@ -549,6 +563,11 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert nf_penalty.right_states == ["Night Float"]
     assert nf_penalty.weight == -40
     assert nf_penalty.is_active
+    assert single_week_bonus.excluded_states == ["Night Float"]
+    assert single_week_bonus.weight == 1
+    assert single_week_bonus.start_week == 8
+    assert single_week_bonus.adjacent_to_first_state_exemption is None
+    assert single_week_bonus.is_active
 
 
 def test_current_built_in_defaults_do_not_trigger_upgrade_notice() -> None:

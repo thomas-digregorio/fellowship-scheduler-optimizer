@@ -8,6 +8,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
     FellowConfig,
@@ -19,6 +20,7 @@ from src.models import (
     ScheduleConfig,
     SoftRuleDirection,
     SoftSequenceRule,
+    SoftSingleWeekBlockRule,
     TrainingYear,
     WeekCountRule,
 )
@@ -715,6 +717,19 @@ def get_default_rolling_window_rules() -> list[RollingWindowRule]:
     ]
 
 
+def get_default_consecutive_state_limit_rules() -> list[ConsecutiveStateLimitRule]:
+    """Return cohort-specific consecutive-week hard limits."""
+
+    return [
+        ConsecutiveStateLimitRule(
+            name="F1 Night Float max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["Night Float"],
+            max_consecutive_weeks=2,
+        )
+    ]
+
+
 def get_default_forbidden_transition_rules() -> list[ForbiddenTransitionRule]:
     """Return hard transition rules."""
 
@@ -763,6 +778,21 @@ def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
     ]
 
 
+def get_default_soft_single_week_block_rules() -> list[SoftSingleWeekBlockRule]:
+    """Return default bonuses for longer same-rotation runs."""
+
+    return [
+        SoftSingleWeekBlockRule(
+            name="Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks",
+            applicable_years=[TrainingYear.F1],
+            excluded_states=["Night Float"],
+            weight=1,
+            start_week=8,
+            adjacent_to_first_state_exemption=None,
+        )
+    ]
+
+
 def get_default_pto_preference_weight_overrides() -> dict[str, list[int]]:
     """Return the default cohort PTO preference weights."""
 
@@ -800,9 +830,11 @@ def get_default_config() -> ScheduleConfig:
         week_count_rules=get_default_week_count_rules(),
         cohort_limit_rules=get_default_cohort_limit_rules(),
         rolling_window_rules=get_default_rolling_window_rules(),
+        consecutive_state_limit_rules=get_default_consecutive_state_limit_rules(),
         first_assignment_pairing_rules=get_default_first_assignment_pairing_rules(),
         individual_fellow_requirement_rules=get_default_individual_fellow_requirement_rules(),
         prerequisite_rules=get_default_prerequisite_rules(),
         forbidden_transition_rules=get_default_forbidden_transition_rules(),
         soft_sequence_rules=get_default_soft_sequence_rules(),
+        soft_single_week_block_rules=get_default_soft_single_week_block_rules(),
     )
