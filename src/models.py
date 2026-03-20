@@ -410,6 +410,36 @@ class ConsecutiveStateLimitRule:
 
 
 @dataclass
+class FirstAssignmentRunLimitRule:
+    """Limit the consecutive length of a fellow's first run on one block."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    block_name: str
+    max_run_length_weeks: int
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "block_name": self.block_name,
+            "max_run_length_weeks": self.max_run_length_weeks,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FirstAssignmentRunLimitRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
 class FirstAssignmentPairingRule:
     """Require supervision when a fellow starts a block for the first time."""
 
@@ -641,7 +671,7 @@ class ScheduleConfig:
     )
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
-    solver_timeout_seconds: float = 300.0
+    solver_timeout_seconds: float = 60.0
     pto_preference_weight_overrides: dict[str, list[int]] = field(default_factory=dict)
     blocks: list[BlockConfig] = field(default_factory=list)
     fellows: list[FellowConfig] = field(default_factory=list)
@@ -651,6 +681,9 @@ class ScheduleConfig:
     cohort_limit_rules: list[CohortLimitRule] = field(default_factory=list)
     rolling_window_rules: list[RollingWindowRule] = field(default_factory=list)
     consecutive_state_limit_rules: list[ConsecutiveStateLimitRule] = field(
+        default_factory=list
+    )
+    first_assignment_run_limit_rules: list[FirstAssignmentRunLimitRule] = field(
         default_factory=list
     )
     first_assignment_pairing_rules: list[FirstAssignmentPairingRule] = field(
@@ -704,6 +737,7 @@ class ScheduleConfig:
                 self.cohort_limit_rules,
                 self.rolling_window_rules,
                 self.consecutive_state_limit_rules,
+                self.first_assignment_run_limit_rules,
                 self.first_assignment_pairing_rules,
                 self.individual_fellow_requirement_rules,
                 self.prerequisite_rules,
@@ -814,6 +848,9 @@ class ScheduleConfig:
             "consecutive_state_limit_rules": [
                 rule.to_dict() for rule in self.consecutive_state_limit_rules
             ],
+            "first_assignment_run_limit_rules": [
+                rule.to_dict() for rule in self.first_assignment_run_limit_rules
+            ],
             "first_assignment_pairing_rules": [
                 rule.to_dict() for rule in self.first_assignment_pairing_rules
             ],
@@ -875,6 +912,10 @@ class ScheduleConfig:
         payload["consecutive_state_limit_rules"] = [
             ConsecutiveStateLimitRule.from_dict(rule)
             for rule in payload.get("consecutive_state_limit_rules", [])
+        ]
+        payload["first_assignment_run_limit_rules"] = [
+            FirstAssignmentRunLimitRule.from_dict(rule)
+            for rule in payload.get("first_assignment_run_limit_rules", [])
         ]
         payload["first_assignment_pairing_rules"] = [
             FirstAssignmentPairingRule.from_dict(rule)

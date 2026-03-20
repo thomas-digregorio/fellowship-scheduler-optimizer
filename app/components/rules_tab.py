@@ -16,6 +16,7 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    FirstAssignmentRunLimitRule,
     ForbiddenTransitionRule,
     IndividualFellowRequirementRule,
     PrerequisiteRule,
@@ -329,6 +330,26 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
                 key_prefix=f"{year.value}_consecutive_limits",
                 title="Consecutive Rotation Limits",
                 caption="Hard caps on consecutive weeks for selected states in this cohort.",
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+
+    with st.container(border=True):
+        first_assignment_run_limits = [
+            rule
+            for rule in config.first_assignment_run_limit_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.first_assignment_run_limit_rules = _merge_year_rules(
+            config.first_assignment_run_limit_rules,
+            _render_first_assignment_run_limit_rules_editor(
+                first_assignment_run_limits,
+                key_prefix=f"{year.value}_first_assignment_run_limits",
+                title="First Assignment Run Limits",
+                caption=(
+                    "Hard caps on how long a fellow's first run on a rotation may last."
+                ),
                 fixed_years=[year],
             ),
             predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
@@ -1196,6 +1217,71 @@ def _render_consecutive_state_limit_rules_editor(
                 ),
                 start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
                 end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
+def _render_first_assignment_run_limit_rules_editor(
+    rules: list[FirstAssignmentRunLimitRule],
+    *,
+    key_prefix: str,
+    title: str = "First Assignment Run Limits",
+    caption: str = "Cap the length of the first run on a selected rotation.",
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[FirstAssignmentRunLimitRule]:
+    """Render hard caps for a fellow's first run on one block."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    columns = ["Name", "Rotation", "Max First Run Weeks", "Active"]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "Rotation": rule.block_name,
+            "Max First Run Weeks": rule.max_run_length_weeks,
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["Max First Run Weeks"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[FirstAssignmentRunLimitRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("Rotation"):
+            continue
+        updated_rules.append(
+            FirstAssignmentRunLimitRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                block_name=str(row["Rotation"]).strip(),
+                max_run_length_weeks=_to_int(
+                    row.get("Max First Run Weeks"),
+                    default=1,
+                ),
                 is_active=bool(row.get("Active", True)),
             )
         )

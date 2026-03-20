@@ -12,6 +12,7 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    FirstAssignmentRunLimitRule,
     FirstAssignmentPairingRule,
     ForbiddenTransitionRule,
     IndividualFellowRequirementRule,
@@ -54,7 +55,7 @@ BLOCK_COLORS: dict[str, str] = {
 ACADEMIC_YEAR_START = date(2026, 7, 13)
 NUM_WEEKS = 52
 FIRST_YEAR_CCU_START_WEEK = 5
-FIRST_YEAR_NF_START_WEEK = 6
+FIRST_YEAR_NF_START_WEEK = 7
 FIRST_YEAR_RESEARCH_PTO_START_WEEK = 4
 
 
@@ -726,6 +727,25 @@ def get_default_consecutive_state_limit_rules() -> list[ConsecutiveStateLimitRul
             applicable_years=[TrainingYear.F1],
             state_names=["Night Float"],
             max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="F1 White Consults max 3 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["White Consults"],
+            max_consecutive_weeks=3,
+        )
+    ]
+
+
+def get_default_first_assignment_run_limit_rules() -> list[FirstAssignmentRunLimitRule]:
+    """Return first-assignment run-length hard rules."""
+
+    return [
+        FirstAssignmentRunLimitRule(
+            name="F1 first Night Float run max 1 week",
+            applicable_years=[TrainingYear.F1],
+            block_name="Night Float",
+            max_run_length_weeks=1,
         )
     ]
 
@@ -733,7 +753,14 @@ def get_default_consecutive_state_limit_rules() -> list[ConsecutiveStateLimitRul
 def get_default_forbidden_transition_rules() -> list[ForbiddenTransitionRule]:
     """Return hard transition rules."""
 
-    return []
+    return [
+        ForbiddenTransitionRule(
+            name="F1/S2 Night Float cannot follow CCU",
+            applicable_years=[TrainingYear.F1, TrainingYear.S2],
+            target_block="Night Float",
+            forbidden_previous_blocks=["CCU"],
+        )
+    ]
 
 
 def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
@@ -741,13 +768,12 @@ def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
 
     return [
         SoftSequenceRule(
-            name="Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO",
+            name="Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, or PTO",
             applicable_years=[TrainingYear.F1],
             left_states=[
                 "White Consults",
                 "SRC Consults",
                 "VA Consults",
-                "CCU",
                 "PTO",
             ],
             right_states=["Night Float"],
@@ -759,6 +785,13 @@ def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
             left_states=["CHF"],
             right_states=["Night Float"],
             weight=30,
+        ),
+        SoftSequenceRule(
+            name="Bonus: F1 Night Float followed by Research or PTO",
+            applicable_years=[TrainingYear.F1],
+            left_states=["Night Float"],
+            right_states=["Research", "PTO"],
+            weight=5,
         ),
         SoftSequenceRule(
             name="Bonus: F1 Research adjacent to PTO",
@@ -821,7 +854,7 @@ def get_default_config() -> ScheduleConfig:
         call_excluded_blocks=["Night Float", "PTO"],
         hours_cap=80.0,
         trailing_avg_weeks=4,
-        solver_timeout_seconds=300.0,
+        solver_timeout_seconds=60.0,
         pto_preference_weight_overrides=get_default_pto_preference_weight_overrides(),
         blocks=get_default_blocks(),
         fellows=fellows,
@@ -831,6 +864,7 @@ def get_default_config() -> ScheduleConfig:
         cohort_limit_rules=get_default_cohort_limit_rules(),
         rolling_window_rules=get_default_rolling_window_rules(),
         consecutive_state_limit_rules=get_default_consecutive_state_limit_rules(),
+        first_assignment_run_limit_rules=get_default_first_assignment_run_limit_rules(),
         first_assignment_pairing_rules=get_default_first_assignment_pairing_rules(),
         individual_fellow_requirement_rules=get_default_individual_fellow_requirement_rules(),
         prerequisite_rules=get_default_prerequisite_rules(),

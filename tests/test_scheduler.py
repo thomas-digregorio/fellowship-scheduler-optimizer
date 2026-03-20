@@ -19,6 +19,7 @@ from src.models import (
     CoverageRule,
     EligibilityRule,
     FellowConfig,
+    FirstAssignmentRunLimitRule,
     FirstAssignmentPairingRule,
     IndividualFellowRequirementRule,
     RollingWindowRule,
@@ -597,6 +598,67 @@ class TestStructuredRules:
         assert has_bonus_pair
         assert result.objective_value >= 25
 
+    def test_night_float_followup_bonus_shapes_solution(self) -> None:
+        """A Night Float follow-up bonus should prefer Research immediately after NF."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=2,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(name="Night Float", block_type=BlockType.NIGHT, hours_per_week=60.0),
+                BlockConfig(name="Research", hours_per_week=40.0),
+                BlockConfig(name="Elective", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(
+                    name="Solo Fellow",
+                    training_year=TrainingYear.F1,
+                )
+            ],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="Solo can do all blocks",
+                    block_names=["Night Float", "Research", "Elective"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 NF exact 1",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Night Float"],
+                    min_weeks=1,
+                    max_weeks=1,
+                )
+            ],
+            soft_sequence_rules=[
+                SoftSequenceRule(
+                    name="Bonus: F1 Night Float followed by Research or PTO",
+                    applicable_years=[TrainingYear.F1],
+                    left_states=["Night Float"],
+                    right_states=["Research", "PTO"],
+                    weight=5,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.assignments[0] == ["Night Float", "Research"]
+        assert result.objective_value >= 5
+
     def test_cohort_pto_preference_weights_shape_solution(self) -> None:
         """Cohort PTO weights should override the default linear rank preference."""
 
@@ -903,6 +965,110 @@ class TestStructuredRules:
 
         assert result.solver_status == SolverStatus.INFEASIBLE
 
+    def test_f1_white_consults_consecutive_limit_caps_run_length(self) -> None:
+        """F1 White Consults should not be allowed to run longer than 3 consecutive weeks."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="White Consults"),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 White/Research",
+                    block_names=["White Consults", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 White exact 4",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["White Consults"],
+                    min_weeks=4,
+                    max_weeks=4,
+                )
+            ],
+            consecutive_state_limit_rules=[
+                ConsecutiveStateLimitRule(
+                    name="F1 White Consults max 3 consecutive weeks",
+                    applicable_years=[TrainingYear.F1],
+                    state_names=["White Consults"],
+                    max_consecutive_weeks=3,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
+    def test_first_assignment_run_limit_rule_caps_first_night_float_week(self) -> None:
+        """The first Night Float run for F1 should obey the dedicated first-run cap."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Night Float", block_type=BlockType.NIGHT),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 NF/Research",
+                    block_names=["Night Float", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 NF exact 2",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Night Float"],
+                    min_weeks=2,
+                    max_weeks=2,
+                )
+            ],
+            first_assignment_run_limit_rules=[
+                FirstAssignmentRunLimitRule(
+                    name="F1 first Night Float run max 1 week",
+                    applicable_years=[TrainingYear.F1],
+                    block_name="Night Float",
+                    max_run_length_weeks=1,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
     def test_soft_single_week_block_rule_prefers_two_week_runs(self) -> None:
         """One-week penalties should push F1 rotations into longer runs when possible."""
 
@@ -1095,12 +1261,26 @@ class TestBuiltInDefaults:
         )
         assert config.rolling_window_rules[0].window_size_weeks == 4
         assert config.rolling_window_rules[0].max_weeks_in_window == 3
-        assert len(config.consecutive_state_limit_rules) == 1
+        consecutive_limits = {
+            rule.name: rule for rule in config.consecutive_state_limit_rules
+        }
+        assert len(consecutive_limits) == 2
         assert (
-            config.consecutive_state_limit_rules[0].name
-            == "F1 Night Float max 2 consecutive weeks"
+            consecutive_limits["F1 Night Float max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
         )
-        assert config.consecutive_state_limit_rules[0].max_consecutive_weeks == 2
+        assert (
+            consecutive_limits[
+                "F1 White Consults max 3 consecutive weeks"
+            ].max_consecutive_weeks
+            == 3
+        )
+        assert len(config.first_assignment_run_limit_rules) == 1
+        assert (
+            config.first_assignment_run_limit_rules[0].name
+            == "F1 first Night Float run max 1 week"
+        )
+        assert config.first_assignment_run_limit_rules[0].max_run_length_weeks == 1
         assert len(config.first_assignment_pairing_rules) == 1
         assert (
             config.first_assignment_pairing_rules[0].name
@@ -1112,10 +1292,17 @@ class TestBuiltInDefaults:
             and rule.is_active
             for rule in config.prerequisite_rules
         )
-        assert not config.forbidden_transition_rules
+        assert any(
+            rule.name == "F1/S2 Night Float cannot follow CCU"
+            and rule.applicable_years == [TrainingYear.F1, TrainingYear.S2]
+            and rule.target_block == "Night Float"
+            and rule.forbidden_previous_blocks == ["CCU"]
+            and rule.is_active
+            for rule in config.forbidden_transition_rules
+        )
         assert any(
             rule.name
-            == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
+            == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, or PTO"
             and rule.weight == -40
             and rule.is_active
             for rule in config.soft_sequence_rules
@@ -1123,6 +1310,14 @@ class TestBuiltInDefaults:
         assert any(
             rule.name == "Bonus: F1 CHF immediately before Night Float"
             and rule.weight == 30
+            for rule in config.soft_sequence_rules
+        )
+        assert any(
+            rule.name == "Bonus: F1 Night Float followed by Research or PTO"
+            and rule.left_states == ["Night Float"]
+            and rule.right_states == ["Research", "PTO"]
+            and rule.weight == 5
+            and rule.is_active
             for rule in config.soft_sequence_rules
         )
         assert any(
@@ -1154,4 +1349,4 @@ class TestBuiltInDefaults:
 
         result = solve_schedule(config)
 
-        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)

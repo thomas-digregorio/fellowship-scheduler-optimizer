@@ -14,7 +14,7 @@
   ],
   "hours_cap": 80.0,
   "trailing_avg_weeks": 4,
-  "solver_timeout_seconds": 300.0,
+  "solver_timeout_seconds": 60.0,
   "pto_preference_weight_overrides": {
     "F1": [
       120,
@@ -681,7 +681,7 @@
       ],
       "min_fellows": 1,
       "max_fellows": 1,
-      "start_week": 6,
+      "start_week": 7,
       "end_week": 51,
       "is_active": true
     },
@@ -730,7 +730,7 @@
       "min_fellows": 1,
       "max_fellows": 1,
       "start_week": 0,
-      "end_week": 5,
+      "end_week": 6,
       "is_active": true
     },
     {
@@ -983,7 +983,7 @@
         "F1",
         "S2"
       ],
-      "start_week": 6,
+      "start_week": 7,
       "end_week": 51,
       "is_active": true
     },
@@ -1032,7 +1032,7 @@
         "S2"
       ],
       "start_week": 0,
-      "end_week": 5,
+      "end_week": 6,
       "is_active": true
     },
     {
@@ -1191,7 +1191,7 @@
       ],
       "min_weeks": 5,
       "max_weeks": 6,
-      "start_week": 6,
+      "start_week": 7,
       "end_week": 51,
       "applies_to_each_fellow": true,
       "is_active": true
@@ -1539,6 +1539,30 @@
       "start_week": 0,
       "end_week": null,
       "is_active": true
+    },
+    {
+      "name": "F1 White Consults max 3 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "White Consults"
+      ],
+      "max_consecutive_weeks": 3,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    }
+  ],
+  "first_assignment_run_limit_rules": [
+    {
+      "name": "F1 first Night Float run max 1 week",
+      "applicable_years": [
+        "F1"
+      ],
+      "block_name": "Night Float",
+      "max_run_length_weeks": 1,
+      "is_active": true
     }
   ],
   "first_assignment_pairing_rules": [
@@ -1587,10 +1611,23 @@
       "is_active": true
     }
   ],
-  "forbidden_transition_rules": [],
+  "forbidden_transition_rules": [
+    {
+      "name": "F1/S2 Night Float cannot follow CCU",
+      "applicable_years": [
+        "F1",
+        "S2"
+      ],
+      "target_block": "Night Float",
+      "forbidden_previous_blocks": [
+        "CCU"
+      ],
+      "is_active": true
+    }
+  ],
   "soft_sequence_rules": [
     {
-      "name": "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO",
+      "name": "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, or PTO",
       "applicable_years": [
         "F1"
       ],
@@ -1598,7 +1635,6 @@
         "White Consults",
         "SRC Consults",
         "VA Consults",
-        "CCU",
         "PTO"
       ],
       "right_states": [
@@ -1656,6 +1692,24 @@
         "PTO"
       ],
       "weight": 8,
+      "direction": "forward",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: F1 Night Float followed by Research or PTO",
+      "applicable_years": [
+        "F1"
+      ],
+      "left_states": [
+        "Night Float"
+      ],
+      "right_states": [
+        "Research",
+        "PTO"
+      ],
+      "weight": 5,
       "direction": "forward",
       "start_week": 0,
       "end_week": null,

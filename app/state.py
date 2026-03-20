@@ -30,10 +30,13 @@ from src.models import (
     ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
+    FirstAssignmentRunLimitRule,
     FirstAssignmentPairingRule,
+    ForbiddenTransitionRule,
     RollingWindowRule,
     ScheduleConfig,
     ScheduleResult,
+    SoftRuleDirection,
     SoftSequenceRule,
     SoftSingleWeekBlockRule,
     TrainingYear,
@@ -710,6 +713,12 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         "CCU",
         "PTO",
     ]
+    current_nf_soft_penalty_previous_blocks = [
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "PTO",
+    ]
     filtered_transition_rules = [
         rule
         for rule in config.forbidden_transition_rules
@@ -723,16 +732,48 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         config.forbidden_transition_rules = filtered_transition_rules
         changed = True
 
+    matching_ccu_transition = next(
+        (
+            rule
+            for rule in config.forbidden_transition_rules
+            if rule.target_block == "Night Float"
+            and rule.applicable_years == [TrainingYear.F1, TrainingYear.S2]
+            and rule.forbidden_previous_blocks == ["CCU"]
+        ),
+        None,
+    )
+    if matching_ccu_transition is None:
+        config.forbidden_transition_rules.append(
+            ForbiddenTransitionRule(
+                name="F1/S2 Night Float cannot follow CCU",
+                applicable_years=[TrainingYear.F1, TrainingYear.S2],
+                target_block="Night Float",
+                forbidden_previous_blocks=["CCU"],
+            )
+        )
+        changed = True
+    else:
+        if matching_ccu_transition.name != "F1/S2 Night Float cannot follow CCU":
+            matching_ccu_transition.name = "F1/S2 Night Float cannot follow CCU"
+            changed = True
+        if not matching_ccu_transition.is_active:
+            matching_ccu_transition.is_active = True
+            changed = True
+
     soft_penalty_name = (
         "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, "
-        "CCU, or PTO"
+        "or PTO"
     )
     matching_soft_penalty = next(
         (
             rule
             for rule in config.soft_sequence_rules
             if rule.applicable_years == [TrainingYear.F1]
-            and rule.left_states == legacy_nf_forbidden_previous_blocks
+            and (
+                set(rule.left_states) == set(legacy_nf_forbidden_previous_blocks)
+                or set(rule.left_states)
+                == set(current_nf_soft_penalty_previous_blocks)
+            )
             and rule.right_states == ["Night Float"]
         ),
         None,
@@ -743,7 +784,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             SoftSequenceRule(
                 name=soft_penalty_name,
                 applicable_years=[TrainingYear.F1],
-                left_states=legacy_nf_forbidden_previous_blocks,
+                left_states=current_nf_soft_penalty_previous_blocks,
                 right_states=["Night Float"],
                 weight=-40,
             ),
@@ -753,11 +794,50 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         if matching_soft_penalty.name != soft_penalty_name:
             matching_soft_penalty.name = soft_penalty_name
             changed = True
+        if matching_soft_penalty.left_states != current_nf_soft_penalty_previous_blocks:
+            matching_soft_penalty.left_states = current_nf_soft_penalty_previous_blocks
+            changed = True
         if matching_soft_penalty.weight != -40:
             matching_soft_penalty.weight = -40
             changed = True
         if not matching_soft_penalty.is_active:
             matching_soft_penalty.is_active = True
+            changed = True
+
+    nf_followup_bonus_name = "Bonus: F1 Night Float followed by Research or PTO"
+    matching_nf_followup_bonus = next(
+        (
+            rule
+            for rule in config.soft_sequence_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.left_states == ["Night Float"]
+            and set(rule.right_states) == {"Research", "PTO"}
+        ),
+        None,
+    )
+    if matching_nf_followup_bonus is None:
+        config.soft_sequence_rules.append(
+            SoftSequenceRule(
+                name=nf_followup_bonus_name,
+                applicable_years=[TrainingYear.F1],
+                left_states=["Night Float"],
+                right_states=["Research", "PTO"],
+                weight=5,
+            )
+        )
+        changed = True
+    else:
+        if matching_nf_followup_bonus.name != nf_followup_bonus_name:
+            matching_nf_followup_bonus.name = nf_followup_bonus_name
+            changed = True
+        if matching_nf_followup_bonus.weight != 5:
+            matching_nf_followup_bonus.weight = 5
+            changed = True
+        if matching_nf_followup_bonus.direction != SoftRuleDirection.FORWARD:
+            matching_nf_followup_bonus.direction = SoftRuleDirection.FORWARD
+            changed = True
+        if not matching_nf_followup_bonus.is_active:
+            matching_nf_followup_bonus.is_active = True
             changed = True
 
     matching_nf_cap = next(
@@ -788,6 +868,66 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             changed = True
         if not matching_nf_cap.is_active:
             matching_nf_cap.is_active = True
+            changed = True
+
+    matching_white_cap = next(
+        (
+            rule
+            for rule in config.consecutive_state_limit_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.state_names == ["White Consults"]
+        ),
+        None,
+    )
+    if matching_white_cap is None:
+        config.consecutive_state_limit_rules.append(
+            ConsecutiveStateLimitRule(
+                name="F1 White Consults max 3 consecutive weeks",
+                applicable_years=[TrainingYear.F1],
+                state_names=["White Consults"],
+                max_consecutive_weeks=3,
+            )
+        )
+        changed = True
+    else:
+        if matching_white_cap.name != "F1 White Consults max 3 consecutive weeks":
+            matching_white_cap.name = "F1 White Consults max 3 consecutive weeks"
+            changed = True
+        if matching_white_cap.max_consecutive_weeks != 3:
+            matching_white_cap.max_consecutive_weeks = 3
+            changed = True
+        if not matching_white_cap.is_active:
+            matching_white_cap.is_active = True
+            changed = True
+
+    matching_first_nf_run = next(
+        (
+            rule
+            for rule in config.first_assignment_run_limit_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.block_name == "Night Float"
+        ),
+        None,
+    )
+    if matching_first_nf_run is None:
+        config.first_assignment_run_limit_rules.append(
+            FirstAssignmentRunLimitRule(
+                name="F1 first Night Float run max 1 week",
+                applicable_years=[TrainingYear.F1],
+                block_name="Night Float",
+                max_run_length_weeks=1,
+            )
+        )
+        changed = True
+    else:
+        if matching_first_nf_run.name != "F1 first Night Float run max 1 week":
+            matching_first_nf_run.name = "F1 first Night Float run max 1 week"
+            changed = True
+        if matching_first_nf_run.max_run_length_weeks != 1:
+            matching_first_nf_run.max_run_length_weeks = 1
+            changed = True
+        if not matching_first_nf_run.is_active:
+            matching_first_nf_run.is_active = True
             changed = True
 
     matching_single_week_bonus = next(

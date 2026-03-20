@@ -500,16 +500,36 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.consecutive_state_limit_rules
         if rule.name == "F1 Night Float max 2 consecutive weeks"
     )
+    white_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 White Consults max 3 consecutive weeks"
+    )
+    first_nf_run_limit = next(
+        rule
+        for rule in migrated.first_assignment_run_limit_rules
+        if rule.name == "F1 first Night Float run max 1 week"
+    )
     pairing_rule = next(
         rule
         for rule in migrated.first_assignment_pairing_rules
         if rule.name == "F1 first Yale Nuclear week needs experienced pairing"
     )
+    ccu_transition = next(
+        rule
+        for rule in migrated.forbidden_transition_rules
+        if rule.name == "F1/S2 Night Float cannot follow CCU"
+    )
     nf_penalty = next(
         rule
         for rule in migrated.soft_sequence_rules
         if rule.name
-        == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, CCU, or PTO"
+        == "Penalty: F1 Night Float after White Consults, SRC Consults, VA Consults, or PTO"
+    )
+    nf_followup_bonus = next(
+        rule
+        for rule in migrated.soft_sequence_rules
+        if rule.name == "Bonus: F1 Night Float followed by Research or PTO"
     )
     single_week_bonus = next(
         rule
@@ -550,19 +570,31 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert nf_consecutive_limit.state_names == ["Night Float"]
     assert nf_consecutive_limit.max_consecutive_weeks == 2
     assert nf_consecutive_limit.is_active
+    assert white_consecutive_limit.state_names == ["White Consults"]
+    assert white_consecutive_limit.max_consecutive_weeks == 3
+    assert white_consecutive_limit.is_active
+    assert first_nf_run_limit.block_name == "Night Float"
+    assert first_nf_run_limit.max_run_length_weeks == 1
+    assert first_nf_run_limit.is_active
     assert pairing_rule.mentor_years == [TrainingYear.S2]
     assert pairing_rule.experienced_peer_years == [TrainingYear.F1]
-    assert not migrated.forbidden_transition_rules
+    assert ccu_transition.applicable_years == [TrainingYear.F1, TrainingYear.S2]
+    assert ccu_transition.target_block == "Night Float"
+    assert ccu_transition.forbidden_previous_blocks == ["CCU"]
+    assert ccu_transition.is_active
     assert nf_penalty.left_states == [
         "White Consults",
         "SRC Consults",
         "VA Consults",
-        "CCU",
         "PTO",
     ]
     assert nf_penalty.right_states == ["Night Float"]
     assert nf_penalty.weight == -40
     assert nf_penalty.is_active
+    assert nf_followup_bonus.left_states == ["Night Float"]
+    assert nf_followup_bonus.right_states == ["Research", "PTO"]
+    assert nf_followup_bonus.weight == 5
+    assert nf_followup_bonus.is_active
     assert single_week_bonus.excluded_states == ["Night Float"]
     assert single_week_bonus.weight == 1
     assert single_week_bonus.start_week == 8

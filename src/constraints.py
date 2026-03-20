@@ -374,6 +374,59 @@ def add_consecutive_state_limit_rules(
                 )
 
 
+def add_first_assignment_run_limit_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Limit the consecutive length of a fellow's first run on one block."""
+
+    for rule in config.first_assignment_run_limit_rules:
+        if (
+            not rule.is_active
+            or rule.max_run_length_weeks < 1
+            or rule.block_name not in block_name_to_idx
+        ):
+            continue
+
+        block_idx = block_name_to_idx[rule.block_name]
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        max_run = rule.max_run_length_weeks
+
+        for fellow_idx in fellow_indices:
+            for week in range(config.num_weeks):
+                current_assignment = assign[fellow_idx, week, block_idx]
+                if week == 0:
+                    first_assignment = current_assignment
+                else:
+                    prior_total = sum(
+                        assign[fellow_idx, prior_week, block_idx]
+                        for prior_week in range(week)
+                    )
+                    has_prior = model.NewBoolVar(
+                        f"first_run_limit_has_prior_f{fellow_idx}_w{week}_b{block_idx}"
+                    )
+                    model.Add(prior_total >= 1).OnlyEnforceIf(has_prior)
+                    model.Add(prior_total == 0).OnlyEnforceIf(has_prior.Not())
+
+                    first_assignment = model.NewBoolVar(
+                        f"first_run_limit_first_f{fellow_idx}_w{week}_b{block_idx}"
+                    )
+                    model.Add(first_assignment <= current_assignment)
+                    model.Add(first_assignment <= has_prior.Not())
+                    model.Add(first_assignment >= current_assignment - has_prior)
+
+                if week + max_run < config.num_weeks:
+                    model.Add(
+                        sum(
+                            assign[fellow_idx, future_week, block_idx]
+                            for future_week in range(week, week + max_run + 1)
+                        )
+                        <= max_run
+                    ).OnlyEnforceIf(first_assignment)
+
+
 def add_first_assignment_pairing_rules(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],

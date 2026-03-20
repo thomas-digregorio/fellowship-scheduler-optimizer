@@ -235,7 +235,7 @@ def _render_action_bar() -> None:
                     "Cannot generate until the blocking validation issues are resolved.",
                 )
             else:
-                with st.spinner("Solving... this may take up to 5 minutes."):
+                with st.spinner("Solving... this may take up to 1 minute."):
                     result = solve_schedule(config)
                     set_result(result)
                 if result.solver_status.value in ("optimal", "feasible"):

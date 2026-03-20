@@ -14,6 +14,7 @@ from src.constraints import (
     add_consecutive_state_limit_rules,
     add_coverage_rules,
     add_eligibility_rules,
+    add_first_assignment_run_limit_rules,
     add_first_assignment_pairing_rules,
     add_forbidden_transition_rules,
     add_individual_fellow_requirement_rules,
@@ -259,6 +260,23 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"⚠️ Consecutive-state rule '{rule.name}' has no matching fellows."
             )
 
+    for rule in config.first_assignment_run_limit_rules:
+        if not rule.is_active:
+            continue
+        if rule.block_name not in block_names:
+            issues.append(
+                f"⚠️ First-assignment run rule '{rule.name}' references unknown block "
+                f"'{rule.block_name}'."
+            )
+        if rule.max_run_length_weeks < 1:
+            issues.append(
+                f"⚠️ First-assignment run rule '{rule.name}' must allow at least 1 week."
+            )
+        if not config.fellow_indices_for_years(rule.applicable_years):
+            issues.append(
+                f"⚠️ First-assignment run rule '{rule.name}' has no matching fellows."
+            )
+
     for rule in config.first_assignment_pairing_rules:
         if not rule.is_active:
             continue
@@ -428,6 +446,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.cohort_limit_rules
         or config.rolling_window_rules
         or config.consecutive_state_limit_rules
+        or config.first_assignment_run_limit_rules
         or config.first_assignment_pairing_rules
         or config.individual_fellow_requirement_rules
         or config.prerequisite_rules
@@ -439,6 +458,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_cohort_limit_rules(model, assign, config, block_name_to_idx)
         add_rolling_window_rules(model, assign, config, block_name_to_idx)
         add_consecutive_state_limit_rules(model, assign, config, block_name_to_idx)
+        add_first_assignment_run_limit_rules(model, assign, config, block_name_to_idx)
         add_first_assignment_pairing_rules(model, assign, config, block_name_to_idx)
         add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
