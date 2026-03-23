@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ortools.sat.python import cp_model
 
-from src.models import ScheduleConfig, TrainingYear
+from src.models import ScheduleConfig
 
 
 def _week_range(
@@ -80,44 +80,6 @@ def add_max_concurrent_pto(
             sum(assign[fellow_idx, week, pto_idx] for fellow_idx in range(config.num_fellows))
             <= config.max_concurrent_pto
         )
-
-
-def add_no_consecutive_same_block(
-    model: cp_model.CpModel,
-    assign: dict[tuple[int, int, int], cp_model.IntVar],
-    config: ScheduleConfig,
-    num_blocks: int,
-) -> None:
-    """Forbid repeating the same block in consecutive weeks.
-
-    Night Float is exempt because it has its own dedicated consecutive-week
-    limit. PTO is also exempt. In structured cohort-aware configs, F1 fellows
-    are exempt from this legacy anti-repeat rule so longer rotation runs can be
-    expressed via cohort-specific hard/soft rules instead.
-    """
-
-    if config.uses_structured_rules:
-        relaxed_f1_indices = set(config.fellow_indices_for_years([TrainingYear.F1]))
-    else:
-        relaxed_f1_indices = set()
-
-    night_float_indices = {
-        index
-        for index, block in enumerate(config.blocks)
-        if block.name == "Night Float"
-    }
-    for fellow_idx in range(config.num_fellows):
-        if fellow_idx in relaxed_f1_indices:
-            continue
-        for week in range(config.num_weeks - 1):
-            for block_idx in range(num_blocks):
-                if block_idx in night_float_indices:
-                    continue
-                model.Add(
-                    assign[fellow_idx, week, block_idx]
-                    + assign[fellow_idx, week + 1, block_idx]
-                    <= 1
-                )
 
 
 def add_night_float_consecutive_limit(
@@ -427,6 +389,41 @@ def add_first_assignment_run_limit_rules(
                     ).OnlyEnforceIf(first_assignment)
 
 
+def add_contiguous_block_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Require selected blocks to be assigned in one contiguous run."""
+
+    for rule in config.contiguous_block_rules:
+        if not rule.is_active or rule.block_name not in block_name_to_idx:
+            continue
+
+        block_idx = block_name_to_idx[rule.block_name]
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+
+        for fellow_idx in fellow_indices:
+            run_starts: list[cp_model.IntVar] = []
+            for week in range(config.num_weeks):
+                current = assign[fellow_idx, week, block_idx]
+                if week == 0:
+                    run_starts.append(current)
+                    continue
+
+                previous = assign[fellow_idx, week - 1, block_idx]
+                run_start = model.NewBoolVar(
+                    f"contiguous_run_start_f{fellow_idx}_w{week}_b{block_idx}"
+                )
+                model.Add(run_start <= current)
+                model.Add(run_start + previous <= 1)
+                model.Add(run_start >= current - previous)
+                run_starts.append(run_start)
+
+            model.Add(sum(run_starts) <= 1)
+
+
 def add_first_assignment_pairing_rules(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
@@ -555,19 +552,39 @@ def add_prerequisite_rules(
             for name in rule.prerequisite_blocks
             if name in block_name_to_idx
         ]
-        if not prerequisite_indices:
+        prerequisite_group_indices = [
+            [
+                block_name_to_idx[name]
+                for name in group
+                if name in block_name_to_idx
+            ]
+            for group in rule.prerequisite_block_groups
+        ]
+        prerequisite_group_indices = [
+            group_indices for group_indices in prerequisite_group_indices if group_indices
+        ]
+        if not prerequisite_indices and not prerequisite_group_indices:
             continue
         fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
         for fellow_idx in fellow_indices:
             for week in range(config.num_weeks):
                 target_var = assign[fellow_idx, week, target_idx]
+                if week == 0:
+                    model.Add(target_var == 0)
+                    continue
                 for prereq_idx in prerequisite_indices:
-                    if week == 0:
-                        model.Add(target_var == 0)
-                        continue
                     prior_total = sum(
                         assign[fellow_idx, prior_week, prereq_idx]
                         for prior_week in range(week)
+                    )
+                    model.Add(prior_total >= rule.prerequisite_min_weeks).OnlyEnforceIf(
+                        target_var
+                    )
+                for prereq_group in prerequisite_group_indices:
+                    prior_total = sum(
+                        assign[fellow_idx, prior_week, prereq_idx]
+                        for prior_week in range(week)
+                        for prereq_idx in prereq_group
                     )
                     model.Add(prior_total >= rule.prerequisite_min_weeks).OnlyEnforceIf(
                         target_var

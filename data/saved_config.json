@@ -1,5 +1,5 @@
 {
-  "num_fellows": 25,
+  "num_fellows": 27,
   "num_weeks": 52,
   "start_date": "2026-07-13",
   "pto_weeks_granted": 4,
@@ -261,11 +261,22 @@
       "is_active": true,
       "has_weekend_off": false,
       "requires_call_coverage": false
+    },
+    {
+      "name": "Congenital",
+      "block_type": "day",
+      "fellows_needed": 0,
+      "hours_per_week": 40.0,
+      "min_weeks": 0,
+      "max_weeks": 52,
+      "is_active": true,
+      "has_weekend_off": false,
+      "requires_call_coverage": false
     }
   ],
   "fellows": [
     {
-      "name": "F1 Fellow 1",
+      "name": "Eisman",
       "training_year": "F1",
       "pto_rankings": [
         44,
@@ -278,7 +289,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 2",
+      "name": "Flores",
       "training_year": "F1",
       "pto_rankings": [
         22,
@@ -291,7 +302,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 3",
+      "name": "Kayani",
       "training_year": "F1",
       "pto_rankings": [
         15,
@@ -304,7 +315,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 4",
+      "name": "Kostantinis",
       "training_year": "F1",
       "pto_rankings": [
         7,
@@ -317,7 +328,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 5",
+      "name": "Mekhael",
       "training_year": "F1",
       "pto_rankings": [
         30,
@@ -330,7 +341,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 6",
+      "name": "Nazari",
       "training_year": "F1",
       "pto_rankings": [
         22,
@@ -343,7 +354,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 7",
+      "name": "Osorio",
       "training_year": "F1",
       "pto_rankings": [
         18,
@@ -356,7 +367,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 8",
+      "name": "Safiullah",
       "training_year": "F1",
       "pto_rankings": [
         21,
@@ -369,7 +380,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "F1 Fellow 9",
+      "name": "Zhang",
       "training_year": "F1",
       "pto_rankings": [
         49,
@@ -472,45 +483,71 @@
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 1",
+      "name": "Alashi",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 2",
+      "name": "Mahajan",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 3",
+      "name": "Park",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 4",
+      "name": "Luna",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 5",
+      "name": "Schwann",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 6",
+      "name": "Hansen",
       "training_year": "T3",
       "pto_rankings": [],
       "unavailable_weeks": []
     },
     {
-      "name": "T3 Fellow 7",
+      "name": "Amutuhaire",
       "training_year": "T3",
       "pto_rankings": [],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "El_Charif",
+      "training_year": "T3",
+      "pto_rankings": [
+        27,
+        15,
+        17,
+        30,
+        16,
+        1
+      ],
+      "unavailable_weeks": []
+    },
+    {
+      "name": "Nurula",
+      "training_year": "T3",
+      "pto_rankings": [
+        40,
+        19,
+        6,
+        25,
+        10,
+        7
+      ],
       "unavailable_weeks": []
     }
   ],
@@ -563,18 +600,19 @@
         "F1",
         "S2"
       ],
-      "min_fellows": 1,
+      "min_fellows": 0,
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "VA Nuclear staffed by F1 or S2",
+      "name": "VA Nuclear staffed by F1, S2, or T3",
       "block_name": "VA Nuclear",
       "eligible_years": [
         "F1",
-        "S2"
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 1,
@@ -630,7 +668,7 @@
         "S2",
         "T3"
       ],
-      "min_fellows": 1,
+      "min_fellows": 0,
       "max_fellows": 2,
       "start_week": 0,
       "end_week": null,
@@ -669,7 +707,7 @@
       ],
       "min_fellows": 1,
       "max_fellows": 1,
-      "start_week": 5,
+      "start_week": 3,
       "end_week": 51,
       "is_active": true
     },
@@ -681,7 +719,7 @@
       ],
       "min_fellows": 1,
       "max_fellows": 1,
-      "start_week": 7,
+      "start_week": 6,
       "end_week": 51,
       "is_active": true
     },
@@ -718,7 +756,7 @@
       "min_fellows": 1,
       "max_fellows": 1,
       "start_week": 0,
-      "end_week": 4,
+      "end_week": 2,
       "is_active": true
     },
     {
@@ -730,15 +768,16 @@
       "min_fellows": 1,
       "max_fellows": 1,
       "start_week": 0,
-      "end_week": 6,
+      "end_week": 5,
       "is_active": true
     },
     {
-      "name": "Yale Nuclear staffed by F1 or S2",
+      "name": "Yale Nuclear staffed by F1, S2, or T3",
       "block_name": "Yale Nuclear",
       "eligible_years": [
         "F1",
-        "S2"
+        "S2",
+        "T3"
       ],
       "min_fellows": 1,
       "max_fellows": 2,
@@ -766,7 +805,7 @@
         "S2",
         "T3"
       ],
-      "min_fellows": 1,
+      "min_fellows": 0,
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
@@ -841,26 +880,28 @@
       "is_active": true
     },
     {
-      "name": "Yale Nuclear limited to F1 and S2",
+      "name": "Yale Nuclear any year",
       "block_names": [
         "Yale Nuclear"
       ],
       "allowed_years": [
         "F1",
-        "S2"
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
       "is_active": true
     },
     {
-      "name": "VA Nuclear limited to F1 and S2",
+      "name": "VA Nuclear any year",
       "block_names": [
         "VA Nuclear"
       ],
       "allowed_years": [
         "F1",
-        "S2"
+        "S2",
+        "T3"
       ],
       "start_week": 0,
       "end_week": null,
@@ -962,28 +1003,26 @@
       "is_active": true
     },
     {
-      "name": "CCU later F1 or S2",
+      "name": "CCU later F1 only",
       "block_names": [
         "CCU"
       ],
       "allowed_years": [
-        "F1",
-        "S2"
+        "F1"
       ],
-      "start_week": 5,
+      "start_week": 3,
       "end_week": 51,
       "is_active": true
     },
     {
-      "name": "Night Float later F1 or S2",
+      "name": "Night Float later F1 only",
       "block_names": [
         "Night Float"
       ],
       "allowed_years": [
-        "F1",
-        "S2"
+        "F1"
       ],
-      "start_week": 7,
+      "start_week": 6,
       "end_week": 51,
       "is_active": true
     },
@@ -1020,7 +1059,7 @@
         "S2"
       ],
       "start_week": 0,
-      "end_week": 4,
+      "end_week": 2,
       "is_active": true
     },
     {
@@ -1032,7 +1071,7 @@
         "S2"
       ],
       "start_week": 0,
-      "end_week": 6,
+      "end_week": 5,
       "is_active": true
     },
     {
@@ -1064,6 +1103,18 @@
       "name": "Peripheral vascular only T3",
       "block_names": [
         "Peripheral vascular"
+      ],
+      "allowed_years": [
+        "T3"
+      ],
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Congenital only T3",
+      "block_names": [
+        "Congenital"
       ],
       "allowed_years": [
         "T3"
@@ -1112,7 +1163,7 @@
       "block_names": [
         "SRC Consults"
       ],
-      "min_weeks": 3,
+      "min_weeks": 2,
       "max_weeks": 4,
       "start_week": 0,
       "end_week": null,
@@ -1176,7 +1227,7 @@
       ],
       "min_weeks": 5,
       "max_weeks": 6,
-      "start_week": 5,
+      "start_week": 3,
       "end_week": 51,
       "applies_to_each_fellow": true,
       "is_active": true
@@ -1191,7 +1242,7 @@
       ],
       "min_weeks": 5,
       "max_weeks": 6,
-      "start_week": 7,
+      "start_week": 6,
       "end_week": 51,
       "applies_to_each_fellow": true,
       "is_active": true
@@ -1470,6 +1521,752 @@
       "end_week": null,
       "applies_to_each_fellow": true,
       "is_active": true
+    },
+    {
+      "name": "S2 White Consults prohibited",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "White Consults"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 SRC Consults",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "SRC Consults"
+      ],
+      "min_weeks": 1,
+      "max_weeks": 3,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 VA Consults",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "VA Consults"
+      ],
+      "min_weeks": 1,
+      "max_weeks": 3,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Consult total",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "SRC Consults",
+        "VA Consults"
+      ],
+      "min_weeks": 3,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Goodyer Consults",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Goodyer Consults"
+      ],
+      "min_weeks": 5,
+      "max_weeks": 6,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 CCU",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "CCU"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": 2,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Night Float",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Night Float"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 1,
+      "start_week": 0,
+      "end_week": 5,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 EP",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "EP"
+      ],
+      "min_weeks": 3,
+      "max_weeks": 5,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 CHF",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "CHF"
+      ],
+      "min_weeks": 1,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Yale Nuclear",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Nuclear"
+      ],
+      "min_weeks": 4,
+      "max_weeks": 6,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 VA Nuclear",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "VA Nuclear"
+      ],
+      "min_weeks": 3,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Nuclear total",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Nuclear",
+        "VA Nuclear"
+      ],
+      "min_weeks": 7,
+      "max_weeks": 10,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Yale Echo",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Echo"
+      ],
+      "min_weeks": 4,
+      "max_weeks": 12,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 VA Echo",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "VA Echo"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 SRC Echo",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "SRC Echo"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 12,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Echo total",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Echo",
+        "VA Echo",
+        "SRC Echo"
+      ],
+      "min_weeks": 10,
+      "max_weeks": 12,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Yale Cath",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Cath"
+      ],
+      "min_weeks": 3,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 VA Cath",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "VA Cath"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 5,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 SRC Cath",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "SRC Cath"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Cath total",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Yale Cath",
+        "VA Cath",
+        "SRC Cath"
+      ],
+      "min_weeks": 6,
+      "max_weeks": 8,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Research",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Research"
+      ],
+      "min_weeks": 6,
+      "max_weeks": 6,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 CT-MRI",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "CT-MRI"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Elective prohibited",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Elective"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "S2 Peripheral vascular prohibited",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_names": [
+        "Peripheral vascular"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 White Consults prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "White Consults"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 SRC Consults",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "SRC Consults"
+      ],
+      "min_weeks": 1,
+      "max_weeks": 3,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 VA Consults",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "VA Consults"
+      ],
+      "min_weeks": 1,
+      "max_weeks": 3,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Consult total",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "SRC Consults",
+        "VA Consults"
+      ],
+      "min_weeks": 3,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Goodyer Consults prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Goodyer Consults"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 CCU prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "CCU"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Night Float prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Night Float"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 EP prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "EP"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 CHF prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "CHF"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Yale Nuclear",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Yale Nuclear"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 4,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 VA Nuclear",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "VA Nuclear"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Nuclear total",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Yale Nuclear",
+        "VA Nuclear"
+      ],
+      "min_weeks": 4,
+      "max_weeks": 5,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Yale Echo",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Yale Echo"
+      ],
+      "min_weeks": 4,
+      "max_weeks": 10,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 VA Echo prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "VA Echo"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 SRC Echo",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "SRC Echo"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 1,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Echo total",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Yale Echo",
+        "SRC Echo"
+      ],
+      "min_weeks": 4,
+      "max_weeks": 10,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Yale Cath prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Yale Cath"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 VA Cath prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "VA Cath"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 SRC Cath prohibited",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "SRC Cath"
+      ],
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Research",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Research"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 CT-MRI",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "CT-MRI"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Elective",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Elective"
+      ],
+      "min_weeks": 24,
+      "max_weeks": 30,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Peripheral vascular",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Peripheral vascular"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 Congenital",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "Congenital"
+      ],
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "applies_to_each_fellow": true,
+      "is_active": true
+    },
+    {
+      "name": "T3 late spring elective/research/PTO only",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_names": [
+        "PTO",
+        "Research",
+        "Elective"
+      ],
+      "min_weeks": 6,
+      "max_weeks": 6,
+      "start_week": 46,
+      "end_week": 51,
+      "applies_to_each_fellow": true,
+      "is_active": true
     }
   ],
   "cohort_limit_rules": [
@@ -1541,14 +2338,40 @@
       "is_active": true
     },
     {
-      "name": "F1 White Consults max 3 consecutive weeks",
+      "name": "F1 White Consults max 2 consecutive weeks",
       "applicable_years": [
         "F1"
       ],
       "state_names": [
         "White Consults"
       ],
-      "max_consecutive_weeks": 3,
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 Research max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "Research"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "F1 CCU max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "CCU"
+      ],
+      "max_consecutive_weeks": 2,
       "start_week": 0,
       "end_week": null,
       "is_active": true
@@ -1562,6 +2385,24 @@
       ],
       "block_name": "Night Float",
       "max_run_length_weeks": 1,
+      "is_active": true
+    }
+  ],
+  "contiguous_block_rules": [
+    {
+      "name": "S2 CT-MRI must be one contiguous run",
+      "applicable_years": [
+        "S2"
+      ],
+      "block_name": "CT-MRI",
+      "is_active": true
+    },
+    {
+      "name": "T3 CT-MRI must be one contiguous run",
+      "applicable_years": [
+        "T3"
+      ],
+      "block_name": "CT-MRI",
       "is_active": true
     }
   ],
@@ -1582,16 +2423,7 @@
       "is_active": true
     }
   ],
-  "individual_fellow_requirement_rules": [
-    {
-      "training_year": "S2",
-      "fellow_name": "Fishman",
-      "block_name": "Night Float",
-      "min_weeks": 5,
-      "max_weeks": 5,
-      "is_active": true
-    }
-  ],
+  "individual_fellow_requirement_rules": [],
   "prerequisite_rules": [
     {
       "name": "F1 before Night Float needs core exposure",
@@ -1601,11 +2433,16 @@
       "target_block": "Night Float",
       "prerequisite_blocks": [
         "Yale Echo",
-        "Yale Cath",
         "White Consults",
         "CCU",
         "EP",
         "CHF"
+      ],
+      "prerequisite_block_groups": [
+        [
+          "Yale Cath",
+          "SRC Cath"
+        ]
       ],
       "prerequisite_min_weeks": 1,
       "is_active": true
@@ -1714,6 +2551,57 @@
       "start_week": 0,
       "end_week": null,
       "is_active": true
+    },
+    {
+      "name": "Bonus: S2 Research adjacent to PTO",
+      "applicable_years": [
+        "S2"
+      ],
+      "left_states": [
+        "Research"
+      ],
+      "right_states": [
+        "PTO"
+      ],
+      "weight": 10,
+      "direction": "either",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: S2 two-week PTO block",
+      "applicable_years": [
+        "S2"
+      ],
+      "left_states": [
+        "PTO"
+      ],
+      "right_states": [
+        "PTO"
+      ],
+      "weight": 8,
+      "direction": "forward",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: T3 two-week PTO block",
+      "applicable_years": [
+        "T3"
+      ],
+      "left_states": [
+        "PTO"
+      ],
+      "right_states": [
+        "PTO"
+      ],
+      "weight": 8,
+      "direction": "forward",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
     }
   ],
   "soft_single_week_block_rules": [
@@ -1729,6 +2617,62 @@
       "start_week": 8,
       "end_week": null,
       "adjacent_to_first_state_exemption": null,
+      "is_active": true
+    }
+  ],
+  "soft_state_assignment_rules": [
+    {
+      "name": "Bonus: S2 Research during final week",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "Research"
+      ],
+      "weight": 6,
+      "start_week": 51,
+      "end_week": 51,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: S2 assignment to SRC Echo",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "SRC Echo"
+      ],
+      "weight": 3,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    }
+  ],
+  "soft_cohort_balance_rules": [
+    {
+      "name": "Penalty: S2 uneven CCU distribution",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "CCU"
+      ],
+      "weight": 4,
+      "start_week": 0,
+      "end_week": 2,
+      "is_active": true
+    },
+    {
+      "name": "Penalty: S2 uneven Night Float distribution",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "Night Float"
+      ],
+      "weight": 4,
+      "start_week": 0,
+      "end_week": 5,
       "is_active": true
     }
   ]

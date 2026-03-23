@@ -7,6 +7,7 @@ from datetime import timedelta
 import streamlit as st
 
 from app.state import get_config, persist_config, set_config
+from src.config import get_default_fellow_name
 from src.models import FellowConfig, ScheduleConfig, TrainingYear
 
 
@@ -240,12 +241,12 @@ def _sync_fellows_by_year(
                 fellow = existing[idx]
                 fellow.training_year = year
                 if not fellow.name.strip():
-                    fellow.name = f"{year.value} Fellow {idx + 1}"
+                    fellow.name = get_default_fellow_name(year, idx)
                 new_fellows.append(fellow)
             else:
                 new_fellows.append(
                     FellowConfig(
-                        name=f"{year.value} Fellow {idx + 1}",
+                        name=get_default_fellow_name(year, idx),
                         training_year=year,
                     )
                 )

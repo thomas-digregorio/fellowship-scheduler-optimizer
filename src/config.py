@@ -8,6 +8,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ContiguousBlockRule,
     ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
@@ -19,7 +20,9 @@ from src.models import (
     PrerequisiteRule,
     RollingWindowRule,
     ScheduleConfig,
+    SoftCohortBalanceRule,
     SoftRuleDirection,
+    SoftStateAssignmentRule,
     SoftSequenceRule,
     SoftSingleWeekBlockRule,
     TrainingYear,
@@ -48,15 +51,50 @@ BLOCK_COLORS: dict[str, str] = {
     "CT-MRI": "#6C3483",
     "Elective": "#5D6D7E",
     "Peripheral vascular": "#117A65",
+    "Congenital": "#8E44AD",
     "PTO": "#BDC3C7",
 }
 
 
 ACADEMIC_YEAR_START = date(2026, 7, 13)
 NUM_WEEKS = 52
-FIRST_YEAR_CCU_START_WEEK = 5
-FIRST_YEAR_NF_START_WEEK = 7
+FIRST_YEAR_CCU_START_WEEK = 3
+FIRST_YEAR_NF_START_WEEK = 6
 FIRST_YEAR_RESEARCH_PTO_START_WEEK = 4
+
+DEFAULT_F1_FELLOW_NAMES = [
+    "Eisman",
+    "Flores",
+    "Kayani",
+    "Kostantinis",
+    "Mekhael",
+    "Nazari",
+    "Osorio",
+    "Safiullah",
+    "Zhang",
+]
+
+DEFAULT_T3_FELLOW_NAMES = [
+    "Alashi",
+    "Mahajan",
+    "Park",
+    "Luna",
+    "Schwann",
+    "Hansen",
+    "Amutuhaire",
+    "El_Charif",
+    "Nurula",
+]
+
+
+def get_default_fellow_name(training_year: TrainingYear, index: int) -> str:
+    """Return the default roster name for a cohort/index slot."""
+
+    if training_year == TrainingYear.F1 and index < len(DEFAULT_F1_FELLOW_NAMES):
+        return DEFAULT_F1_FELLOW_NAMES[index]
+    if training_year == TrainingYear.T3 and index < len(DEFAULT_T3_FELLOW_NAMES):
+        return DEFAULT_T3_FELLOW_NAMES[index]
+    return f"{training_year.value} Fellow {index + 1}"
 
 
 def get_default_blocks() -> list[BlockConfig]:
@@ -115,35 +153,35 @@ def get_default_blocks() -> list[BlockConfig]:
         BlockConfig(name="CT-MRI", fellows_needed=0, hours_per_week=40.0),
         BlockConfig(name="Elective", fellows_needed=0, hours_per_week=40.0),
         BlockConfig(name="Peripheral vascular", fellows_needed=0, hours_per_week=40.0),
+        BlockConfig(name="Congenital", fellows_needed=0, hours_per_week=40.0),
     ]
 
 
 def get_default_fellows(
     f1_count: int = 9,
     s2_count: int = 9,
-    t3_count: int = 7,
+    t3_count: int = 9,
 ) -> list[FellowConfig]:
     """Return cohort-aware default fellow configs."""
-
     fellows: list[FellowConfig] = []
     for idx in range(f1_count):
         fellows.append(
             FellowConfig(
-                name=f"F1 Fellow {idx + 1}",
+                name=get_default_fellow_name(TrainingYear.F1, idx),
                 training_year=TrainingYear.F1,
             )
         )
     for idx in range(s2_count):
         fellows.append(
             FellowConfig(
-                name=f"S2 Fellow {idx + 1}",
+                name=get_default_fellow_name(TrainingYear.S2, idx),
                 training_year=TrainingYear.S2,
             )
         )
     for idx in range(t3_count):
         fellows.append(
             FellowConfig(
-                name=f"T3 Fellow {idx + 1}",
+                name=get_default_fellow_name(TrainingYear.T3, idx),
                 training_year=TrainingYear.T3,
             )
         )
@@ -230,20 +268,20 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             name="CHF staffed by F1 or S2",
             block_name="CHF",
             eligible_years=[TrainingYear.F1, TrainingYear.S2],
-            min_fellows=1,
+            min_fellows=0,
             max_fellows=1,
         ),
         CoverageRule(
-            name="Yale Nuclear staffed by F1 or S2",
+            name="Yale Nuclear staffed by F1, S2, or T3",
             block_name="Yale Nuclear",
-            eligible_years=[TrainingYear.F1, TrainingYear.S2],
+            eligible_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
             min_fellows=1,
             max_fellows=2,
         ),
         CoverageRule(
-            name="VA Nuclear staffed by F1 or S2",
+            name="VA Nuclear staffed by F1, S2, or T3",
             block_name="VA Nuclear",
-            eligible_years=[TrainingYear.F1, TrainingYear.S2],
+            eligible_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
             min_fellows=1,
             max_fellows=1,
         ),
@@ -279,7 +317,7 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             name="Yale Cath range",
             block_name="Yale Cath",
             eligible_years=any_year,
-            min_fellows=1,
+            min_fellows=0,
             max_fellows=2,
         ),
         CoverageRule(
@@ -300,7 +338,7 @@ def get_default_coverage_rules() -> list[CoverageRule]:
             name="CT-MRI staffed by S2 or T3",
             block_name="CT-MRI",
             eligible_years=[TrainingYear.S2, TrainingYear.T3],
-            min_fellows=1,
+            min_fellows=0,
             max_fellows=1,
         ),
         CoverageRule(
@@ -346,9 +384,9 @@ def get_default_eligibility_rules() -> list[EligibilityRule]:
             end_week=FIRST_YEAR_CCU_START_WEEK - 1,
         ),
         EligibilityRule(
-            name="CCU later F1 or S2",
+            name="CCU later F1 only",
             block_names=["CCU"],
-            allowed_years=[TrainingYear.F1, TrainingYear.S2],
+            allowed_years=[TrainingYear.F1],
             start_week=FIRST_YEAR_CCU_START_WEEK,
             end_week=NUM_WEEKS - 1,
         ),
@@ -360,9 +398,9 @@ def get_default_eligibility_rules() -> list[EligibilityRule]:
             end_week=FIRST_YEAR_NF_START_WEEK - 1,
         ),
         EligibilityRule(
-            name="Night Float later F1 or S2",
+            name="Night Float later F1 only",
             block_names=["Night Float"],
-            allowed_years=[TrainingYear.F1, TrainingYear.S2],
+            allowed_years=[TrainingYear.F1],
             start_week=FIRST_YEAR_NF_START_WEEK,
             end_week=NUM_WEEKS - 1,
         ),
@@ -377,14 +415,14 @@ def get_default_eligibility_rules() -> list[EligibilityRule]:
             allowed_years=[TrainingYear.F1, TrainingYear.S2],
         ),
         EligibilityRule(
-            name="Yale Nuclear limited to F1 and S2",
+            name="Yale Nuclear any year",
             block_names=["Yale Nuclear"],
-            allowed_years=[TrainingYear.F1, TrainingYear.S2],
+            allowed_years=any_year,
         ),
         EligibilityRule(
-            name="VA Nuclear limited to F1 and S2",
+            name="VA Nuclear any year",
             block_names=["VA Nuclear"],
-            allowed_years=[TrainingYear.F1, TrainingYear.S2],
+            allowed_years=any_year,
         ),
         EligibilityRule(
             name="Yale Echo any year",
@@ -436,6 +474,11 @@ def get_default_eligibility_rules() -> list[EligibilityRule]:
             block_names=["Peripheral vascular"],
             allowed_years=[TrainingYear.T3],
         ),
+        EligibilityRule(
+            name="Congenital only T3",
+            block_names=["Congenital"],
+            allowed_years=[TrainingYear.T3],
+        ),
     ]
 
 
@@ -443,6 +486,8 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
     """Return cohort-specific per-fellow rotation requirements."""
 
     f1 = [TrainingYear.F1]
+    s2 = [TrainingYear.S2]
+    t3 = [TrainingYear.T3]
     return [
         WeekCountRule(
             name="F1 no PTO before 8/10/26",
@@ -464,7 +509,7 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             name="F1 SRC Consults",
             applicable_years=f1,
             block_names=["SRC Consults"],
-            min_weeks=3,
+            min_weeks=2,
             max_weeks=4,
         ),
         WeekCountRule(
@@ -634,6 +679,355 @@ def get_default_week_count_rules() -> list[WeekCountRule]:
             min_weeks=0,
             max_weeks=0,
         ),
+        WeekCountRule(
+            name="S2 White Consults prohibited",
+            applicable_years=s2,
+            block_names=["White Consults"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="S2 SRC Consults",
+            applicable_years=s2,
+            block_names=["SRC Consults"],
+            min_weeks=1,
+            max_weeks=3,
+        ),
+        WeekCountRule(
+            name="S2 VA Consults",
+            applicable_years=s2,
+            block_names=["VA Consults"],
+            min_weeks=1,
+            max_weeks=3,
+        ),
+        WeekCountRule(
+            name="S2 Consult total",
+            applicable_years=s2,
+            block_names=["SRC Consults", "VA Consults"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="S2 Goodyer Consults",
+            applicable_years=s2,
+            block_names=["Goodyer Consults"],
+            min_weeks=5,
+            max_weeks=6,
+        ),
+        WeekCountRule(
+            name="S2 CCU",
+            applicable_years=s2,
+            block_names=["CCU"],
+            min_weeks=0,
+            max_weeks=2,
+            start_week=0,
+            end_week=FIRST_YEAR_CCU_START_WEEK - 1,
+        ),
+        WeekCountRule(
+            name="S2 Night Float",
+            applicable_years=s2,
+            block_names=["Night Float"],
+            min_weeks=0,
+            max_weeks=1,
+            start_week=0,
+            end_week=FIRST_YEAR_NF_START_WEEK - 1,
+        ),
+        WeekCountRule(
+            name="S2 EP",
+            applicable_years=s2,
+            block_names=["EP"],
+            min_weeks=3,
+            max_weeks=5,
+        ),
+        WeekCountRule(
+            name="S2 CHF",
+            applicable_years=s2,
+            block_names=["CHF"],
+            min_weeks=1,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="S2 Yale Nuclear",
+            applicable_years=s2,
+            block_names=["Yale Nuclear"],
+            min_weeks=4,
+            max_weeks=6,
+        ),
+        WeekCountRule(
+            name="S2 VA Nuclear",
+            applicable_years=s2,
+            block_names=["VA Nuclear"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="S2 Nuclear total",
+            applicable_years=s2,
+            block_names=["Yale Nuclear", "VA Nuclear"],
+            min_weeks=7,
+            max_weeks=10,
+        ),
+        WeekCountRule(
+            name="S2 Yale Echo",
+            applicable_years=s2,
+            block_names=["Yale Echo"],
+            min_weeks=4,
+            max_weeks=12,
+        ),
+        WeekCountRule(
+            name="S2 VA Echo",
+            applicable_years=s2,
+            block_names=["VA Echo"],
+            min_weeks=0,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="S2 SRC Echo",
+            applicable_years=s2,
+            block_names=["SRC Echo"],
+            min_weeks=2,
+            max_weeks=12,
+        ),
+        WeekCountRule(
+            name="S2 Echo total",
+            applicable_years=s2,
+            block_names=["Yale Echo", "VA Echo", "SRC Echo"],
+            min_weeks=10,
+            max_weeks=12,
+        ),
+        WeekCountRule(
+            name="S2 Yale Cath",
+            applicable_years=s2,
+            block_names=["Yale Cath"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="S2 VA Cath",
+            applicable_years=s2,
+            block_names=["VA Cath"],
+            min_weeks=2,
+            max_weeks=5,
+        ),
+        WeekCountRule(
+            name="S2 SRC Cath",
+            applicable_years=s2,
+            block_names=["SRC Cath"],
+            min_weeks=0,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="S2 Cath total",
+            applicable_years=s2,
+            block_names=["Yale Cath", "VA Cath", "SRC Cath"],
+            min_weeks=6,
+            max_weeks=8,
+        ),
+        WeekCountRule(
+            name="S2 Research",
+            applicable_years=s2,
+            block_names=["Research"],
+            min_weeks=6,
+            max_weeks=6,
+        ),
+        WeekCountRule(
+            name="S2 CT-MRI",
+            applicable_years=s2,
+            block_names=["CT-MRI"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="S2 Elective prohibited",
+            applicable_years=s2,
+            block_names=["Elective"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="S2 Peripheral vascular prohibited",
+            applicable_years=s2,
+            block_names=["Peripheral vascular"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 White Consults prohibited",
+            applicable_years=t3,
+            block_names=["White Consults"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 SRC Consults",
+            applicable_years=t3,
+            block_names=["SRC Consults"],
+            min_weeks=1,
+            max_weeks=3,
+        ),
+        WeekCountRule(
+            name="T3 VA Consults",
+            applicable_years=t3,
+            block_names=["VA Consults"],
+            min_weeks=1,
+            max_weeks=3,
+        ),
+        WeekCountRule(
+            name="T3 Consult total",
+            applicable_years=t3,
+            block_names=["SRC Consults", "VA Consults"],
+            min_weeks=3,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="T3 Goodyer Consults prohibited",
+            applicable_years=t3,
+            block_names=["Goodyer Consults"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 CCU prohibited",
+            applicable_years=t3,
+            block_names=["CCU"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 Night Float prohibited",
+            applicable_years=t3,
+            block_names=["Night Float"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 EP prohibited",
+            applicable_years=t3,
+            block_names=["EP"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 CHF prohibited",
+            applicable_years=t3,
+            block_names=["CHF"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 Yale Nuclear",
+            applicable_years=t3,
+            block_names=["Yale Nuclear"],
+            min_weeks=0,
+            max_weeks=4,
+        ),
+        WeekCountRule(
+            name="T3 VA Nuclear",
+            applicable_years=t3,
+            block_names=["VA Nuclear"],
+            min_weeks=0,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="T3 Nuclear total",
+            applicable_years=t3,
+            block_names=["Yale Nuclear", "VA Nuclear"],
+            min_weeks=4,
+            max_weeks=5,
+        ),
+        WeekCountRule(
+            name="T3 Yale Echo",
+            applicable_years=t3,
+            block_names=["Yale Echo"],
+            min_weeks=4,
+            max_weeks=10,
+        ),
+        WeekCountRule(
+            name="T3 VA Echo prohibited",
+            applicable_years=t3,
+            block_names=["VA Echo"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 SRC Echo",
+            applicable_years=t3,
+            block_names=["SRC Echo"],
+            min_weeks=0,
+            max_weeks=1,
+        ),
+        WeekCountRule(
+            name="T3 Echo total",
+            applicable_years=t3,
+            block_names=["Yale Echo", "SRC Echo"],
+            min_weeks=4,
+            max_weeks=10,
+        ),
+        WeekCountRule(
+            name="T3 Yale Cath prohibited",
+            applicable_years=t3,
+            block_names=["Yale Cath"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 VA Cath prohibited",
+            applicable_years=t3,
+            block_names=["VA Cath"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 SRC Cath prohibited",
+            applicable_years=t3,
+            block_names=["SRC Cath"],
+            min_weeks=0,
+            max_weeks=0,
+        ),
+        WeekCountRule(
+            name="T3 Research",
+            applicable_years=t3,
+            block_names=["Research"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="T3 CT-MRI",
+            applicable_years=t3,
+            block_names=["CT-MRI"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="T3 Elective",
+            applicable_years=t3,
+            block_names=["Elective"],
+            min_weeks=24,
+            max_weeks=30,
+        ),
+        WeekCountRule(
+            name="T3 Peripheral vascular",
+            applicable_years=t3,
+            block_names=["Peripheral vascular"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="T3 Congenital",
+            applicable_years=t3,
+            block_names=["Congenital"],
+            min_weeks=2,
+            max_weeks=2,
+        ),
+        WeekCountRule(
+            name="T3 late spring elective/research/PTO only",
+            applicable_years=t3,
+            block_names=["PTO", "Research", "Elective"],
+            min_weeks=6,
+            max_weeks=6,
+            start_week=46,
+            end_week=51,
+        ),
     ]
 
 
@@ -672,12 +1066,12 @@ def get_default_prerequisite_rules() -> list[PrerequisiteRule]:
             target_block="Night Float",
             prerequisite_blocks=[
                 "Yale Echo",
-                "Yale Cath",
                 "White Consults",
                 "CCU",
                 "EP",
                 "CHF",
             ],
+            prerequisite_block_groups=[["Yale Cath", "SRC Cath"]],
             prerequisite_min_weeks=1,
         )
     ]
@@ -729,10 +1123,22 @@ def get_default_consecutive_state_limit_rules() -> list[ConsecutiveStateLimitRul
             max_consecutive_weeks=2,
         ),
         ConsecutiveStateLimitRule(
-            name="F1 White Consults max 3 consecutive weeks",
+            name="F1 White Consults max 2 consecutive weeks",
             applicable_years=[TrainingYear.F1],
             state_names=["White Consults"],
-            max_consecutive_weeks=3,
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="F1 CCU max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["CCU"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 Research max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["Research"],
+            max_consecutive_weeks=2,
         )
     ]
 
@@ -746,6 +1152,23 @@ def get_default_first_assignment_run_limit_rules() -> list[FirstAssignmentRunLim
             applicable_years=[TrainingYear.F1],
             block_name="Night Float",
             max_run_length_weeks=1,
+        )
+    ]
+
+
+def get_default_contiguous_block_rules() -> list[ContiguousBlockRule]:
+    """Return hard rules requiring selected rotations to be contiguous."""
+
+    return [
+        ContiguousBlockRule(
+            name="S2 CT-MRI must be one contiguous run",
+            applicable_years=[TrainingYear.S2],
+            block_name="CT-MRI",
+        ),
+        ContiguousBlockRule(
+            name="T3 CT-MRI must be one contiguous run",
+            applicable_years=[TrainingYear.T3],
+            block_name="CT-MRI",
         )
     ]
 
@@ -808,6 +1231,28 @@ def get_default_soft_sequence_rules() -> list[SoftSequenceRule]:
             right_states=["PTO"],
             weight=8,
         ),
+        SoftSequenceRule(
+            name="Bonus: S2 Research adjacent to PTO",
+            applicable_years=[TrainingYear.S2],
+            left_states=["Research"],
+            right_states=["PTO"],
+            weight=10,
+            direction=SoftRuleDirection.EITHER,
+        ),
+        SoftSequenceRule(
+            name="Bonus: S2 two-week PTO block",
+            applicable_years=[TrainingYear.S2],
+            left_states=["PTO"],
+            right_states=["PTO"],
+            weight=8,
+        ),
+        SoftSequenceRule(
+            name="Bonus: T3 two-week PTO block",
+            applicable_years=[TrainingYear.T3],
+            left_states=["PTO"],
+            right_states=["PTO"],
+            weight=8,
+        ),
     ]
 
 
@@ -823,6 +1268,50 @@ def get_default_soft_single_week_block_rules() -> list[SoftSingleWeekBlockRule]:
             start_week=8,
             adjacent_to_first_state_exemption=None,
         )
+    ]
+
+
+def get_default_soft_state_assignment_rules() -> list[SoftStateAssignmentRule]:
+    """Return default weighted placement bonuses for targeted states."""
+
+    return [
+        SoftStateAssignmentRule(
+            name="Bonus: S2 Research during final week",
+            applicable_years=[TrainingYear.S2],
+            state_names=["Research"],
+            weight=6,
+            start_week=NUM_WEEKS - 1,
+            end_week=NUM_WEEKS - 1,
+        ),
+        SoftStateAssignmentRule(
+            name="Bonus: S2 assignment to SRC Echo",
+            applicable_years=[TrainingYear.S2],
+            state_names=["SRC Echo"],
+            weight=3,
+        ),
+    ]
+
+
+def get_default_soft_cohort_balance_rules() -> list[SoftCohortBalanceRule]:
+    """Return default weighted penalties for uneven within-cohort distribution."""
+
+    return [
+        SoftCohortBalanceRule(
+            name="Penalty: S2 uneven CCU distribution",
+            applicable_years=[TrainingYear.S2],
+            state_names=["CCU"],
+            weight=4,
+            start_week=0,
+            end_week=FIRST_YEAR_CCU_START_WEEK - 1,
+        ),
+        SoftCohortBalanceRule(
+            name="Penalty: S2 uneven Night Float distribution",
+            applicable_years=[TrainingYear.S2],
+            state_names=["Night Float"],
+            weight=4,
+            start_week=0,
+            end_week=FIRST_YEAR_NF_START_WEEK - 1,
+        ),
     ]
 
 
@@ -865,10 +1354,13 @@ def get_default_config() -> ScheduleConfig:
         rolling_window_rules=get_default_rolling_window_rules(),
         consecutive_state_limit_rules=get_default_consecutive_state_limit_rules(),
         first_assignment_run_limit_rules=get_default_first_assignment_run_limit_rules(),
+        contiguous_block_rules=get_default_contiguous_block_rules(),
         first_assignment_pairing_rules=get_default_first_assignment_pairing_rules(),
         individual_fellow_requirement_rules=get_default_individual_fellow_requirement_rules(),
         prerequisite_rules=get_default_prerequisite_rules(),
         forbidden_transition_rules=get_default_forbidden_transition_rules(),
         soft_sequence_rules=get_default_soft_sequence_rules(),
         soft_single_week_block_rules=get_default_soft_single_week_block_rules(),
+        soft_state_assignment_rules=get_default_soft_state_assignment_rules(),
+        soft_cohort_balance_rules=get_default_soft_cohort_balance_rules(),
     )

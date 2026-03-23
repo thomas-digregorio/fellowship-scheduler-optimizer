@@ -440,6 +440,34 @@ class FirstAssignmentRunLimitRule:
 
 
 @dataclass
+class ContiguousBlockRule:
+    """Require a cohort to complete one block in a single contiguous run."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    block_name: str
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "block_name": self.block_name,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ContiguousBlockRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
 class FirstAssignmentPairingRule:
     """Require supervision when a fellow starts a block for the first time."""
 
@@ -517,6 +545,7 @@ class PrerequisiteRule:
     applicable_years: list[TrainingYear]
     target_block: str
     prerequisite_blocks: list[str]
+    prerequisite_block_groups: list[list[str]] = field(default_factory=list)
     prerequisite_min_weeks: int = 1
     is_active: bool = True
 
@@ -527,6 +556,7 @@ class PrerequisiteRule:
             "applicable_years": _serialize_years(self.applicable_years),
             "target_block": self.target_block,
             "prerequisite_blocks": self.prerequisite_blocks,
+            "prerequisite_block_groups": self.prerequisite_block_groups,
             "prerequisite_min_weeks": self.prerequisite_min_weeks,
             "is_active": self.is_active,
         }
@@ -648,6 +678,74 @@ class SoftSingleWeekBlockRule:
         return cls(**payload)
 
 
+@dataclass
+class SoftStateAssignmentRule:
+    """Weighted bonus / penalty for being assigned to selected states."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    state_names: list[str]
+    weight: int
+    start_week: int = 0
+    end_week: int | None = None
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "state_names": self.state_names,
+            "weight": self.weight,
+            "start_week": self.start_week,
+            "end_week": self.end_week,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SoftStateAssignmentRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
+class SoftCohortBalanceRule:
+    """Weighted penalty on imbalance across fellows for selected states."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    state_names: list[str]
+    weight: int
+    start_week: int = 0
+    end_week: int | None = None
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "state_names": self.state_names,
+            "weight": self.weight,
+            "start_week": self.start_week,
+            "end_week": self.end_week,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SoftCohortBalanceRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
 # ---------------------------------------------------------------------------
 # Global Schedule Configuration
 # ---------------------------------------------------------------------------
@@ -686,6 +784,7 @@ class ScheduleConfig:
     first_assignment_run_limit_rules: list[FirstAssignmentRunLimitRule] = field(
         default_factory=list
     )
+    contiguous_block_rules: list[ContiguousBlockRule] = field(default_factory=list)
     first_assignment_pairing_rules: list[FirstAssignmentPairingRule] = field(
         default_factory=list
     )
@@ -698,6 +797,12 @@ class ScheduleConfig:
     )
     soft_sequence_rules: list[SoftSequenceRule] = field(default_factory=list)
     soft_single_week_block_rules: list[SoftSingleWeekBlockRule] = field(
+        default_factory=list
+    )
+    soft_state_assignment_rules: list[SoftStateAssignmentRule] = field(
+        default_factory=list
+    )
+    soft_cohort_balance_rules: list[SoftCohortBalanceRule] = field(
         default_factory=list
     )
 
@@ -738,12 +843,15 @@ class ScheduleConfig:
                 self.rolling_window_rules,
                 self.consecutive_state_limit_rules,
                 self.first_assignment_run_limit_rules,
+                self.contiguous_block_rules,
                 self.first_assignment_pairing_rules,
                 self.individual_fellow_requirement_rules,
                 self.prerequisite_rules,
                 self.forbidden_transition_rules,
                 self.soft_sequence_rules,
                 self.soft_single_week_block_rules,
+                self.soft_state_assignment_rules,
+                self.soft_cohort_balance_rules,
             )
         )
 
@@ -851,6 +959,9 @@ class ScheduleConfig:
             "first_assignment_run_limit_rules": [
                 rule.to_dict() for rule in self.first_assignment_run_limit_rules
             ],
+            "contiguous_block_rules": [
+                rule.to_dict() for rule in self.contiguous_block_rules
+            ],
             "first_assignment_pairing_rules": [
                 rule.to_dict() for rule in self.first_assignment_pairing_rules
             ],
@@ -868,6 +979,12 @@ class ScheduleConfig:
             ],
             "soft_single_week_block_rules": [
                 rule.to_dict() for rule in self.soft_single_week_block_rules
+            ],
+            "soft_state_assignment_rules": [
+                rule.to_dict() for rule in self.soft_state_assignment_rules
+            ],
+            "soft_cohort_balance_rules": [
+                rule.to_dict() for rule in self.soft_cohort_balance_rules
             ],
         }
 
@@ -917,6 +1034,10 @@ class ScheduleConfig:
             FirstAssignmentRunLimitRule.from_dict(rule)
             for rule in payload.get("first_assignment_run_limit_rules", [])
         ]
+        payload["contiguous_block_rules"] = [
+            ContiguousBlockRule.from_dict(rule)
+            for rule in payload.get("contiguous_block_rules", [])
+        ]
         payload["first_assignment_pairing_rules"] = [
             FirstAssignmentPairingRule.from_dict(rule)
             for rule in payload.get("first_assignment_pairing_rules", [])
@@ -940,6 +1061,14 @@ class ScheduleConfig:
         payload["soft_single_week_block_rules"] = [
             SoftSingleWeekBlockRule.from_dict(rule)
             for rule in payload.get("soft_single_week_block_rules", [])
+        ]
+        payload["soft_state_assignment_rules"] = [
+            SoftStateAssignmentRule.from_dict(rule)
+            for rule in payload.get("soft_state_assignment_rules", [])
+        ]
+        payload["soft_cohort_balance_rules"] = [
+            SoftCohortBalanceRule.from_dict(rule)
+            for rule in payload.get("soft_cohort_balance_rules", [])
         ]
         payload["num_fellows"] = len(payload["fellows"]) or payload.get(
             "num_fellows", 0

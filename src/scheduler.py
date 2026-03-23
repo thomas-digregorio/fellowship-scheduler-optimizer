@@ -11,6 +11,7 @@ from src.call_scheduler import add_call_constraints
 from src.constraints import (
     add_block_completion,
     add_cohort_limit_rules,
+    add_contiguous_block_rules,
     add_consecutive_state_limit_rules,
     add_coverage_rules,
     add_eligibility_rules,
@@ -21,7 +22,6 @@ from src.constraints import (
     add_max_concurrent_pto,
     add_min_max_weeks_per_block,
     add_night_float_consecutive_limit,
-    add_no_consecutive_same_block,
     add_one_assignment_per_week,
     add_prerequisite_rules,
     add_pto_count,
@@ -277,6 +277,19 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"⚠️ First-assignment run rule '{rule.name}' has no matching fellows."
             )
 
+    for rule in config.contiguous_block_rules:
+        if not rule.is_active:
+            continue
+        if rule.block_name not in block_names:
+            issues.append(
+                f"⚠️ Contiguous block rule '{rule.name}' references unknown block "
+                f"'{rule.block_name}'."
+            )
+        if not config.fellow_indices_for_years(rule.applicable_years):
+            issues.append(
+                f"⚠️ Contiguous block rule '{rule.name}' has no matching fellows."
+            )
+
     for rule in config.first_assignment_pairing_rules:
         if not rule.is_active:
             continue
@@ -378,6 +391,34 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"{', '.join(sorted(set(unknown_states)))}."
             )
 
+    for rule in config.soft_state_assignment_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in rule.state_names
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Soft state-assignment rule '{rule.name}' references unknown "
+                f"states: {', '.join(sorted(set(unknown_states)))}."
+            )
+
+    for rule in config.soft_cohort_balance_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in rule.state_names
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Soft cohort-balance rule '{rule.name}' references unknown "
+                f"states: {', '.join(sorted(set(unknown_states)))}."
+            )
+
     for block in active_blocks:
         if block.hours_per_week > 72:
             issues.append(
@@ -434,7 +475,6 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
     add_unavailable_weeks(model, assign, config, pto_idx)
     add_pto_count(model, assign, config, pto_idx)
     add_max_concurrent_pto(model, assign, config, pto_idx)
-    add_no_consecutive_same_block(model, assign, config, num_blocks)
 
     if nf_idx is not None:
         add_night_float_consecutive_limit(model, assign, config, nf_idx)
@@ -447,6 +487,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.rolling_window_rules
         or config.consecutive_state_limit_rules
         or config.first_assignment_run_limit_rules
+        or config.contiguous_block_rules
         or config.first_assignment_pairing_rules
         or config.individual_fellow_requirement_rules
         or config.prerequisite_rules
@@ -459,6 +500,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_rolling_window_rules(model, assign, config, block_name_to_idx)
         add_consecutive_state_limit_rules(model, assign, config, block_name_to_idx)
         add_first_assignment_run_limit_rules(model, assign, config, block_name_to_idx)
+        add_contiguous_block_rules(model, assign, config, block_name_to_idx)
         add_first_assignment_pairing_rules(model, assign, config, block_name_to_idx)
         add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
@@ -544,6 +586,21 @@ def _build_objective_terms(
     )
     objective_terms.extend(
         _build_soft_single_week_block_objective_terms(
+            model,
+            assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_soft_state_assignment_objective_terms(
+            assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_soft_cohort_balance_objective_terms(
             model,
             assign,
             config,
@@ -664,6 +721,97 @@ def _build_soft_single_week_block_objective_terms(
                             f"same_rotation_r{rule_idx}_f{fellow_idx}_w{week}_b{block_idx}",
                         )
                     )
+    return objective_terms
+
+
+def _build_soft_state_assignment_objective_terms(
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted terms for preferred state assignments."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for rule in config.soft_state_assignment_rules:
+        if not rule.is_active or rule.weight == 0:
+            continue
+        state_indices = [
+            block_name_to_idx[state]
+            for state in rule.state_names
+            if state in block_name_to_idx
+        ]
+        if not state_indices:
+            continue
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for fellow_idx in fellow_indices:
+            for week in range(max(0, rule.start_week), end_week + 1):
+                for state_idx in state_indices:
+                    objective_terms.append(
+                        assign[fellow_idx, week, state_idx] * rule.weight
+                    )
+    return objective_terms
+
+
+def _build_soft_cohort_balance_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return penalty terms for uneven state distribution inside a cohort."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for rule_idx, rule in enumerate(config.soft_cohort_balance_rules):
+        if not rule.is_active or rule.weight <= 0:
+            continue
+        state_indices = [
+            block_name_to_idx[state]
+            for state in rule.state_names
+            if state in block_name_to_idx
+        ]
+        if not state_indices:
+            continue
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        week_indices = range(max(0, rule.start_week), end_week + 1)
+        for year in rule.applicable_years:
+            fellow_indices = config.fellow_indices_for_years([year])
+            if len(fellow_indices) < 2:
+                continue
+            count_vars: dict[int, cp_model.IntVar] = {}
+            max_count = len(state_indices) * len(list(week_indices))
+            for fellow_idx in fellow_indices:
+                count_var = model.NewIntVar(
+                    0,
+                    max_count,
+                    f"soft_balance_r{rule_idx}_y{year.value}_f{fellow_idx}_count",
+                )
+                model.Add(
+                    count_var
+                    == sum(
+                        assign[fellow_idx, week, state_idx]
+                        for week in week_indices
+                        for state_idx in state_indices
+                    )
+                )
+                count_vars[fellow_idx] = count_var
+
+            ordered_fellows = sorted(fellow_indices)
+            for left_pos, left_idx in enumerate(ordered_fellows):
+                for right_idx in ordered_fellows[left_pos + 1 :]:
+                    diff_var = model.NewIntVar(
+                        0,
+                        max_count,
+                        (
+                            f"soft_balance_r{rule_idx}_y{year.value}"
+                            f"_f{left_idx}_f{right_idx}_diff"
+                        ),
+                    )
+                    model.AddAbsEquality(
+                        diff_var,
+                        count_vars[left_idx] - count_vars[right_idx],
+                    )
+                    objective_terms.append(diff_var * (-rule.weight))
     return objective_terms
 
 
@@ -865,6 +1013,8 @@ def _build_objective_breakdown(
     rows.append(_build_pto_objective_breakdown_row(config, assignments))
     rows.extend(_build_soft_sequence_breakdown_rows(config, assignments))
     rows.extend(_build_soft_single_week_block_breakdown_rows(config, assignments))
+    rows.extend(_build_soft_state_assignment_breakdown_rows(config, assignments))
+    rows.extend(_build_soft_cohort_balance_breakdown_rows(config, assignments))
 
     total_row = _empty_cohort_score_row("Total")
     for row in rows:
@@ -967,6 +1117,81 @@ def _build_soft_single_week_block_breakdown_rows(
                     continue
                 if assignments[fellow_idx][week + 1] == state:
                     _add_points_to_row(row, year, rule.weight)
+
+        rows.append(row)
+    return rows
+
+
+def _build_soft_state_assignment_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Return one objective-breakdown row per active state-assignment rule."""
+
+    rows: list[dict[str, int | str]] = []
+    valid_states = set(config.all_states)
+    for rule in config.soft_state_assignment_rules:
+        if not rule.is_active:
+            continue
+
+        row = _empty_cohort_score_row(rule.name)
+        target_states = {state for state in rule.state_names if state in valid_states}
+        if not target_states:
+            rows.append(row)
+            continue
+
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for fellow_idx in fellow_indices:
+            year = config.fellows[fellow_idx].training_year
+            for week in range(max(0, rule.start_week), end_week + 1):
+                if assignments[fellow_idx][week] in target_states:
+                    _add_points_to_row(row, year, rule.weight)
+
+        rows.append(row)
+    return rows
+
+
+def _build_soft_cohort_balance_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Return one objective-breakdown row per active cohort-balance rule."""
+
+    rows: list[dict[str, int | str]] = []
+    valid_states = set(config.all_states)
+    for rule in config.soft_cohort_balance_rules:
+        if not rule.is_active:
+            continue
+
+        row = _empty_cohort_score_row(rule.name)
+        target_states = {state for state in rule.state_names if state in valid_states}
+        if not target_states or rule.weight <= 0:
+            rows.append(row)
+            continue
+
+        end_week = _resolve_rule_end_week(rule.end_week, config.num_weeks)
+        for year in rule.applicable_years:
+            fellow_indices = config.fellow_indices_for_years([year])
+            if len(fellow_indices) < 2:
+                continue
+
+            counts: dict[int, int] = {}
+            for fellow_idx in fellow_indices:
+                counts[fellow_idx] = sum(
+                    1
+                    for week in range(max(0, rule.start_week), end_week + 1)
+                    if assignments[fellow_idx][week] in target_states
+                )
+
+            ordered_fellows = sorted(fellow_indices)
+            for left_pos, left_idx in enumerate(ordered_fellows):
+                for right_idx in ordered_fellows[left_pos + 1 :]:
+                    _add_points_to_row(
+                        row,
+                        year,
+                        -rule.weight * abs(counts[left_idx] - counts[right_idx]),
+                    )
 
         rows.append(row)
     return rows

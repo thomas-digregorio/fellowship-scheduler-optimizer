@@ -12,6 +12,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ContiguousBlockRule,
     ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
@@ -22,7 +23,9 @@ from src.models import (
     PrerequisiteRule,
     RollingWindowRule,
     ScheduleConfig,
+    SoftCohortBalanceRule,
     SoftRuleDirection,
+    SoftStateAssignmentRule,
     SoftSequenceRule,
     SoftSingleWeekBlockRule,
     TrainingYear,
@@ -356,6 +359,26 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         )
 
     with st.container(border=True):
+        contiguous_block_rules = [
+            rule
+            for rule in config.contiguous_block_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.contiguous_block_rules = _merge_year_rules(
+            config.contiguous_block_rules,
+            _render_contiguous_block_rules_editor(
+                contiguous_block_rules,
+                key_prefix=f"{year.value}_contiguous_block_rules",
+                title="Contiguous Rotation Requirements",
+                caption=(
+                    "Require selected rotations for this cohort to be completed in one contiguous run."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+
+    with st.container(border=True):
         pto_window_rules = [
             rule
             for rule in config.week_count_rules
@@ -513,6 +536,43 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
                 caption=(
                     f"Reward adjacent same-rotation weeks to prefer longer {year.value} "
                     "blocks. Positive weights are bonuses."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+        assignment_soft_rules = [
+            rule
+            for rule in config.soft_state_assignment_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.soft_state_assignment_rules = _merge_year_rules(
+            config.soft_state_assignment_rules,
+            _render_soft_state_assignment_rules_editor(
+                assignment_soft_rules,
+                key_prefix=f"{year.value}_assignment_soft",
+                title=f"{year.value} Targeted State Bonuses",
+                caption=(
+                    f"Reward {year.value} assignments to selected states in selected week windows."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+        balance_soft_rules = [
+            rule
+            for rule in config.soft_cohort_balance_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.soft_cohort_balance_rules = _merge_year_rules(
+            config.soft_cohort_balance_rules,
+            _render_soft_cohort_balance_rules_editor(
+                balance_soft_rules,
+                key_prefix=f"{year.value}_balance_soft",
+                title=f"{year.value} Cohort Balance Preferences",
+                caption=(
+                    f"Positive weights penalize uneven within-{year.value} distribution "
+                    "for the selected states."
                 ),
                 fixed_years=[year],
             ),
@@ -1288,6 +1348,62 @@ def _render_first_assignment_run_limit_rules_editor(
     return updated_rules
 
 
+def _render_contiguous_block_rules_editor(
+    rules: list[ContiguousBlockRule],
+    *,
+    key_prefix: str,
+    title: str = "Contiguous Rotation Requirements",
+    caption: str = "Require selected rotations to be completed in one contiguous run.",
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[ContiguousBlockRule]:
+    """Render hard rules requiring a block to be contiguous for one cohort."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    columns = ["Name", "Rotation", "Active"]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "Rotation": rule.block_name,
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(rows, columns),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[ContiguousBlockRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("Rotation"):
+            continue
+        updated_rules.append(
+            ContiguousBlockRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                block_name=str(row["Rotation"]).strip(),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
 def _render_prerequisite_rules_editor(
     rules: list[PrerequisiteRule],
     *,
@@ -1299,13 +1415,22 @@ def _render_prerequisite_rules_editor(
 
     st.markdown(f"**{title}**")
     st.caption(caption)
-    columns = ["Name", "Years", "Target Block", "Prerequisites", "Min Each", "Active"]
+    columns = [
+        "Name",
+        "Years",
+        "Target Block",
+        "Prerequisites",
+        "Any Of Groups",
+        "Min Each",
+        "Active",
+    ]
     rows = [
         {
             "Name": rule.name,
             "Years": _years_to_text(rule.applicable_years),
             "Target Block": rule.target_block,
             "Prerequisites": _list_to_text(rule.prerequisite_blocks),
+            "Any Of Groups": _group_list_to_text(rule.prerequisite_block_groups),
             "Min Each": rule.prerequisite_min_weeks,
             "Active": rule.is_active,
         }
@@ -1318,6 +1443,9 @@ def _render_prerequisite_rules_editor(
         hide_index=True,
         key=f"{key_prefix}_editor",
     )
+    st.caption(
+        "Use `|` inside an any-of group and `;` between groups. Example: `Yale Cath | SRC Cath`."
+    )
     updated_rules: list[PrerequisiteRule] = []
     for row in edited.to_dict("records"):
         if not row.get("Name") or not row.get("Target Block"):
@@ -1328,6 +1456,7 @@ def _render_prerequisite_rules_editor(
                 applicable_years=_parse_years(row.get("Years")),
                 target_block=str(row["Target Block"]).strip(),
                 prerequisite_blocks=_parse_list(row.get("Prerequisites")),
+                prerequisite_block_groups=_parse_group_list(row.get("Any Of Groups")),
                 prerequisite_min_weeks=_to_int(row.get("Min Each"), default=1),
                 is_active=bool(row.get("Active", True)),
             )
@@ -1560,6 +1689,154 @@ def _render_soft_single_week_block_rules_editor(
     return updated_rules
 
 
+def _render_soft_state_assignment_rules_editor(
+    rules: list[SoftStateAssignmentRule],
+    *,
+    key_prefix: str,
+    title: str = "Targeted State Bonuses",
+    caption: str = "Reward assignments to selected states in selected week windows.",
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[SoftStateAssignmentRule]:
+    """Render weighted state-assignment bonus rules."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week windows in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "States",
+        "Weight",
+        "Start Week",
+        "End Week",
+        "Active",
+    ]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "States": _list_to_text(rule.state_names),
+            "Weight": rule.weight,
+            "Start Week": _display_week_index(rule.start_week),
+            "End Week": _display_optional_week_index(rule.end_week),
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["Weight", "Start Week", "End Week"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[SoftStateAssignmentRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("States"):
+            continue
+        updated_rules.append(
+            SoftStateAssignmentRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                state_names=_parse_list(row.get("States")),
+                weight=_to_int(row.get("Weight"), default=0),
+                start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
+                end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
+def _render_soft_cohort_balance_rules_editor(
+    rules: list[SoftCohortBalanceRule],
+    *,
+    key_prefix: str,
+    title: str = "Cohort Balance Preferences",
+    caption: str = "Positive weights penalize uneven within-cohort distribution.",
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[SoftCohortBalanceRule]:
+    """Render weighted cohort-balance penalty rules."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week windows in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "States",
+        "Weight",
+        "Start Week",
+        "End Week",
+        "Active",
+    ]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "States": _list_to_text(rule.state_names),
+            "Weight": rule.weight,
+            "Start Week": _display_week_index(rule.start_week),
+            "End Week": _display_optional_week_index(rule.end_week),
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["Weight", "Start Week", "End Week"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[SoftCohortBalanceRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name") or not row.get("States"):
+            continue
+        updated_rules.append(
+            SoftCohortBalanceRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                state_names=_parse_list(row.get("States")),
+                weight=_to_int(row.get("Weight"), default=0),
+                start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
+                end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
 def _build_week_options(config: ScheduleConfig) -> dict[str, int]:
     """Return labeled week options for multiselect inputs."""
 
@@ -1732,6 +2009,25 @@ def _list_to_text(values: list[str]) -> str:
     """Render string lists as comma-separated text."""
 
     return ", ".join(values)
+
+
+def _parse_group_list(value: object) -> list[list[str]]:
+    """Parse `|`-separated alternatives and `;`-separated groups."""
+
+    if value is None:
+        return []
+    groups: list[list[str]] = []
+    for group_text in str(value).split(";"):
+        group = [item.strip() for item in group_text.split("|") if item.strip()]
+        if group:
+            groups.append(group)
+    return groups
+
+
+def _group_list_to_text(groups: list[list[str]]) -> str:
+    """Render prerequisite any-of groups into editable text."""
+
+    return "; ".join(" | ".join(group) for group in groups if group)
 
 
 def _build_dataframe(

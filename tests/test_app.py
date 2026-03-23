@@ -285,7 +285,7 @@ def test_legacy_saved_config_migrates_to_cohort_defaults() -> None:
     assert notice is not None
     assert migrated.cohort_counts[TrainingYear.F1] == 9
     assert migrated.cohort_counts[TrainingYear.S2] == 9
-    assert migrated.cohort_counts[TrainingYear.T3] == 7
+    assert migrated.cohort_counts[TrainingYear.T3] == 9
 
 
 def test_saved_defaults_upgrade_to_latest_defaults() -> None:
@@ -486,7 +486,28 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     f1_echo_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Echo total")
     f1_cath_total = next(rule for rule in migrated.week_count_rules if rule.name == "F1 Cath total")
     f1_ep = next(rule for rule in migrated.week_count_rules if rule.name == "F1 EP")
-    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Nuclear staffed by F1 or S2")
+    s2_goodyer = next(rule for rule in migrated.week_count_rules if rule.name == "S2 Goodyer Consults")
+    s2_ccu = next(rule for rule in migrated.week_count_rules if rule.name == "S2 CCU")
+    s2_night_float = next(rule for rule in migrated.week_count_rules if rule.name == "S2 Night Float")
+    s2_chf = next(rule for rule in migrated.week_count_rules if rule.name == "S2 CHF")
+    s2_consult_total = next(rule for rule in migrated.week_count_rules if rule.name == "S2 Consult total")
+    s2_src_cath = next(rule for rule in migrated.week_count_rules if rule.name == "S2 SRC Cath")
+    s2_va_cath = next(rule for rule in migrated.week_count_rules if rule.name == "S2 VA Cath")
+    s2_cath_total = next(rule for rule in migrated.week_count_rules if rule.name == "S2 Cath total")
+    s2_research = next(rule for rule in migrated.week_count_rules if rule.name == "S2 Research")
+    s2_ct_mri = next(rule for rule in migrated.week_count_rules if rule.name == "S2 CT-MRI")
+    t3_consult_total = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Consult total")
+    t3_nuclear_total = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Nuclear total")
+    t3_echo_total = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Echo total")
+    t3_ct_mri = next(rule for rule in migrated.week_count_rules if rule.name == "T3 CT-MRI")
+    t3_elective = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Elective")
+    t3_peripheral = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Peripheral vascular")
+    t3_congenital = next(rule for rule in migrated.week_count_rules if rule.name == "T3 Congenital")
+    t3_late_spring = next(rule for rule in migrated.week_count_rules if rule.name == "T3 late spring elective/research/PTO only")
+    chf_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "CHF staffed by F1 or S2")
+    yn_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Nuclear staffed by F1, S2, or T3")
+    va_nuclear_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "VA Nuclear staffed by F1, S2, or T3")
+    yale_cath_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Cath range")
     ye_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Yale Echo F1 range")
     ct_mri_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "CT-MRI staffed by S2 or T3")
     peripheral_coverage = next(rule for rule in migrated.coverage_rules if rule.name == "Peripheral vascular optional T3")
@@ -503,17 +524,42 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     white_consecutive_limit = next(
         rule
         for rule in migrated.consecutive_state_limit_rules
-        if rule.name == "F1 White Consults max 3 consecutive weeks"
+        if rule.name == "F1 White Consults max 2 consecutive weeks"
+    )
+    ccu_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 CCU max 2 consecutive weeks"
+    )
+    s2_research_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 Research max 2 consecutive weeks"
     )
     first_nf_run_limit = next(
         rule
         for rule in migrated.first_assignment_run_limit_rules
         if rule.name == "F1 first Night Float run max 1 week"
     )
+    s2_ct_mri_contiguous = next(
+        rule
+        for rule in migrated.contiguous_block_rules
+        if rule.name == "S2 CT-MRI must be one contiguous run"
+    )
+    t3_ct_mri_contiguous = next(
+        rule
+        for rule in migrated.contiguous_block_rules
+        if rule.name == "T3 CT-MRI must be one contiguous run"
+    )
     pairing_rule = next(
         rule
         for rule in migrated.first_assignment_pairing_rules
         if rule.name == "F1 first Yale Nuclear week needs experienced pairing"
+    )
+    prerequisite_rule = next(
+        rule
+        for rule in migrated.prerequisite_rules
+        if rule.name == "F1 before Night Float needs core exposure"
     )
     ccu_transition = next(
         rule
@@ -531,6 +577,36 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.soft_sequence_rules
         if rule.name == "Bonus: F1 Night Float followed by Research or PTO"
     )
+    s2_research_pto_bonus = next(
+        rule
+        for rule in migrated.soft_sequence_rules
+        if rule.name == "Bonus: S2 Research adjacent to PTO"
+    )
+    s2_pto_block_bonus = next(
+        rule
+        for rule in migrated.soft_sequence_rules
+        if rule.name == "Bonus: S2 two-week PTO block"
+    )
+    t3_pto_block_bonus = next(
+        rule
+        for rule in migrated.soft_sequence_rules
+        if rule.name == "Bonus: T3 two-week PTO block"
+    )
+    s2_final_week_bonus = next(
+        rule
+        for rule in migrated.soft_state_assignment_rules
+        if rule.name == "Bonus: S2 Research during final week"
+    )
+    s2_src_echo_bonus = next(
+        rule
+        for rule in migrated.soft_state_assignment_rules
+        if rule.name == "Bonus: S2 assignment to SRC Echo"
+    )
+    s2_ccu_balance = next(
+        rule
+        for rule in migrated.soft_cohort_balance_rules
+        if rule.name == "Penalty: S2 uneven CCU distribution"
+    )
     single_week_bonus = next(
         rule
         for rule in migrated.soft_single_week_block_rules
@@ -543,12 +619,52 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert f1_white.min_weeks == 5
     assert f1_white.max_weeks == 6
     assert f1_white.is_active
+    assert f1_src.min_weeks == 2
+    assert f1_src.max_weeks == 4
     assert f1_src.is_active
     assert f1_va.is_active
     assert f1_consult_total.is_active
     assert f1_consult_total.max_weeks == 12
     assert f1_ep.min_weeks == 4
     assert f1_ep.max_weeks == 5
+    assert s2_goodyer.min_weeks == 5
+    assert s2_goodyer.max_weeks == 6
+    assert s2_ccu.end_week == 2
+    assert s2_night_float.max_weeks == 1
+    assert s2_night_float.end_week == 5
+    assert s2_chf.min_weeks == 1
+    assert s2_chf.max_weeks == 4
+    assert s2_consult_total.block_names == ["SRC Consults", "VA Consults"]
+    assert s2_consult_total.min_weeks == 3
+    assert s2_consult_total.max_weeks == 4
+    assert s2_src_cath.min_weeks == 0
+    assert s2_src_cath.max_weeks == 4
+    assert s2_va_cath.max_weeks == 5
+    assert s2_cath_total.min_weeks == 6
+    assert s2_cath_total.max_weeks == 8
+    assert s2_research.min_weeks == 6
+    assert s2_research.max_weeks == 6
+    assert s2_ct_mri.min_weeks == 2
+    assert s2_ct_mri.max_weeks == 2
+    assert t3_consult_total.block_names == ["SRC Consults", "VA Consults"]
+    assert t3_consult_total.min_weeks == 3
+    assert t3_consult_total.max_weeks == 4
+    assert t3_nuclear_total.min_weeks == 4
+    assert t3_nuclear_total.max_weeks == 5
+    assert t3_echo_total.block_names == ["Yale Echo", "SRC Echo"]
+    assert t3_echo_total.min_weeks == 4
+    assert t3_echo_total.max_weeks == 10
+    assert t3_ct_mri.min_weeks == 2
+    assert t3_ct_mri.max_weeks == 2
+    assert t3_elective.min_weeks == 24
+    assert t3_elective.max_weeks == 30
+    assert t3_peripheral.min_weeks == 2
+    assert t3_peripheral.max_weeks == 2
+    assert t3_congenital.min_weeks == 2
+    assert t3_congenital.max_weeks == 2
+    assert t3_late_spring.block_names == ["PTO", "Research", "Elective"]
+    assert t3_late_spring.start_week == 46
+    assert t3_late_spring.end_week == 51
     assert f1_yn.max_weeks == 4
     assert f1_yn.is_active
     assert f1_va_nuclear.max_weeks == 3
@@ -558,10 +674,17 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert f1_echo_total.min_weeks == 7
     assert f1_echo_total.is_active
     assert f1_cath_total.is_active
+    assert chf_coverage.min_fellows == 0
+    assert chf_coverage.max_fellows == 1
     assert yn_coverage.min_fellows == 1
     assert yn_coverage.max_fellows == 2
+    assert va_nuclear_coverage.min_fellows == 1
+    assert va_nuclear_coverage.max_fellows == 1
+    assert yale_cath_coverage.min_fellows == 0
+    assert yale_cath_coverage.max_fellows == 2
     assert ye_coverage.max_fellows == 2
-    assert ct_mri_coverage.min_fellows == 1
+    assert ct_mri_coverage.min_fellows == 0
+    assert ct_mri_coverage.max_fellows == 1
     assert peripheral_coverage.max_fellows == 1
     assert rolling_window.state_names == ["PTO", "Research"]
     assert rolling_window.window_size_weeks == 4
@@ -571,11 +694,31 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert nf_consecutive_limit.max_consecutive_weeks == 2
     assert nf_consecutive_limit.is_active
     assert white_consecutive_limit.state_names == ["White Consults"]
-    assert white_consecutive_limit.max_consecutive_weeks == 3
+    assert white_consecutive_limit.max_consecutive_weeks == 2
     assert white_consecutive_limit.is_active
+    assert ccu_consecutive_limit.state_names == ["CCU"]
+    assert ccu_consecutive_limit.max_consecutive_weeks == 2
+    assert ccu_consecutive_limit.is_active
+    assert s2_research_consecutive_limit.state_names == ["Research"]
+    assert s2_research_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_research_consecutive_limit.is_active
     assert first_nf_run_limit.block_name == "Night Float"
     assert first_nf_run_limit.max_run_length_weeks == 1
     assert first_nf_run_limit.is_active
+    assert s2_ct_mri_contiguous.block_name == "CT-MRI"
+    assert s2_ct_mri_contiguous.applicable_years == [TrainingYear.S2]
+    assert s2_ct_mri_contiguous.is_active
+    assert t3_ct_mri_contiguous.block_name == "CT-MRI"
+    assert t3_ct_mri_contiguous.applicable_years == [TrainingYear.T3]
+    assert t3_ct_mri_contiguous.is_active
+    assert prerequisite_rule.prerequisite_blocks == [
+        "Yale Echo",
+        "White Consults",
+        "CCU",
+        "EP",
+        "CHF",
+    ]
+    assert prerequisite_rule.prerequisite_block_groups == [["Yale Cath", "SRC Cath"]]
     assert pairing_rule.mentor_years == [TrainingYear.S2]
     assert pairing_rule.experienced_peer_years == [TrainingYear.F1]
     assert ccu_transition.applicable_years == [TrainingYear.F1, TrainingYear.S2]
@@ -595,6 +738,24 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert nf_followup_bonus.right_states == ["Research", "PTO"]
     assert nf_followup_bonus.weight == 5
     assert nf_followup_bonus.is_active
+    assert s2_research_pto_bonus.left_states == ["Research"]
+    assert s2_research_pto_bonus.right_states == ["PTO"]
+    assert s2_research_pto_bonus.weight == 10
+    assert s2_research_pto_bonus.is_active
+    assert s2_pto_block_bonus.left_states == ["PTO"]
+    assert s2_pto_block_bonus.right_states == ["PTO"]
+    assert s2_pto_block_bonus.weight == 8
+    assert t3_pto_block_bonus.left_states == ["PTO"]
+    assert t3_pto_block_bonus.right_states == ["PTO"]
+    assert t3_pto_block_bonus.weight == 8
+    assert s2_final_week_bonus.state_names == ["Research"]
+    assert s2_final_week_bonus.start_week == 51
+    assert s2_final_week_bonus.end_week == 51
+    assert s2_final_week_bonus.weight == 6
+    assert s2_src_echo_bonus.state_names == ["SRC Echo"]
+    assert s2_src_echo_bonus.weight == 3
+    assert s2_ccu_balance.state_names == ["CCU"]
+    assert s2_ccu_balance.weight == 4
     assert single_week_bonus.excluded_states == ["Night Float"]
     assert single_week_bonus.weight == 1
     assert single_week_bonus.start_week == 8

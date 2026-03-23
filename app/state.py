@@ -19,24 +19,38 @@ from pathlib import Path
 import streamlit as st
 
 from src.config import (
+    DEFAULT_F1_FELLOW_NAMES,
+    DEFAULT_T3_FELLOW_NAMES,
     FIRST_YEAR_CCU_START_WEEK,
     FIRST_YEAR_NF_START_WEEK,
+    get_default_fellow_name,
     get_default_config,
+    get_default_contiguous_block_rules,
+    get_default_consecutive_state_limit_rules,
+    get_default_prerequisite_rules,
     get_default_pto_preference_weight_overrides,
+    get_default_soft_cohort_balance_rules,
+    get_default_soft_sequence_rules,
+    get_default_soft_state_assignment_rules,
+    get_default_week_count_rules,
 )
 from src.io_utils import load_config, load_schedule, save_config, save_schedule
 from src.models import (
     BlockConfig,
+    ContiguousBlockRule,
     ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
+    FellowConfig,
     FirstAssignmentRunLimitRule,
     FirstAssignmentPairingRule,
     ForbiddenTransitionRule,
     RollingWindowRule,
     ScheduleConfig,
     ScheduleResult,
+    SoftCohortBalanceRule,
     SoftRuleDirection,
+    SoftStateAssignmentRule,
     SoftSequenceRule,
     SoftSingleWeekBlockRule,
     TrainingYear,
@@ -78,6 +92,8 @@ SOURCE_BACKED_DEFAULT_BLOCK_NAMES = {
     "Research",
     "CT-MRI",
     "Elective",
+    "Peripheral vascular",
+    "Congenital",
 }
 
 
@@ -96,6 +112,36 @@ def _looks_like_legacy_saved_config(config: ScheduleConfig) -> bool:
         and cohort_counts[TrainingYear.F1] == len(config.fellows)
         and len(config.fellows) == 9
     )
+
+
+def _upsert_named_rules(existing_rules: list, desired_rules: list) -> bool:
+    """Insert or replace named rule objects by their ``name`` attribute."""
+
+    changed = False
+    index_by_name = {
+        getattr(rule, "name", ""): index
+        for index, rule in enumerate(existing_rules)
+        if getattr(rule, "name", "")
+    }
+    for desired_rule in desired_rules:
+        desired_name = getattr(desired_rule, "name", "")
+        if not desired_name:
+            continue
+        existing_index = index_by_name.get(desired_name)
+        if existing_index is None:
+            existing_rules.append(desired_rule)
+            index_by_name[desired_name] = len(existing_rules) - 1
+            changed = True
+            continue
+        existing_rule = existing_rules[existing_index]
+        if (
+            hasattr(existing_rule, "to_dict")
+            and hasattr(desired_rule, "to_dict")
+            and existing_rule.to_dict() != desired_rule.to_dict()
+        ):
+            existing_rules[existing_index] = desired_rule
+            changed = True
+    return changed
 
 
 def _normalize_loaded_config(
@@ -141,10 +187,52 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     if not _looks_like_source_backed_default_family(config):
         return changed
 
+    f1_fellows = [
+        fellow for fellow in config.fellows if fellow.training_year == TrainingYear.F1
+    ]
+    expected_placeholder_names = [
+        f"F1 Fellow {index + 1}" for index in range(len(DEFAULT_F1_FELLOW_NAMES))
+    ]
+    if [fellow.name for fellow in f1_fellows[: len(DEFAULT_F1_FELLOW_NAMES)]] == expected_placeholder_names:
+        for fellow, updated_name in zip(f1_fellows, DEFAULT_F1_FELLOW_NAMES):
+            if fellow.name != updated_name:
+                fellow.name = updated_name
+                changed = True
+
+    t3_fellows = [
+        fellow for fellow in config.fellows if fellow.training_year == TrainingYear.T3
+    ]
+    expected_t3_placeholder_names = [
+        f"T3 Fellow {index + 1}" for index in range(len(t3_fellows))
+    ]
+    if (
+        t3_fellows
+        and len(t3_fellows) <= len(DEFAULT_T3_FELLOW_NAMES)
+        and [fellow.name for fellow in t3_fellows] == expected_t3_placeholder_names
+    ):
+        for index, fellow in enumerate(t3_fellows):
+            updated_name = DEFAULT_T3_FELLOW_NAMES[index]
+            if fellow.name != updated_name:
+                fellow.name = updated_name
+                changed = True
+        while len(t3_fellows) < len(DEFAULT_T3_FELLOW_NAMES):
+            new_fellow = FellowConfig(
+                name=get_default_fellow_name(TrainingYear.T3, len(t3_fellows)),
+                training_year=TrainingYear.T3,
+            )
+            config.fellows.append(new_fellow)
+            t3_fellows.append(new_fellow)
+            changed = True
+
     existing_block_names = {block.name for block in config.blocks}
     if "Peripheral vascular" not in existing_block_names:
         config.blocks.append(
             BlockConfig(name="Peripheral vascular", hours_per_week=40.0)
+        )
+        changed = True
+    if "Congenital" not in existing_block_names:
+        config.blocks.append(
+            BlockConfig(name="Congenital", hours_per_week=40.0)
         )
         changed = True
 
@@ -168,11 +256,82 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.max_fellows = 2
             changed = True
         elif (
+            rule.name == "Yale Cath range"
+            and rule.block_name == "Yale Cath"
+            and (
+                rule.min_fellows != 0
+                or rule.max_fellows != 2
+            )
+        ):
+            rule.min_fellows = 0
+            rule.max_fellows = 2
+            changed = True
+        elif (
             rule.name == "EP staffed by F1 or S2"
             and rule.block_name == "EP"
             and rule.max_fellows != 2
         ):
             rule.max_fellows = 2
+            changed = True
+        elif (
+            rule.name == "CHF staffed by F1 or S2"
+            and rule.block_name == "CHF"
+            and (
+                rule.min_fellows != 0
+                or rule.max_fellows != 1
+            )
+        ):
+            rule.min_fellows = 0
+            rule.max_fellows = 1
+            changed = True
+        elif (
+            rule.name == "CT-MRI staffed by S2 or T3"
+            and rule.block_name == "CT-MRI"
+            and (
+                rule.min_fellows != 0
+                or rule.max_fellows != 1
+            )
+        ):
+            rule.min_fellows = 0
+            rule.max_fellows = 1
+            changed = True
+        elif (
+            rule.block_name == "Yale Nuclear"
+            and rule.name in {
+                "Yale Nuclear staffed by F1 or S2",
+                "Yale Nuclear staffed by F1, S2, or T3",
+            }
+            and (
+                rule.name != "Yale Nuclear staffed by F1, S2, or T3"
+                or rule.eligible_years
+                != [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+                or rule.min_fellows != 1
+                or rule.max_fellows != 2
+            )
+        ):
+            rule.name = "Yale Nuclear staffed by F1, S2, or T3"
+            rule.eligible_years = [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            rule.min_fellows = 1
+            rule.max_fellows = 2
+            changed = True
+        elif (
+            rule.block_name == "VA Nuclear"
+            and rule.name in {
+                "VA Nuclear staffed by F1 or S2",
+                "VA Nuclear staffed by F1, S2, or T3",
+            }
+            and (
+                rule.name != "VA Nuclear staffed by F1, S2, or T3"
+                or rule.eligible_years
+                != [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+                or rule.min_fellows != 1
+                or rule.max_fellows != 1
+            )
+        ):
+            rule.name = "VA Nuclear staffed by F1, S2, or T3"
+            rule.eligible_years = [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            rule.min_fellows = 1
+            rule.max_fellows = 1
             changed = True
         elif (
             rule.name == "CCU early by S2"
@@ -224,14 +383,47 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     ]
     if len(config.coverage_rules) != original_coverage_count:
         changed = True
-    if not any(rule.name == "Yale Nuclear staffed by F1 or S2" for rule in config.coverage_rules):
+    if not any(rule.name == "Yale Nuclear staffed by F1, S2, or T3" for rule in config.coverage_rules):
         config.coverage_rules.append(
             CoverageRule(
-                name="Yale Nuclear staffed by F1 or S2",
+                name="Yale Nuclear staffed by F1, S2, or T3",
                 block_name="Yale Nuclear",
-                eligible_years=[TrainingYear.F1, TrainingYear.S2],
+                eligible_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
                 min_fellows=1,
                 max_fellows=2,
+            )
+        )
+        changed = True
+    if not any(rule.name == "VA Nuclear staffed by F1, S2, or T3" for rule in config.coverage_rules):
+        config.coverage_rules.append(
+            CoverageRule(
+                name="VA Nuclear staffed by F1, S2, or T3",
+                block_name="VA Nuclear",
+                eligible_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
+                min_fellows=1,
+                max_fellows=1,
+            )
+        )
+        changed = True
+    if not any(rule.name == "Yale Cath range" for rule in config.coverage_rules):
+        config.coverage_rules.append(
+            CoverageRule(
+                name="Yale Cath range",
+                block_name="Yale Cath",
+                eligible_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
+                min_fellows=0,
+                max_fellows=2,
+            )
+        )
+        changed = True
+    if not any(rule.name == "CHF staffed by F1 or S2" for rule in config.coverage_rules):
+        config.coverage_rules.append(
+            CoverageRule(
+                name="CHF staffed by F1 or S2",
+                block_name="CHF",
+                eligible_years=[TrainingYear.F1, TrainingYear.S2],
+                min_fellows=0,
+                max_fellows=1,
             )
         )
         changed = True
@@ -252,7 +444,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
                 name="CT-MRI staffed by S2 or T3",
                 block_name="CT-MRI",
                 eligible_years=[TrainingYear.S2, TrainingYear.T3],
-                min_fellows=1,
+                min_fellows=0,
                 max_fellows=1,
             )
         )
@@ -271,23 +463,27 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
 
     for rule in config.eligibility_rules:
         if (
-            rule.name == "CCU later F1 only"
+            rule.name in {"CCU later F1 only", "CCU later F1 or S2"}
             and rule.block_names == ["CCU"]
-            and rule.allowed_years == [TrainingYear.F1]
-            and rule.start_week == 4
+            and (
+                rule.allowed_years != [TrainingYear.F1]
+                or rule.start_week != FIRST_YEAR_CCU_START_WEEK
+            )
         ):
-            rule.name = "CCU later F1 or S2"
-            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2]
+            rule.name = "CCU later F1 only"
+            rule.allowed_years = [TrainingYear.F1]
             rule.start_week = FIRST_YEAR_CCU_START_WEEK
             changed = True
         elif (
-            rule.name == "Night Float later F1 only"
+            rule.name in {"Night Float later F1 only", "Night Float later F1 or S2"}
             and rule.block_names == ["Night Float"]
-            and rule.allowed_years == [TrainingYear.F1]
-            and rule.start_week == 5
+            and (
+                rule.allowed_years != [TrainingYear.F1]
+                or rule.start_week != FIRST_YEAR_NF_START_WEEK
+            )
         ):
-            rule.name = "Night Float later F1 or S2"
-            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2]
+            rule.name = "Night Float later F1 only"
+            rule.allowed_years = [TrainingYear.F1]
             rule.start_week = FIRST_YEAR_NF_START_WEEK
             changed = True
         elif (
@@ -310,7 +506,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.end_week = FIRST_YEAR_CCU_START_WEEK - 1
             changed = True
         elif (
-            rule.name == "CCU later F1 or S2"
+            rule.name == "CCU later F1 only"
             and rule.block_names == ["CCU"]
             and rule.start_week != FIRST_YEAR_CCU_START_WEEK
         ):
@@ -328,7 +524,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.end_week = FIRST_YEAR_NF_START_WEEK - 1
             changed = True
         elif (
-            rule.name == "Night Float later F1 or S2"
+            rule.name == "Night Float later F1 only"
             and rule.block_names == ["Night Float"]
             and rule.start_week != FIRST_YEAR_NF_START_WEEK
         ):
@@ -340,6 +536,30 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         ):
             rule.block_names = ["Research"]
             changed = True
+        elif (
+            rule.block_names == ["Yale Nuclear"]
+            and rule.name in {"Yale Nuclear limited to F1 and S2", "Yale Nuclear any year"}
+            and (
+                rule.name != "Yale Nuclear any year"
+                or rule.allowed_years
+                != [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            )
+        ):
+            rule.name = "Yale Nuclear any year"
+            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            changed = True
+        elif (
+            rule.block_names == ["VA Nuclear"]
+            and rule.name in {"VA Nuclear limited to F1 and S2", "VA Nuclear any year"}
+            and (
+                rule.name != "VA Nuclear any year"
+                or rule.allowed_years
+                != [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            )
+        ):
+            rule.name = "VA Nuclear any year"
+            rule.allowed_years = [TrainingYear.F1, TrainingYear.S2, TrainingYear.T3]
+            changed = True
 
     if not any(rule.name == "CT-MRI limited to S2 and T3" for rule in config.eligibility_rules):
         config.eligibility_rules.append(
@@ -347,6 +567,24 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
                 name="CT-MRI limited to S2 and T3",
                 block_names=["CT-MRI"],
                 allowed_years=[TrainingYear.S2, TrainingYear.T3],
+            )
+        )
+        changed = True
+    if not any(rule.name == "Yale Nuclear any year" for rule in config.eligibility_rules):
+        config.eligibility_rules.append(
+            EligibilityRule(
+                name="Yale Nuclear any year",
+                block_names=["Yale Nuclear"],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
+            )
+        )
+        changed = True
+    if not any(rule.name == "VA Nuclear any year" for rule in config.eligibility_rules):
+        config.eligibility_rules.append(
+            EligibilityRule(
+                name="VA Nuclear any year",
+                block_names=["VA Nuclear"],
+                allowed_years=[TrainingYear.F1, TrainingYear.S2, TrainingYear.T3],
             )
         )
         changed = True
@@ -364,6 +602,15 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             EligibilityRule(
                 name="Peripheral vascular only T3",
                 block_names=["Peripheral vascular"],
+                allowed_years=[TrainingYear.T3],
+            )
+        )
+        changed = True
+    if not any(rule.name == "Congenital only T3" for rule in config.eligibility_rules):
+        config.eligibility_rules.append(
+            EligibilityRule(
+                name="Congenital only T3",
+                block_names=["Congenital"],
                 allowed_years=[TrainingYear.T3],
             )
         )
@@ -386,12 +633,18 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         elif (
             rule.name == "F1 SRC Consults"
             and rule.block_names == ["SRC Consults"]
-            and rule.min_weeks == 3
+            and rule.min_weeks in {2, 3}
             and rule.max_weeks == 4
-            and not rule.is_active
         ):
-            rule.is_active = True
-            changed = True
+            if rule.min_weeks != 2:
+                rule.min_weeks = 2
+                changed = True
+            if rule.max_weeks != 4:
+                rule.max_weeks = 4
+                changed = True
+            if not rule.is_active:
+                rule.is_active = True
+                changed = True
         elif (
             rule.name == "F1 VA Consults"
             and rule.block_names == ["VA Consults"]
@@ -571,6 +824,41 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             rule.max_weeks = 7
             rule.is_active = True
             changed = True
+        elif (
+            rule.name == "S2 SRC Cath"
+            and rule.block_names == ["SRC Cath"]
+            and (
+                rule.min_weeks != 0
+                or rule.max_weeks != 4
+            )
+        ):
+            rule.min_weeks = 0
+            rule.max_weeks = 4
+            changed = True
+        elif (
+            rule.name == "S2 Consult total"
+            and (
+                rule.block_names != ["SRC Consults", "VA Consults"]
+                or rule.min_weeks != 3
+                or rule.max_weeks != 4
+            )
+        ):
+            rule.block_names = ["SRC Consults", "VA Consults"]
+            rule.min_weeks = 3
+            rule.max_weeks = 4
+            changed = True
+        elif (
+            rule.name == "S2 Cath total"
+            and (
+                rule.block_names != ["Yale Cath", "VA Cath", "SRC Cath"]
+                or rule.min_weeks != 6
+                or rule.max_weeks != 8
+            )
+        ):
+            rule.block_names = ["Yale Cath", "VA Cath", "SRC Cath"]
+            rule.min_weeks = 6
+            rule.max_weeks = 8
+            changed = True
 
     if not any(rule.name == "F1 no Research before 8/10/26" for rule in config.week_count_rules):
         config.week_count_rules.append(
@@ -608,14 +896,29 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     if prerequisite_rule is not None:
         required_blocks = [
             "Yale Echo",
-            "Yale Cath",
             "White Consults",
             "CCU",
             "EP",
             "CHF",
         ]
+        required_groups = [["Yale Cath", "SRC Cath"]]
         if prerequisite_rule.prerequisite_blocks != required_blocks:
             prerequisite_rule.prerequisite_blocks = required_blocks
+            changed = True
+        if prerequisite_rule.prerequisite_block_groups != required_groups:
+            prerequisite_rule.prerequisite_block_groups = required_groups
+            changed = True
+    else:
+        default_prerequisite_rule = next(
+            (
+                rule
+                for rule in get_default_prerequisite_rules()
+                if rule.name == "F1 before Night Float needs core exposure"
+            ),
+            None,
+        )
+        if default_prerequisite_rule is not None:
+            config.prerequisite_rules.append(default_prerequisite_rule)
             changed = True
 
     pairing_rule = next(
@@ -882,22 +1185,52 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     if matching_white_cap is None:
         config.consecutive_state_limit_rules.append(
             ConsecutiveStateLimitRule(
-                name="F1 White Consults max 3 consecutive weeks",
+                name="F1 White Consults max 2 consecutive weeks",
                 applicable_years=[TrainingYear.F1],
                 state_names=["White Consults"],
-                max_consecutive_weeks=3,
+                max_consecutive_weeks=2,
             )
         )
         changed = True
     else:
-        if matching_white_cap.name != "F1 White Consults max 3 consecutive weeks":
-            matching_white_cap.name = "F1 White Consults max 3 consecutive weeks"
+        if matching_white_cap.name != "F1 White Consults max 2 consecutive weeks":
+            matching_white_cap.name = "F1 White Consults max 2 consecutive weeks"
             changed = True
-        if matching_white_cap.max_consecutive_weeks != 3:
-            matching_white_cap.max_consecutive_weeks = 3
+        if matching_white_cap.max_consecutive_weeks != 2:
+            matching_white_cap.max_consecutive_weeks = 2
             changed = True
         if not matching_white_cap.is_active:
             matching_white_cap.is_active = True
+            changed = True
+
+    matching_ccu_cap = next(
+        (
+            rule
+            for rule in config.consecutive_state_limit_rules
+            if rule.applicable_years == [TrainingYear.F1]
+            and rule.state_names == ["CCU"]
+        ),
+        None,
+    )
+    if matching_ccu_cap is None:
+        config.consecutive_state_limit_rules.append(
+            ConsecutiveStateLimitRule(
+                name="F1 CCU max 2 consecutive weeks",
+                applicable_years=[TrainingYear.F1],
+                state_names=["CCU"],
+                max_consecutive_weeks=2,
+            )
+        )
+        changed = True
+    else:
+        if matching_ccu_cap.name != "F1 CCU max 2 consecutive weeks":
+            matching_ccu_cap.name = "F1 CCU max 2 consecutive weeks"
+            changed = True
+        if matching_ccu_cap.max_consecutive_weeks != 2:
+            matching_ccu_cap.max_consecutive_weeks = 2
+            changed = True
+        if not matching_ccu_cap.is_active:
+            matching_ccu_cap.is_active = True
             changed = True
 
     matching_first_nf_run = next(
@@ -929,6 +1262,17 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         if not matching_first_nf_run.is_active:
             matching_first_nf_run.is_active = True
             changed = True
+
+    s2_default_contiguous_rules = [
+        rule
+        for rule in get_default_contiguous_block_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(
+        config.contiguous_block_rules,
+        s2_default_contiguous_rules,
+    ):
+        changed = True
 
     matching_single_week_bonus = next(
         (
@@ -973,6 +1317,100 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         if not matching_single_week_bonus.is_active:
             matching_single_week_bonus.is_active = True
             changed = True
+
+    s2_default_week_rules = [
+        rule
+        for rule in get_default_week_count_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(config.week_count_rules, s2_default_week_rules):
+        changed = True
+
+    s2_default_consecutive_rules = [
+        rule
+        for rule in get_default_consecutive_state_limit_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(
+        config.consecutive_state_limit_rules,
+        s2_default_consecutive_rules,
+    ):
+        changed = True
+
+    s2_default_soft_sequence_rules = [
+        rule
+        for rule in get_default_soft_sequence_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(config.soft_sequence_rules, s2_default_soft_sequence_rules):
+        changed = True
+
+    s2_default_state_assignment_rules = [
+        rule
+        for rule in get_default_soft_state_assignment_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(
+        config.soft_state_assignment_rules,
+        s2_default_state_assignment_rules,
+    ):
+        changed = True
+
+    s2_default_balance_rules = [
+        rule
+        for rule in get_default_soft_cohort_balance_rules()
+        if rule.applicable_years == [TrainingYear.S2]
+    ]
+    if _upsert_named_rules(
+        config.soft_cohort_balance_rules,
+        s2_default_balance_rules,
+    ):
+        changed = True
+
+    t3_default_week_rules = [
+        rule
+        for rule in get_default_week_count_rules()
+        if rule.applicable_years == [TrainingYear.T3]
+    ]
+    if _upsert_named_rules(config.week_count_rules, t3_default_week_rules):
+        changed = True
+
+    t3_default_contiguous_rules = [
+        rule
+        for rule in get_default_contiguous_block_rules()
+        if rule.applicable_years == [TrainingYear.T3]
+    ]
+    if _upsert_named_rules(
+        config.contiguous_block_rules,
+        t3_default_contiguous_rules,
+    ):
+        changed = True
+
+    t3_default_soft_sequence_rules = [
+        rule
+        for rule in get_default_soft_sequence_rules()
+        if rule.applicable_years == [TrainingYear.T3]
+    ]
+    if _upsert_named_rules(config.soft_sequence_rules, t3_default_soft_sequence_rules):
+        changed = True
+
+    original_individual_rule_count = len(config.individual_fellow_requirement_rules)
+    config.individual_fellow_requirement_rules = [
+        rule
+        for rule in config.individual_fellow_requirement_rules
+        if not (
+            rule.training_year == TrainingYear.S2
+            and rule.fellow_name == "Fishman"
+            and rule.block_name == "Night Float"
+            and rule.min_weeks == 5
+            and rule.max_weeks == 5
+        )
+    ]
+    if len(config.individual_fellow_requirement_rules) != original_individual_rule_count:
+        changed = True
+
+    if changed:
+        config.num_fellows = len(config.fellows)
 
     return changed
 

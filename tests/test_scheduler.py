@@ -15,6 +15,7 @@ from src.models import (
     BlockConfig,
     BlockType,
     CohortLimitRule,
+    ContiguousBlockRule,
     ConsecutiveStateLimitRule,
     CoverageRule,
     EligibilityRule,
@@ -25,7 +26,10 @@ from src.models import (
     RollingWindowRule,
     ScheduleConfig,
     ScheduleResult,
+    SoftCohortBalanceRule,
+    SoftRuleDirection,
     SoftSequenceRule,
+    SoftStateAssignmentRule,
     SoftSingleWeekBlockRule,
     SolverStatus,
     TrainingYear,
@@ -306,7 +310,7 @@ class TestLegacyFeasibilityCheck:
 
 
 class TestLegacyConstraints:
-    """The legacy scheduling path should still satisfy its classic rules."""
+    """The legacy scheduling path should still satisfy its remaining classic rules."""
 
     def test_one_assignment_per_week(
         self,
@@ -329,17 +333,31 @@ class TestLegacyConstraints:
                 == legacy_small_config.pto_weeks_granted
             )
 
-    def test_no_consecutive_same_block_except_night_float(
+    def test_legacy_solver_allows_consecutive_same_block_when_required(
         self,
-        legacy_small_config: ScheduleConfig,
-        legacy_solved_result: ScheduleResult,
     ) -> None:
-        for fellow_idx in range(legacy_small_config.num_fellows):
-            for week in range(legacy_small_config.num_weeks - 1):
-                current_block = legacy_solved_result.assignments[fellow_idx][week]
-                next_block = legacy_solved_result.assignments[fellow_idx][week + 1]
-                if current_block not in {"PTO", "Night Float"}:
-                    assert current_block != next_block
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[BlockConfig(name="Research", min_weeks=2, max_weeks=2)],
+            fellows=[FellowConfig(name="Legacy Fellow")],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.assignments[0] == ["Research", "Research"]
 
     def test_night_float_consecutive_limit(
         self,
@@ -659,6 +677,108 @@ class TestStructuredRules:
         assert result.assignments[0] == ["Night Float", "Research"]
         assert result.objective_value >= 5
 
+    def test_state_assignment_bonus_shapes_solution(self) -> None:
+        """A targeted state bonus should prefer the rewarded assignment."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=1,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=1,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(name="SRC Echo", hours_per_week=40.0),
+                BlockConfig(name="Research", hours_per_week=40.0),
+            ],
+            fellows=[FellowConfig(name="S2 A", training_year=TrainingYear.S2)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="S2 can do both",
+                    block_names=["SRC Echo", "Research"],
+                    allowed_years=[TrainingYear.S2],
+                )
+            ],
+            soft_state_assignment_rules=[
+                SoftStateAssignmentRule(
+                    name="Bonus: S2 assignment to SRC Echo",
+                    applicable_years=[TrainingYear.S2],
+                    state_names=["SRC Echo"],
+                    weight=3,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.assignments[0] == ["SRC Echo"]
+        assert result.objective_value >= 3
+
+    def test_cohort_balance_penalty_spreads_assignments(self) -> None:
+        """A cohort-balance penalty should spread selected states across fellows."""
+
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=2,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(name="CCU", hours_per_week=55.0),
+                BlockConfig(name="Research", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(name="S2 A", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 B", training_year=TrainingYear.S2),
+            ],
+            coverage_rules=[
+                CoverageRule(
+                    name="CCU staffed",
+                    block_name="CCU",
+                    eligible_years=[TrainingYear.S2],
+                    min_fellows=1,
+                    max_fellows=1,
+                )
+            ],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="S2 can do both",
+                    block_names=["CCU", "Research"],
+                    allowed_years=[TrainingYear.S2],
+                )
+            ],
+            soft_cohort_balance_rules=[
+                SoftCohortBalanceRule(
+                    name="Penalty: S2 uneven CCU distribution",
+                    applicable_years=[TrainingYear.S2],
+                    state_names=["CCU"],
+                    weight=4,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        ccu_counts = [assignments.count("CCU") for assignments in result.assignments]
+        assert ccu_counts == [1, 1]
+
     def test_cohort_pto_preference_weights_shape_solution(self) -> None:
         """Cohort PTO weights should override the default linear rank preference."""
 
@@ -966,7 +1086,7 @@ class TestStructuredRules:
         assert result.solver_status == SolverStatus.INFEASIBLE
 
     def test_f1_white_consults_consecutive_limit_caps_run_length(self) -> None:
-        """F1 White Consults should not be allowed to run longer than 3 consecutive weeks."""
+        """F1 White Consults should not be allowed to run longer than 2 consecutive weeks."""
 
         config = ScheduleConfig(
             num_fellows=1,
@@ -1005,10 +1125,62 @@ class TestStructuredRules:
             ],
             consecutive_state_limit_rules=[
                 ConsecutiveStateLimitRule(
-                    name="F1 White Consults max 3 consecutive weeks",
+                    name="F1 White Consults max 2 consecutive weeks",
                     applicable_years=[TrainingYear.F1],
                     state_names=["White Consults"],
-                    max_consecutive_weeks=3,
+                    max_consecutive_weeks=2,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status == SolverStatus.INFEASIBLE
+
+    def test_f1_ccu_consecutive_limit_caps_run_length(self) -> None:
+        """F1 CCU should not be allowed to run longer than 2 consecutive weeks."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=3,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="CCU"),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 CCU/Research",
+                    block_names=["CCU", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 CCU exact 3",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["CCU"],
+                    min_weeks=3,
+                    max_weeks=3,
+                )
+            ],
+            consecutive_state_limit_rules=[
+                ConsecutiveStateLimitRule(
+                    name="F1 CCU max 2 consecutive weeks",
+                    applicable_years=[TrainingYear.F1],
+                    state_names=["CCU"],
+                    max_consecutive_weeks=2,
                 )
             ],
         )
@@ -1068,6 +1240,103 @@ class TestStructuredRules:
         result = solve_schedule(config)
 
         assert result.solver_status == SolverStatus.INFEASIBLE
+
+    def test_contiguous_block_rule_allows_s2_ct_mri_two_week_run(self) -> None:
+        """S2 CT-MRI can run two consecutive weeks when a contiguous-run rule is present."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="CT-MRI"),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="S2 A", training_year=TrainingYear.S2)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="S2 CT-MRI/Research",
+                    block_names=["CT-MRI", "Research"],
+                    allowed_years=[TrainingYear.S2],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="S2 CT-MRI exact 2",
+                    applicable_years=[TrainingYear.S2],
+                    block_names=["CT-MRI"],
+                    min_weeks=2,
+                    max_weeks=2,
+                )
+            ],
+            contiguous_block_rules=[
+                ContiguousBlockRule(
+                    name="S2 CT-MRI must be one contiguous run",
+                    applicable_years=[TrainingYear.S2],
+                    block_name="CT-MRI",
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.assignments[0] == ["CT-MRI", "CT-MRI"]
+
+    def test_t3_structured_config_allows_consecutive_elective_weeks(self) -> None:
+        """T3 should be able to take consecutive Elective weeks."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="Elective"),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="T3 A", training_year=TrainingYear.T3)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="T3 Elective/Research",
+                    block_names=["Elective", "Research"],
+                    allowed_years=[TrainingYear.T3],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="T3 Elective exact 2",
+                    applicable_years=[TrainingYear.T3],
+                    block_names=["Elective"],
+                    min_weeks=2,
+                    max_weeks=2,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.assignments[0] == ["Elective", "Elective"]
 
     def test_soft_single_week_block_rule_prefers_two_week_runs(self) -> None:
         """One-week penalties should push F1 rotations into longer runs when possible."""
@@ -1200,7 +1469,7 @@ class TestBuiltInDefaults:
         assert config.start_date == date(2026, 7, 13)
         assert config.cohort_counts[TrainingYear.F1] == 9
         assert config.cohort_counts[TrainingYear.S2] == 9
-        assert config.cohort_counts[TrainingYear.T3] == 7
+        assert config.cohort_counts[TrainingYear.T3] == 9
         assert config.max_concurrent_pto == 12
         assert (
             config.pto_preference_weights_for_year(TrainingYear.F1)
@@ -1218,12 +1487,31 @@ class TestBuiltInDefaults:
         coverage_rule_names = {rule.name for rule in config.coverage_rules}
         assert "White Consults staffed by F1" in coverage_rule_names
         assert "Goodyer staffed by S2" in coverage_rule_names
-        assert "Yale Nuclear staffed by F1 or S2" in coverage_rule_names
+        assert "Yale Nuclear staffed by F1, S2, or T3" in coverage_rule_names
+        assert "VA Nuclear staffed by F1, S2, or T3" in coverage_rule_names
         assert "CT-MRI staffed by S2 or T3" in coverage_rule_names
         assert "Peripheral vascular optional T3" in coverage_rule_names
         assert next(
+            rule for rule in config.coverage_rules if rule.name == "CHF staffed by F1 or S2"
+        ).min_fellows == 0
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "CHF staffed by F1 or S2"
+        ).max_fellows == 1
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "Yale Cath range"
+        ).min_fellows == 0
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "Yale Cath range"
+        ).max_fellows == 2
+        assert next(
             rule for rule in config.coverage_rules if rule.name == "Yale Echo F1 range"
         ).max_fellows == 2
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "CT-MRI staffed by S2 or T3"
+        ).min_fellows == 0
+        assert next(
+            rule for rule in config.coverage_rules if rule.name == "CT-MRI staffed by S2 or T3"
+        ).max_fellows == 1
 
         week_rules = {rule.name: rule for rule in config.week_count_rules}
         assert "F1 no PTO before 8/10/26" in week_rules
@@ -1233,6 +1521,8 @@ class TestBuiltInDefaults:
         assert week_rules["F1 White Consults"].min_weeks == 5
         assert week_rules["F1 White Consults"].max_weeks == 6
         assert week_rules["F1 White Consults"].is_active
+        assert week_rules["F1 SRC Consults"].min_weeks == 2
+        assert week_rules["F1 SRC Consults"].max_weeks == 4
         assert week_rules["F1 SRC Consults"].is_active
         assert week_rules["F1 VA Consults"].is_active
         assert week_rules["F1 Consult total"].max_weeks == 12
@@ -1254,6 +1544,50 @@ class TestBuiltInDefaults:
         assert week_rules["F1 Yale Cath"].is_active
         assert week_rules["F1 Cath total"].is_active
         assert "F1 Peripheral vascular prohibited" in week_rules
+        assert week_rules["S2 White Consults prohibited"].max_weeks == 0
+        assert week_rules["S2 Goodyer Consults"].min_weeks == 5
+        assert week_rules["S2 Goodyer Consults"].max_weeks == 6
+        assert week_rules["S2 CCU"].end_week == 2
+        assert week_rules["S2 Night Float"].max_weeks == 1
+        assert week_rules["S2 Night Float"].end_week == 5
+        assert week_rules["S2 CHF"].min_weeks == 1
+        assert week_rules["S2 CHF"].max_weeks == 4
+        assert week_rules["S2 Consult total"].block_names == ["SRC Consults", "VA Consults"]
+        assert week_rules["S2 Consult total"].min_weeks == 3
+        assert week_rules["S2 Consult total"].max_weeks == 4
+        assert week_rules["S2 SRC Cath"].min_weeks == 0
+        assert week_rules["S2 SRC Cath"].max_weeks == 4
+        assert week_rules["S2 Yale Nuclear"].min_weeks == 4
+        assert week_rules["S2 Yale Nuclear"].max_weeks == 6
+        assert week_rules["S2 VA Cath"].max_weeks == 5
+        assert week_rules["S2 Cath total"].min_weeks == 6
+        assert week_rules["S2 Cath total"].max_weeks == 8
+        assert week_rules["S2 Research"].min_weeks == 6
+        assert week_rules["S2 Research"].max_weeks == 6
+        assert week_rules["S2 CT-MRI"].min_weeks == 2
+        assert week_rules["S2 CT-MRI"].max_weeks == 2
+        assert week_rules["S2 Elective prohibited"].max_weeks == 0
+        assert week_rules["S2 Peripheral vascular prohibited"].max_weeks == 0
+        assert week_rules["T3 White Consults prohibited"].max_weeks == 0
+        assert week_rules["T3 Consult total"].block_names == ["SRC Consults", "VA Consults"]
+        assert week_rules["T3 Consult total"].min_weeks == 3
+        assert week_rules["T3 Consult total"].max_weeks == 4
+        assert week_rules["T3 Nuclear total"].min_weeks == 4
+        assert week_rules["T3 Nuclear total"].max_weeks == 5
+        assert week_rules["T3 Echo total"].block_names == ["Yale Echo", "SRC Echo"]
+        assert week_rules["T3 Echo total"].min_weeks == 4
+        assert week_rules["T3 Echo total"].max_weeks == 10
+        assert week_rules["T3 CT-MRI"].min_weeks == 2
+        assert week_rules["T3 CT-MRI"].max_weeks == 2
+        assert week_rules["T3 Elective"].min_weeks == 24
+        assert week_rules["T3 Elective"].max_weeks == 30
+        assert week_rules["T3 Peripheral vascular"].min_weeks == 2
+        assert week_rules["T3 Peripheral vascular"].max_weeks == 2
+        assert week_rules["T3 Congenital"].min_weeks == 2
+        assert week_rules["T3 Congenital"].max_weeks == 2
+        assert week_rules["T3 late spring elective/research/PTO only"].block_names == ["PTO", "Research", "Elective"]
+        assert week_rules["T3 late spring elective/research/PTO only"].start_week == 46
+        assert week_rules["T3 late spring elective/research/PTO only"].end_week == 51
         assert len(config.rolling_window_rules) == 1
         assert (
             config.rolling_window_rules[0].name
@@ -1264,17 +1598,31 @@ class TestBuiltInDefaults:
         consecutive_limits = {
             rule.name: rule for rule in config.consecutive_state_limit_rules
         }
-        assert len(consecutive_limits) == 2
+        assert len(consecutive_limits) == 4
         assert (
             consecutive_limits["F1 Night Float max 2 consecutive weeks"].max_consecutive_weeks
             == 2
         )
         assert (
             consecutive_limits[
-                "F1 White Consults max 3 consecutive weeks"
+                "F1 White Consults max 2 consecutive weeks"
             ].max_consecutive_weeks
-            == 3
+            == 2
         )
+        assert (
+            consecutive_limits["F1 CCU max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 Research max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        contiguous_rules = {rule.name: rule for rule in config.contiguous_block_rules}
+        assert len(contiguous_rules) == 2
+        assert contiguous_rules["S2 CT-MRI must be one contiguous run"].block_name == "CT-MRI"
+        assert contiguous_rules["S2 CT-MRI must be one contiguous run"].applicable_years == [TrainingYear.S2]
+        assert contiguous_rules["T3 CT-MRI must be one contiguous run"].block_name == "CT-MRI"
+        assert contiguous_rules["T3 CT-MRI must be one contiguous run"].applicable_years == [TrainingYear.T3]
         assert len(config.first_assignment_run_limit_rules) == 1
         assert (
             config.first_assignment_run_limit_rules[0].name
@@ -1290,6 +1638,9 @@ class TestBuiltInDefaults:
         assert any(
             rule.name == "F1 before Night Float needs core exposure"
             and rule.is_active
+            and rule.prerequisite_blocks
+            == ["Yale Echo", "White Consults", "CCU", "EP", "CHF"]
+            and rule.prerequisite_block_groups == [["Yale Cath", "SRC Cath"]]
             for rule in config.prerequisite_rules
         )
         assert any(
@@ -1313,12 +1664,54 @@ class TestBuiltInDefaults:
             for rule in config.soft_sequence_rules
         )
         assert any(
+            rule.name == "Bonus: S2 Research adjacent to PTO"
+            and rule.weight == 10
+            and rule.direction == SoftRuleDirection.EITHER
+            for rule in config.soft_sequence_rules
+        )
+        assert any(
+            rule.name == "Bonus: S2 two-week PTO block"
+            and rule.weight == 8
+            for rule in config.soft_sequence_rules
+        )
+        assert any(
+            rule.name == "Bonus: T3 two-week PTO block"
+            and rule.weight == 8
+            for rule in config.soft_sequence_rules
+        )
+        assert any(
             rule.name == "Bonus: F1 Night Float followed by Research or PTO"
             and rule.left_states == ["Night Float"]
             and rule.right_states == ["Research", "PTO"]
             and rule.weight == 5
             and rule.is_active
             for rule in config.soft_sequence_rules
+        )
+        assert any(
+            rule.name == "Bonus: S2 Research during final week"
+            and rule.state_names == ["Research"]
+            and rule.start_week == 51
+            and rule.end_week == 51
+            and rule.weight == 6
+            for rule in config.soft_state_assignment_rules
+        )
+        assert any(
+            rule.name == "Bonus: S2 assignment to SRC Echo"
+            and rule.state_names == ["SRC Echo"]
+            and rule.weight == 3
+            for rule in config.soft_state_assignment_rules
+        )
+        assert any(
+            rule.name == "Penalty: S2 uneven CCU distribution"
+            and rule.state_names == ["CCU"]
+            and rule.weight == 4
+            for rule in config.soft_cohort_balance_rules
+        )
+        assert any(
+            rule.name == "Penalty: S2 uneven Night Float distribution"
+            and rule.state_names == ["Night Float"]
+            and rule.weight == 4
+            for rule in config.soft_cohort_balance_rules
         )
         assert any(
             rule.name
@@ -1337,7 +1730,7 @@ class TestBuiltInDefaults:
 
         assert not any("Staffing conflict" in issue for issue in issues)
 
-    def test_default_config_with_all_f1_rules_solves_without_pto(
+    def test_default_config_with_full_t3_rules_solves_without_pto(
         self,
     ) -> None:
         config = get_default_config()
@@ -1349,4 +1742,7 @@ class TestBuiltInDefaults:
 
         result = solve_schedule(config)
 
-        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.solver_status in {
+            SolverStatus.FEASIBLE,
+            SolverStatus.OPTIMAL,
+        }
