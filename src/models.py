@@ -799,6 +799,21 @@ class ScheduleConfig:
     call_excluded_blocks: list[str] = field(
         default_factory=lambda: ["Night Float", "PTO"]
     )
+    structured_call_rules_enabled: bool = False
+    call_eligible_years: list[TrainingYear] = field(default_factory=list)
+    call_allowed_block_names: list[str] = field(default_factory=list)
+    call_min_per_fellow: int = 0
+    call_max_per_fellow: int = 52
+    call_forbidden_following_blocks: list[str] = field(default_factory=list)
+    call_max_consecutive_weeks_per_fellow: int = 52
+    call_first_call_preferred_blocks: list[str] = field(default_factory=list)
+    call_first_call_preference_weight: int = 0
+    call_first_call_prerequisite_blocks: list[str] = field(default_factory=list)
+    call_first_call_prerequisite_weight: int = 0
+    call_holiday_anchor_week: int | None = None
+    call_holiday_sensitive_blocks: list[str] = field(default_factory=list)
+    call_holiday_target_weeks: list[int] = field(default_factory=list)
+    call_holiday_conflict_weight: int = 0
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
     solver_timeout_seconds: float = 60.0
@@ -968,6 +983,21 @@ class ScheduleConfig:
             "call_day": self.call_day,
             "call_hours": self.call_hours,
             "call_excluded_blocks": self.call_excluded_blocks,
+            "structured_call_rules_enabled": self.structured_call_rules_enabled,
+            "call_eligible_years": _serialize_years(self.call_eligible_years),
+            "call_allowed_block_names": self.call_allowed_block_names,
+            "call_min_per_fellow": self.call_min_per_fellow,
+            "call_max_per_fellow": self.call_max_per_fellow,
+            "call_forbidden_following_blocks": self.call_forbidden_following_blocks,
+            "call_max_consecutive_weeks_per_fellow": self.call_max_consecutive_weeks_per_fellow,
+            "call_first_call_preferred_blocks": self.call_first_call_preferred_blocks,
+            "call_first_call_preference_weight": self.call_first_call_preference_weight,
+            "call_first_call_prerequisite_blocks": self.call_first_call_prerequisite_blocks,
+            "call_first_call_prerequisite_weight": self.call_first_call_prerequisite_weight,
+            "call_holiday_anchor_week": self.call_holiday_anchor_week,
+            "call_holiday_sensitive_blocks": self.call_holiday_sensitive_blocks,
+            "call_holiday_target_weeks": self.call_holiday_target_weeks,
+            "call_holiday_conflict_weight": self.call_holiday_conflict_weight,
             "hours_cap": self.hours_cap,
             "trailing_avg_weeks": self.trailing_avg_weeks,
             "solver_timeout_seconds": self.solver_timeout_seconds,
@@ -1035,6 +1065,9 @@ class ScheduleConfig:
         payload["start_date"] = date.fromisoformat(payload["start_date"])
         payload["pto_preference_weight_overrides"] = _normalize_pto_preference_weight_overrides(
             payload.get("pto_preference_weight_overrides")
+        )
+        payload["call_eligible_years"] = _deserialize_years(
+            payload.get("call_eligible_years")
         )
         payload["blocks"] = [
             BlockConfig.from_dict(block) for block in payload.get("blocks", [])

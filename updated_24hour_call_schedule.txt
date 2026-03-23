@@ -1,0 +1,43 @@
+Call schedule rules: 
+
+Call schedules should be on a separate calendar display (override the current tile "24-Hr Call Assignments" on the 'Generate Schedule' page)
+
+24 hour call rules:
+
+There is one first year fellow on 24 hour call every weekend 
+
+24 hour call can only be given to fellows on the following rotations 
+
+EP 
+
+CHF 
+
+Yale nuclear 
+
+VA nuclear 
+
+Yale echo 
+
+VA echo 
+
+SRC echo 
+
+Yale cath 
+
+VA cath 
+
+SRC cath 
+
+24 hour cannot be the week before night float 
+
+Each first year fellow should have between 5 - 6 24 hour calls  
+
+First year fellows should ideally be on yale echo during their first 24 hour call 
+
+First year fellows ideally should complete one week of white consults before their first 24 hour call 
+
+The same fellow cannot be on 24 hour call within 2 consecutive weeks 
+
+	 
+
+If a fellow is on white consult, CCU, SRC consult, VA consult, or night float during the week of Thanksgiving, they ideally cannot be on 24 hour call on December 24, December 25, December 31 

@@ -187,6 +187,29 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     if not _looks_like_source_backed_default_family(config):
         return changed
 
+    default_config = get_default_config()
+    structured_call_fields = {
+        "structured_call_rules_enabled": default_config.structured_call_rules_enabled,
+        "call_eligible_years": default_config.call_eligible_years,
+        "call_allowed_block_names": default_config.call_allowed_block_names,
+        "call_min_per_fellow": default_config.call_min_per_fellow,
+        "call_max_per_fellow": default_config.call_max_per_fellow,
+        "call_forbidden_following_blocks": default_config.call_forbidden_following_blocks,
+        "call_max_consecutive_weeks_per_fellow": default_config.call_max_consecutive_weeks_per_fellow,
+        "call_first_call_preferred_blocks": default_config.call_first_call_preferred_blocks,
+        "call_first_call_preference_weight": default_config.call_first_call_preference_weight,
+        "call_first_call_prerequisite_blocks": default_config.call_first_call_prerequisite_blocks,
+        "call_first_call_prerequisite_weight": default_config.call_first_call_prerequisite_weight,
+        "call_holiday_anchor_week": default_config.call_holiday_anchor_week,
+        "call_holiday_sensitive_blocks": default_config.call_holiday_sensitive_blocks,
+        "call_holiday_target_weeks": default_config.call_holiday_target_weeks,
+        "call_holiday_conflict_weight": default_config.call_holiday_conflict_weight,
+    }
+    for field_name, default_value in structured_call_fields.items():
+        if getattr(config, field_name) != default_value:
+            setattr(config, field_name, default_value)
+            changed = True
+
     f1_fellows = [
         fellow for fellow in config.fellows if fellow.training_year == TrainingYear.F1
     ]

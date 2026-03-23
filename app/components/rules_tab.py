@@ -169,6 +169,164 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_call_excluded",
         )
 
+        st.markdown("**Structured 24-Hr Call Rules**")
+        st.caption(
+            "These settings drive the overlay weekend call model used by the solver."
+        )
+
+        year_options = [year.value for year in TrainingYear]
+        block_options = [block.name for block in config.blocks]
+        selected_call_years = left_col.multiselect(
+            "Eligible call cohorts",
+            options=year_options,
+            default=[
+                year.value
+                for year in config.call_eligible_years
+                if year.value in year_options
+            ],
+            key="program_call_eligible_years",
+        )
+        config.call_eligible_years = [TrainingYear(value) for value in selected_call_years]
+        config.structured_call_rules_enabled = bool(config.call_eligible_years)
+
+        config.call_allowed_block_names = middle_col.multiselect(
+            "Eligible call rotations",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.call_allowed_block_names
+                if block_name in block_options
+            ],
+            key="program_call_allowed_blocks",
+        )
+        config.call_forbidden_following_blocks = right_col.multiselect(
+            "Next-week rotations forbidden after call",
+            options=all_state_names,
+            default=[
+                block_name
+                for block_name in config.call_forbidden_following_blocks
+                if block_name in all_state_names
+            ],
+            key="program_call_forbidden_following",
+        )
+
+        left_col, middle_col, right_col = st.columns(3)
+        current_call_min = max(0, min(config.call_min_per_fellow, config.num_weeks))
+        current_call_max = max(current_call_min, min(config.call_max_per_fellow, config.num_weeks))
+        config.call_min_per_fellow = left_col.number_input(
+            "Min calls per eligible fellow",
+            min_value=0,
+            max_value=config.num_weeks,
+            value=current_call_min,
+            key="program_call_min_per_fellow",
+        )
+        config.call_max_per_fellow = middle_col.number_input(
+            "Max calls per eligible fellow",
+            min_value=config.call_min_per_fellow,
+            max_value=config.num_weeks,
+            value=max(config.call_min_per_fellow, current_call_max),
+            key="program_call_max_per_fellow",
+        )
+        config.call_max_consecutive_weeks_per_fellow = right_col.number_input(
+            "Max consecutive call weeks per fellow",
+            min_value=1,
+            max_value=4,
+            value=max(1, min(config.call_max_consecutive_weeks_per_fellow, 4)),
+            key="program_call_max_consecutive",
+        )
+
+        st.markdown("**24-Hr Call Soft Preferences**")
+        st.caption(
+            "Use positive weights for bonuses and negative weights for penalties. "
+            "These should stay below PTO preference weights if PTO should dominate."
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.call_first_call_preferred_blocks = left_col.multiselect(
+            "Preferred rotation(s) during first call",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.call_first_call_preferred_blocks
+                if block_name in block_options
+            ],
+            key="program_call_first_preferred_blocks",
+        )
+        config.call_first_call_preference_weight = middle_col.number_input(
+            "First-call preferred rotation weight",
+            min_value=-50,
+            max_value=50,
+            value=config.call_first_call_preference_weight,
+            key="program_call_first_preferred_weight",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.call_first_call_prerequisite_blocks = left_col.multiselect(
+            "Preferred prior rotations before first call",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.call_first_call_prerequisite_blocks
+                if block_name in block_options
+            ],
+            key="program_call_first_prereq_blocks",
+        )
+        config.call_first_call_prerequisite_weight = middle_col.number_input(
+            "First-call prerequisite weight",
+            min_value=-50,
+            max_value=50,
+            value=config.call_first_call_prerequisite_weight,
+            key="program_call_first_prereq_weight",
+        )
+
+        week_options = _build_week_options(config)
+        week_labels = list(week_options.keys())
+        week_values = list(week_options.values())
+        left_col, middle_col, right_col = st.columns(3)
+        anchor_index = (
+            week_values.index(config.call_holiday_anchor_week)
+            if config.call_holiday_anchor_week in week_values
+            else 0
+        )
+        selected_anchor_label = left_col.selectbox(
+            "Anchor week for holiday call soft rule",
+            options=week_labels,
+            index=anchor_index,
+            key="program_call_holiday_anchor_week",
+        )
+        config.call_holiday_anchor_week = week_options[selected_anchor_label]
+        config.call_holiday_sensitive_blocks = middle_col.multiselect(
+            "Anchor-week rotations that should avoid holiday call",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.call_holiday_sensitive_blocks
+                if block_name in block_options
+            ],
+            key="program_call_holiday_sensitive_blocks",
+        )
+        selected_holiday_labels = right_col.multiselect(
+            "Holiday call target weeks",
+            options=week_labels,
+            default=[
+                label
+                for label, value in week_options.items()
+                if value in config.call_holiday_target_weeks
+            ],
+            key="program_call_holiday_target_weeks",
+        )
+        config.call_holiday_target_weeks = [
+            week_options[label] for label in selected_holiday_labels
+        ]
+
+        config.call_holiday_conflict_weight = st.number_input(
+            "Holiday call conflict weight",
+            min_value=-50,
+            max_value=50,
+            value=config.call_holiday_conflict_weight,
+            key="program_call_holiday_conflict_weight",
+        )
+
     with st.container(border=True):
         st.markdown("#### Block Catalog")
         st.caption(

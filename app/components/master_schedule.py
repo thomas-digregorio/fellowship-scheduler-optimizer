@@ -465,7 +465,11 @@ def _render_call_overlay(
     result: ScheduleResult,
     visible_fellows: list[int],
 ) -> None:
-    """Show call assignments for the displayed fellows."""
+    """Show the 24-hour call schedule."""
+
+    if config.structured_call_rules_enabled:
+        _render_structured_call_calendar(config, result)
+        return
 
     st.markdown("#### 24-Hr Call Assignments")
     if not any(
@@ -504,3 +508,116 @@ def _render_call_overlay(
             height=220,
             hide_index=True,
         )
+
+
+def _render_structured_call_calendar(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+) -> None:
+    """Render a calendar-style overlay view for structured 24-hour call."""
+
+    eligible_fellows = config.fellow_indices_for_years(config.call_eligible_years)
+    st.markdown("#### 24-Hr Call Calendar")
+    st.caption(
+        "Weekend call is displayed separately from the rotation grid because it is an "
+        "overlay assignment, not a standalone rotation block."
+    )
+    if not eligible_fellows:
+        st.caption("No cohorts are currently eligible for 24-hour call.")
+        return
+
+    call_df = _build_call_calendar_dataframe(config, result, eligible_fellows)
+    fellow_colors = _build_fellow_color_map(config, eligible_fellows)
+    styled_df = call_df.style.set_properties(
+        subset=["Week", "Weekend", "Assigned Rotation"],
+        **{
+            "background-color": "#F7F9FB",
+            "color": "#1F2933",
+            "font-weight": "600",
+        },
+    )
+    for fellow_idx in eligible_fellows:
+        fellow_name = config.fellows[fellow_idx].name
+        styled_df = styled_df.map(
+            lambda value, color=fellow_colors[fellow_name]: _style_call_calendar_cell(
+                value,
+                color,
+            ),
+            subset=[fellow_name],
+        )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(800, 35 * len(call_df) + 40),
+        column_config={
+            "Week": st.column_config.TextColumn("Week", width="medium"),
+            "Weekend": st.column_config.TextColumn("Weekend", width="medium"),
+            "Assigned Rotation": st.column_config.TextColumn("Assigned Rotation", width="medium"),
+            **{
+                config.fellows[fellow_idx].name: st.column_config.TextColumn(
+                    config.fellows[fellow_idx].name,
+                    width="small",
+                )
+                for fellow_idx in eligible_fellows
+            },
+        },
+    )
+
+
+def _build_call_calendar_dataframe(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    eligible_fellows: list[int],
+) -> pd.DataFrame:
+    """Return a week-by-week call calendar for the eligible fellows."""
+
+    rows: list[dict[str, str]] = []
+    for week in range(config.num_weeks):
+        week_date = config.start_date + timedelta(weeks=week)
+        call_date = _call_date_for_week(config, week)
+        on_call_indices = [
+            fellow_idx
+            for fellow_idx in eligible_fellows
+            if result.call_assignments[fellow_idx][week]
+        ]
+        assigned_rotation = (
+            result.assignments[on_call_indices[0]][week] if on_call_indices else ""
+        )
+        row: dict[str, str] = {
+            "Week": f"W{week + 1} ({week_date.strftime('%m/%d')})",
+            "Weekend": call_date.strftime("%a %m/%d"),
+            "Assigned Rotation": assigned_rotation,
+        }
+        for fellow_idx in eligible_fellows:
+            row[config.fellows[fellow_idx].name] = (
+                "CALL" if result.call_assignments[fellow_idx][week] else ""
+            )
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _style_call_calendar_cell(value: str, color: str) -> str:
+    """Return CSS for one structured call-calendar cell."""
+
+    if value != "CALL":
+        return "background-color: #FFFFFF; color: #94A3B8; text-align: center;"
+    text_color = "#FFFFFF" if _is_dark_color(color) else "#102A43"
+    return (
+        f"background-color: {color}; "
+        f"color: {text_color}; "
+        "font-weight: 700; "
+        "text-align: center;"
+    )
+
+
+def _call_date_for_week(config: ScheduleConfig, week: int):
+    """Return the calendar date for the configured call day in one schedule week."""
+
+    offsets = {
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    return config.start_date + timedelta(weeks=week, days=offsets.get(config.call_day, 5))

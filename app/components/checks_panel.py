@@ -39,7 +39,7 @@ def render_checks_panel(
     checks = build_schedule_checks(config, result)
 
     top_left, top_right, bottom_left, bottom_right = st.columns(4)
-    top_left.metric("NF -> next call", checks["night_float_followed_by_call"].value)
+    top_left.metric("Call -> next NF", checks["call_before_night_float"].value)
     top_right.metric("CCU weeks > 2", checks["weeks_with_gt_two_ccu"].value)
     bottom_left.metric("Max CCU / week", checks["max_ccu_per_week"].value)
     bottom_right.metric("Call spread", checks["call_spread"].value)
@@ -48,7 +48,7 @@ def render_checks_panel(
     with detail_left:
         with st.container(border=True):
             st.markdown("#### Coverage & Call")
-            _render_check_message(checks["night_float_followed_by_call"])
+            _render_check_message(checks["call_before_night_float"])
             _render_check_message(checks["weeks_with_gt_two_ccu"])
             st.caption(checks["weeks_without_exactly_one_call"].detail)
     with detail_right:
@@ -68,8 +68,8 @@ def build_schedule_checks(
     for f_idx, fellow in enumerate(config.fellows):
         for week in range(config.num_weeks - 1):
             if (
-                result.assignments[f_idx][week] == "Night Float"
-                and result.call_assignments[f_idx][week + 1]
+                result.call_assignments[f_idx][week]
+                and result.assignments[f_idx][week + 1] == "Night Float"
             ):
                 night_float_conflicts.append(
                     f"{fellow.name}: "
@@ -111,19 +111,25 @@ def build_schedule_checks(
         for week in range(config.num_weeks)
     ]
 
+    counted_fellow_indices = (
+        config.fellow_indices_for_years(config.call_eligible_years)
+        if config.structured_call_rules_enabled
+        else list(range(config.num_fellows))
+    )
     call_counts_by_fellow: list[int] = [
         sum(calls)
-        for calls in result.call_assignments
+        for fellow_idx, calls in enumerate(result.call_assignments)
+        if fellow_idx in counted_fellow_indices
     ]
 
     return {
-        "night_float_followed_by_call": ScheduleCheck(
-            label="Night Float followed by next-week 24-hr call",
+        "call_before_night_float": ScheduleCheck(
+            label="24-hr call followed by next-week Night Float",
             value=len(night_float_conflicts),
             status="pass" if not night_float_conflicts else "error",
             detail=_detail_with_examples(
                 len(night_float_conflicts),
-                "No Night Float to next-week call conflicts found.",
+                "No call to next-week Night Float conflicts found.",
                 "Conflicts",
                 night_float_conflicts,
             ),

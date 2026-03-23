@@ -425,6 +425,121 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"blocks: {', '.join(unknown_previous)}."
             )
 
+    if config.structured_call_rules_enabled:
+        eligible_fellows = config.fellow_indices_for_years(config.call_eligible_years)
+        if not eligible_fellows:
+            issues.append("⚠️ Structured 24-hour call rules have no eligible fellows.")
+
+        if config.call_min_per_fellow > config.call_max_per_fellow:
+            issues.append(
+                "⚠️ Structured 24-hour call rules have min calls per fellow greater "
+                "than max calls per fellow."
+            )
+
+        if eligible_fellows:
+            min_total_call_capacity = len(eligible_fellows) * config.call_min_per_fellow
+            max_total_call_capacity = len(eligible_fellows) * config.call_max_per_fellow
+            if min_total_call_capacity > config.num_weeks:
+                issues.append(
+                    f"⚠️ Structured 24-hour call minimums require at least "
+                    f"{min_total_call_capacity} call weeks, but only {config.num_weeks} "
+                    "weekends exist."
+                )
+            if max_total_call_capacity < config.num_weeks:
+                issues.append(
+                    f"⚠️ Structured 24-hour call maximums cover only "
+                    f"{max_total_call_capacity} weekends, but {config.num_weeks} "
+                    "weekends need call coverage."
+                )
+
+        unknown_call_allowed_blocks = [
+            block_name
+            for block_name in config.call_allowed_block_names
+            if block_name not in block_names
+        ]
+        if unknown_call_allowed_blocks:
+            issues.append(
+                "⚠️ Structured 24-hour call eligible rotations reference unknown "
+                f"blocks: {', '.join(sorted(set(unknown_call_allowed_blocks)))}."
+            )
+
+        unknown_call_exclusions = [
+            block_name
+            for block_name in config.call_excluded_blocks
+            if block_name != "PTO" and block_name not in block_names
+        ]
+        if unknown_call_exclusions:
+            issues.append(
+                "⚠️ Structured 24-hour call excluded states reference unknown "
+                f"blocks: {', '.join(sorted(set(unknown_call_exclusions)))}."
+            )
+
+        unknown_call_following_blocks = [
+            block_name
+            for block_name in config.call_forbidden_following_blocks
+            if block_name != "PTO" and block_name not in block_names
+        ]
+        if unknown_call_following_blocks:
+            issues.append(
+                "⚠️ Structured 24-hour call next-week exclusions reference unknown "
+                f"blocks: {', '.join(sorted(set(unknown_call_following_blocks)))}."
+            )
+
+        unknown_first_call_preferences = [
+            block_name
+            for block_name in config.call_first_call_preferred_blocks
+            if block_name not in block_names
+        ]
+        if unknown_first_call_preferences:
+            issues.append(
+                "⚠️ Structured 24-hour call first-call preferred blocks reference "
+                f"unknown blocks: {', '.join(sorted(set(unknown_first_call_preferences)))}."
+            )
+
+        unknown_first_call_prereqs = [
+            block_name
+            for block_name in config.call_first_call_prerequisite_blocks
+            if block_name not in block_names
+        ]
+        if unknown_first_call_prereqs:
+            issues.append(
+                "⚠️ Structured 24-hour call first-call prerequisites reference "
+                f"unknown blocks: {', '.join(sorted(set(unknown_first_call_prereqs)))}."
+            )
+
+        unknown_holiday_blocks = [
+            block_name
+            for block_name in config.call_holiday_sensitive_blocks
+            if block_name not in block_names
+        ]
+        if unknown_holiday_blocks:
+            issues.append(
+                "⚠️ Structured 24-hour call holiday-sensitive blocks reference "
+                f"unknown blocks: {', '.join(sorted(set(unknown_holiday_blocks)))}."
+            )
+
+        if config.call_max_consecutive_weeks_per_fellow < 1:
+            issues.append(
+                "⚠️ Structured 24-hour call consecutive-week limit must allow at least 1 week."
+            )
+
+        if (
+            config.call_holiday_anchor_week is not None
+            and not 0 <= config.call_holiday_anchor_week < config.num_weeks
+        ):
+            issues.append("⚠️ Structured 24-hour call holiday anchor week is out of range.")
+
+        invalid_holiday_target_weeks = [
+            week
+            for week in config.call_holiday_target_weeks
+            if not 0 <= week < config.num_weeks
+        ]
+        if invalid_holiday_target_weeks:
+            issues.append(
+                "⚠️ Structured 24-hour call holiday target weeks are out of range: "
+                f"{', '.join(str(week + 1) for week in invalid_holiday_target_weeks)}."
+            )
+
     for rule in config.soft_sequence_rules:
         if not rule.is_active:
             continue
@@ -566,6 +681,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
     objective_terms = _build_objective_terms(
         model,
         assign,
+        call,
         config,
         pto_idx,
         block_name_to_idx,
@@ -618,6 +734,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
 def _build_objective_terms(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
     config: ScheduleConfig,
     pto_idx: int,
     block_name_to_idx: dict[str, int],
@@ -653,6 +770,15 @@ def _build_objective_terms(
         _build_soft_cohort_balance_objective_terms(
             model,
             assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_structured_call_objective_terms(
+            model,
+            assign,
+            call,
             config,
             block_name_to_idx,
         )
@@ -865,6 +991,221 @@ def _build_soft_cohort_balance_objective_terms(
     return objective_terms
 
 
+def _build_structured_call_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted bonus / penalty terms for structured call preferences."""
+
+    if not config.structured_call_rules_enabled:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    objective_terms.extend(
+        _build_first_call_block_preference_terms(
+            model,
+            assign,
+            call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_first_call_prerequisite_terms(
+            model,
+            assign,
+            call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_holiday_call_avoidance_terms(
+            model,
+            assign,
+            call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    return objective_terms
+
+
+def _build_first_call_block_preference_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Reward preferred rotations during a fellow's first call week."""
+
+    if (
+        not config.call_first_call_preferred_blocks
+        or config.call_first_call_preference_weight == 0
+    ):
+        return []
+
+    preferred_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_first_call_preferred_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not preferred_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        for week in range(config.num_weeks):
+            first_call = _first_call_week_var(
+                model,
+                call,
+                config,
+                fellow_idx,
+                week,
+                name_prefix="call_first_preferred",
+            )
+            on_preferred = sum(assign[fellow_idx, week, block_idx] for block_idx in preferred_indices)
+            match_var = model.NewBoolVar(f"call_first_preferred_f{fellow_idx}_w{week}")
+            model.Add(match_var <= first_call)
+            model.Add(match_var <= on_preferred)
+            model.Add(match_var >= first_call + on_preferred - 1)
+            objective_terms.append(match_var * config.call_first_call_preference_weight)
+    return objective_terms
+
+
+def _build_first_call_prerequisite_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Reward prior exposure before a fellow's first call week."""
+
+    if (
+        not config.call_first_call_prerequisite_blocks
+        or config.call_first_call_prerequisite_weight == 0
+    ):
+        return []
+
+    prerequisite_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_first_call_prerequisite_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not prerequisite_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        for week in range(config.num_weeks):
+            first_call = _first_call_week_var(
+                model,
+                call,
+                config,
+                fellow_idx,
+                week,
+                name_prefix="call_first_prereq",
+            )
+            if week == 0:
+                continue
+            prior_total = sum(
+                assign[fellow_idx, prior_week, block_idx]
+                for prior_week in range(week)
+                for block_idx in prerequisite_indices
+            )
+            has_prereq = model.NewBoolVar(f"call_first_prereq_has_f{fellow_idx}_w{week}")
+            model.Add(prior_total >= 1).OnlyEnforceIf(has_prereq)
+            model.Add(prior_total == 0).OnlyEnforceIf(has_prereq.Not())
+
+            match_var = model.NewBoolVar(f"call_first_prereq_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= first_call)
+            model.Add(match_var <= has_prereq)
+            model.Add(match_var >= first_call + has_prereq - 1)
+            objective_terms.append(match_var * config.call_first_call_prerequisite_weight)
+    return objective_terms
+
+
+def _build_holiday_call_avoidance_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Penalize holiday call after an intense Thanksgiving-week service."""
+
+    if (
+        config.call_holiday_anchor_week is None
+        or not config.call_holiday_target_weeks
+        or not config.call_holiday_sensitive_blocks
+        or config.call_holiday_conflict_weight == 0
+    ):
+        return []
+
+    sensitive_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_holiday_sensitive_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not sensitive_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    anchor_week = config.call_holiday_anchor_week
+    if not 0 <= anchor_week < config.num_weeks:
+        return []
+
+    holiday_weeks = [
+        week for week in config.call_holiday_target_weeks if 0 <= week < config.num_weeks
+    ]
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        sensitive_assignment = sum(
+            assign[fellow_idx, anchor_week, block_idx] for block_idx in sensitive_indices
+        )
+        for holiday_week in holiday_weeks:
+            conflict_var = model.NewBoolVar(
+                f"call_holiday_conflict_f{fellow_idx}_w{holiday_week}"
+            )
+            model.Add(conflict_var <= sensitive_assignment)
+            model.Add(conflict_var <= call[fellow_idx, holiday_week])
+            model.Add(
+                conflict_var >= sensitive_assignment + call[fellow_idx, holiday_week] - 1
+            )
+            objective_terms.append(conflict_var * config.call_holiday_conflict_weight)
+    return objective_terms
+
+
+def _first_call_week_var(
+    model: cp_model.CpModel,
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    fellow_idx: int,
+    week: int,
+    name_prefix: str,
+) -> cp_model.IntVar:
+    """Return a bool var for 'this is the fellow's first call week'."""
+
+    current_call = call[fellow_idx, week]
+    if week == 0:
+        return current_call
+
+    prior_total = sum(call[fellow_idx, prior_week] for prior_week in range(week))
+    has_prior = model.NewBoolVar(f"{name_prefix}_has_prior_f{fellow_idx}_w{week}")
+    model.Add(prior_total >= 1).OnlyEnforceIf(has_prior)
+    model.Add(prior_total == 0).OnlyEnforceIf(has_prior.Not())
+
+    first_call = model.NewBoolVar(f"{name_prefix}_f{fellow_idx}_w{week}")
+    model.Add(first_call <= current_call)
+    model.Add(first_call <= has_prior.Not())
+    model.Add(first_call >= current_call - has_prior)
+    return first_call
+
+
 def _build_sequence_match_terms(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
@@ -1021,7 +1362,7 @@ def _extract_solution(
         assignments.append(fellow_blocks)
         call_assignments.append(fellow_calls)
 
-    objective_breakdown = _build_objective_breakdown(config, assignments)
+    objective_breakdown = _build_objective_breakdown(config, assignments, call_assignments)
     return ScheduleResult(
         assignments=assignments,
         call_assignments=call_assignments,
@@ -1056,6 +1397,7 @@ def _add_points_to_row(
 def _build_objective_breakdown(
     config: ScheduleConfig,
     assignments: list[list[str]],
+    call_assignments: list[list[bool]],
 ) -> list[dict[str, int | str]]:
     """Recompute objective points by category and cohort for the solved schedule."""
 
@@ -1065,12 +1407,30 @@ def _build_objective_breakdown(
     rows.extend(_build_soft_single_week_block_breakdown_rows(config, assignments))
     rows.extend(_build_soft_state_assignment_breakdown_rows(config, assignments))
     rows.extend(_build_soft_cohort_balance_breakdown_rows(config, assignments))
+    rows.extend(_build_structured_call_breakdown_rows(config, assignments, call_assignments))
 
     total_row = _empty_cohort_score_row("Total")
     for row in rows:
         for year in TrainingYear:
             _add_points_to_row(total_row, year, int(row[year.value]))
     rows.append(total_row)
+    return rows
+
+
+def _build_structured_call_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> list[dict[str, int | str]]:
+    """Return objective-breakdown rows for structured call soft preferences."""
+
+    if not config.structured_call_rules_enabled:
+        return []
+
+    rows: list[dict[str, int | str]] = []
+    rows.append(_build_first_call_preferred_block_breakdown_row(config, assignments, call_assignments))
+    rows.append(_build_first_call_prerequisite_breakdown_row(config, assignments, call_assignments))
+    rows.append(_build_holiday_call_avoidance_breakdown_row(config, assignments, call_assignments))
     return rows
 
 
@@ -1245,6 +1605,88 @@ def _build_soft_cohort_balance_breakdown_rows(
 
         rows.append(row)
     return rows
+
+
+def _build_first_call_preferred_block_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the first-call preferred-block bonus by cohort."""
+
+    row = _empty_cohort_score_row("Bonus: Preferred rotation during first 24-hr call")
+    if (
+        not config.call_first_call_preferred_blocks
+        or config.call_first_call_preference_weight == 0
+    ):
+        return row
+
+    preferred_blocks = set(config.call_first_call_preferred_blocks)
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            if not call_assignments[fellow_idx][week]:
+                continue
+            if assignments[fellow_idx][week] in preferred_blocks:
+                _add_points_to_row(row, year, config.call_first_call_preference_weight)
+            break
+    return row
+
+
+def _build_first_call_prerequisite_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the first-call prior-experience bonus by cohort."""
+
+    row = _empty_cohort_score_row("Bonus: Prior prerequisite before first 24-hr call")
+    if (
+        not config.call_first_call_prerequisite_blocks
+        or config.call_first_call_prerequisite_weight == 0
+    ):
+        return row
+
+    prerequisite_blocks = set(config.call_first_call_prerequisite_blocks)
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            if not call_assignments[fellow_idx][week]:
+                continue
+            if any(assignments[fellow_idx][prior_week] in prerequisite_blocks for prior_week in range(week)):
+                _add_points_to_row(row, year, config.call_first_call_prerequisite_weight)
+            break
+    return row
+
+
+def _build_holiday_call_avoidance_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the holiday-call avoidance penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: Holiday call after Thanksgiving heavy service")
+    anchor_week = config.call_holiday_anchor_week
+    if (
+        anchor_week is None
+        or not 0 <= anchor_week < config.num_weeks
+        or not config.call_holiday_target_weeks
+        or not config.call_holiday_sensitive_blocks
+        or config.call_holiday_conflict_weight == 0
+    ):
+        return row
+
+    sensitive_blocks = set(config.call_holiday_sensitive_blocks)
+    holiday_weeks = [week for week in config.call_holiday_target_weeks if 0 <= week < config.num_weeks]
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        if assignments[fellow_idx][anchor_week] not in sensitive_blocks:
+            continue
+        for holiday_week in holiday_weeks:
+            if call_assignments[fellow_idx][holiday_week]:
+                _add_points_to_row(row, year, config.call_holiday_conflict_weight)
+    return row
 
 
 def _first_state_adjacent_exempt_weeks_from_assignments(

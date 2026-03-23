@@ -1,15 +1,4 @@
-"""24-hour weekend call scheduling.
-
-Adds call-specific constraints and variables to the CP-SAT model.
-Call is an *overlay* — a fellow keeps their regular block assignment
-for the week but also takes a 24-hr Saturday shift.
-
-Key rules (all configurable):
-- 1 fellow on call each Saturday
-- Fellows on Night Float or PTO are excluded
-- Call hours (default 24) count toward the 80-hr trailing average
-- Call is distributed roughly evenly (~1 per fellow per month)
-"""
+"""24-hour weekend call scheduling."""
 
 from __future__ import annotations
 
@@ -26,63 +15,72 @@ def add_call_constraints(
     num_blocks: int,
     pto_idx: int,
 ) -> None:
-    """Add all 24-hr call constraints to the model.
+    """Add all 24-hour call constraints to the CP-SAT model."""
 
-    Parameters
-    ----------
-    model : CpModel
-        The CP-SAT model being built.
-    assign : dict
-        Block assignment variables ``assign[f, w, b]``.
-    call : dict
-        Call assignment variables ``call[f, w]``.
-    config : ScheduleConfig
-        Global configuration.
-    num_blocks : int
-        Number of rotation blocks (excludes PTO).
-    pto_idx : int
-        Index of the PTO "block" in the assignment variables.
-    """
-    _add_call_coverage(model, call, config)
+    if config.structured_call_rules_enabled:
+        _add_structured_call_coverage(model, call, config)
+        _add_structured_call_eligibility(model, assign, call, config, num_blocks, pto_idx)
+        _add_call_exclusions(model, assign, call, config, num_blocks, pto_idx)
+        _add_structured_call_following_block_rules(
+            model,
+            assign,
+            call,
+            config,
+            num_blocks,
+            pto_idx,
+        )
+        _add_structured_call_fairness(model, call, config)
+        _add_structured_call_consecutive_rules(model, call, config)
+        return
+
+    _add_legacy_call_coverage(model, call, config)
     _add_call_exclusions(model, assign, call, config, num_blocks, pto_idx)
-    _add_call_fairness(model, call, config)
+    _add_legacy_call_fairness(model, call, config)
 
 
-# ---------------------------------------------------------------------------
-# Coverage: exactly 1 fellow on call each week
-# ---------------------------------------------------------------------------
-
-def _add_call_coverage(
+def _add_structured_call_coverage(
     model: cp_model.CpModel,
     call: dict[tuple[int, int], cp_model.IntVar],
     config: ScheduleConfig,
 ) -> None:
-    """Exactly one fellow must cover Saturday call each week.
+    """Require exactly one call assignment every week."""
 
-    If no blocks require weekend call coverage in a given week, the
-    constraint is relaxed to allow 0 or 1.
-    """
-    # Check if ANY block needs call coverage (at least one active block
-    # with requires_call_coverage == True)
-    any_block_needs_call: bool = any(
-        b.requires_call_coverage and b.is_active for b in config.blocks
-    )
-
-    for w in range(config.num_weeks):
-        total_call = sum(
-            call[f, w] for f in range(config.num_fellows)
-        )
-        if any_block_needs_call:
-            # Exactly 1 fellow on call
-            model.Add(total_call == 1)
-        else:
-            # No coverage needed — nobody on call
-            model.Add(total_call == 0)
+    for week in range(config.num_weeks):
+        model.Add(sum(call[fellow_idx, week] for fellow_idx in range(config.num_fellows)) == 1)
 
 
-# ---------------------------------------------------------------------------
-# Exclusions: can't take call while on certain blocks
-# ---------------------------------------------------------------------------
+def _add_structured_call_eligibility(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    num_blocks: int,
+    pto_idx: int,
+) -> None:
+    """Restrict structured call to the configured cohorts and rotations."""
+
+    block_name_to_idx = {block.name: index for index, block in enumerate(config.blocks)}
+    block_name_to_idx["PTO"] = pto_idx
+    eligible_fellows = set(config.fellow_indices_for_years(config.call_eligible_years))
+    allowed_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_allowed_block_names
+        if block_name in block_name_to_idx
+    ]
+
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            if fellow_idx not in eligible_fellows:
+                model.Add(call[fellow_idx, week] == 0)
+                continue
+            if not allowed_indices:
+                model.Add(call[fellow_idx, week] == 0)
+                continue
+            model.Add(
+                call[fellow_idx, week]
+                <= sum(assign[fellow_idx, week, block_idx] for block_idx in allowed_indices)
+            )
+
 
 def _add_call_exclusions(
     model: cp_model.CpModel,
@@ -92,60 +90,122 @@ def _add_call_exclusions(
     num_blocks: int,
     pto_idx: int,
 ) -> None:
-    """Fellows on excluded blocks (e.g., Night Float, PTO) cannot take call.
+    """Fellows on excluded blocks cannot take call."""
 
-    Logic: if ``assign[f, w, b] == 1`` for an excluded block ``b``,
-    then ``call[f, w]`` must be 0.  Equivalently:
-        ``call[f, w] + assign[f, w, b] <= 1``
-    """
-    # Build set of excluded block indices
     excluded_indices: list[int] = []
-    for i, blk in enumerate(config.blocks):
-        if blk.name in config.call_excluded_blocks:
-            excluded_indices.append(i)
-
-    # PTO is always excluded (unless user overrides via config)
+    for block_idx, block in enumerate(config.blocks):
+        if block.name in config.call_excluded_blocks:
+            excluded_indices.append(block_idx)
     if "PTO" in config.call_excluded_blocks:
         excluded_indices.append(pto_idx)
 
-    for f in range(config.num_fellows):
-        for w in range(config.num_weeks):
-            for b in excluded_indices:
-                # If on excluded block, no call
-                model.Add(call[f, w] + assign[f, w, b] <= 1)
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            for block_idx in excluded_indices:
+                model.Add(call[fellow_idx, week] + assign[fellow_idx, week, block_idx] <= 1)
 
 
-# ---------------------------------------------------------------------------
-# Fairness: roughly equal call distribution
-# ---------------------------------------------------------------------------
+def _add_structured_call_following_block_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    num_blocks: int,
+    pto_idx: int,
+) -> None:
+    """Forbid call in the week before selected next-week assignments."""
 
-def _add_call_fairness(
+    block_name_to_idx = {block.name: index for index, block in enumerate(config.blocks)}
+    block_name_to_idx["PTO"] = pto_idx
+    forbidden_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_forbidden_following_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not forbidden_indices:
+        return
+
+    eligible_fellows = config.fellow_indices_for_years(config.call_eligible_years)
+    for fellow_idx in eligible_fellows:
+        for week in range(config.num_weeks - 1):
+            for block_idx in forbidden_indices:
+                model.Add(call[fellow_idx, week] + assign[fellow_idx, week + 1, block_idx] <= 1)
+
+
+def _add_structured_call_fairness(
     model: cp_model.CpModel,
     call: dict[tuple[int, int], cp_model.IntVar],
     config: ScheduleConfig,
 ) -> None:
-    """Distribute call shifts roughly equally among fellows.
+    """Constrain total call counts for structured-call cohorts."""
 
-    With 52 weeks and 9 fellows, each fellow should take about 5-6 calls.
-    We constrain every fellow's total to be within 1 of the average.
+    eligible_fellows = set(config.fellow_indices_for_years(config.call_eligible_years))
+    for fellow_idx in range(config.num_fellows):
+        total_calls = sum(call[fellow_idx, week] for week in range(config.num_weeks))
+        if fellow_idx in eligible_fellows:
+            model.Add(total_calls >= config.call_min_per_fellow)
+            model.Add(total_calls <= config.call_max_per_fellow)
+        else:
+            model.Add(total_calls == 0)
 
-    Calculation:
-        ideal = num_weeks / num_fellows
-        min_calls = floor(ideal) - 1   (allow some slack)
-        max_calls = ceil(ideal) + 1
-    """
-    any_block_needs_call: bool = any(
-        block.requires_call_coverage and block.is_active
-        for block in config.blocks
+
+def _add_structured_call_consecutive_rules(
+    model: cp_model.CpModel,
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Limit consecutive call weeks for eligible fellows."""
+
+    max_consecutive = config.call_max_consecutive_weeks_per_fellow
+    if max_consecutive < 1 or config.num_weeks <= max_consecutive:
+        return
+
+    window = max_consecutive + 1
+    eligible_fellows = config.fellow_indices_for_years(config.call_eligible_years)
+    for fellow_idx in eligible_fellows:
+        for start_week in range(config.num_weeks - window + 1):
+            model.Add(
+                sum(call[fellow_idx, week] for week in range(start_week, start_week + window))
+                <= max_consecutive
+            )
+
+
+def _add_legacy_call_coverage(
+    model: cp_model.CpModel,
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Legacy behavior: require one call if any active block needs it."""
+
+    any_block_needs_call = any(
+        block.requires_call_coverage and block.is_active for block in config.blocks
+    )
+    for week in range(config.num_weeks):
+        total_call = sum(call[fellow_idx, week] for fellow_idx in range(config.num_fellows))
+        if any_block_needs_call:
+            model.Add(total_call == 1)
+        else:
+            model.Add(total_call == 0)
+
+
+def _add_legacy_call_fairness(
+    model: cp_model.CpModel,
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Legacy behavior: keep call roughly evenly distributed."""
+
+    any_block_needs_call = any(
+        block.requires_call_coverage and block.is_active for block in config.blocks
     )
     if not any_block_needs_call:
         return
 
-    ideal: float = config.num_weeks / config.num_fellows
-    min_calls: int = max(0, int(ideal) - 1)
-    max_calls: int = int(ideal) + 2  # +2 for slack
+    ideal = config.num_weeks / config.num_fellows
+    min_calls = max(0, int(ideal) - 1)
+    max_calls = int(ideal) + 2
 
-    for f in range(config.num_fellows):
-        total = sum(call[f, w] for w in range(config.num_weeks))
-        model.Add(total >= min_calls)
-        model.Add(total <= max_calls)
+    for fellow_idx in range(config.num_fellows):
+        total_calls = sum(call[fellow_idx, week] for week in range(config.num_weeks))
+        model.Add(total_calls >= min_calls)
+        model.Add(total_calls <= max_calls)

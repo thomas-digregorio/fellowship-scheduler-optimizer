@@ -1032,6 +1032,55 @@ class TestStructuredRules:
                 result.assignments[1][week] == "PTO"
             )
 
+    def test_structured_call_rules_keep_call_on_f1_allowed_rotations(self) -> None:
+        """Structured call should stay on eligible F1 fellows and allowed rotations."""
+
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            structured_call_rules_enabled=True,
+            call_eligible_years=[TrainingYear.F1],
+            call_allowed_block_names=["EP"],
+            call_min_per_fellow=2,
+            call_max_per_fellow=2,
+            call_forbidden_following_blocks=["Night Float"],
+            call_max_consecutive_weeks_per_fellow=1,
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(name="EP", hours_per_week=55.0),
+                BlockConfig(name="Research", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(name="F1 A", training_year=TrainingYear.F1),
+                FellowConfig(name="F1 B", training_year=TrainingYear.F1),
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert sum(result.call_assignments[0]) == 2
+        assert sum(result.call_assignments[1]) == 2
+        for fellow_idx in range(config.num_fellows):
+            for week in range(config.num_weeks):
+                if result.call_assignments[fellow_idx][week]:
+                    assert result.assignments[fellow_idx][week] == "EP"
+                if week + 1 < config.num_weeks:
+                    assert not (
+                        result.call_assignments[fellow_idx][week]
+                        and result.call_assignments[fellow_idx][week + 1]
+                    )
+
     def test_rolling_window_rule_enforces_multi_state_cap(self) -> None:
         """Rolling-window rules should cap per-fellow state clustering."""
 

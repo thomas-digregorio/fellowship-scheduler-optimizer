@@ -62,6 +62,19 @@ FIRST_YEAR_CCU_START_WEEK = 3
 FIRST_YEAR_NF_START_WEEK = 6
 FIRST_YEAR_RESEARCH_PTO_START_WEEK = 4
 
+
+def _week_index_for_date(target_date: date) -> int | None:
+    """Return the zero-based schedule week containing one calendar date."""
+
+    delta_days = (target_date - ACADEMIC_YEAR_START).days
+    if delta_days < 0:
+        return None
+    week_index = delta_days // 7
+    if week_index >= NUM_WEEKS:
+        return None
+    return week_index
+
+
 DEFAULT_F1_FELLOW_NAMES = [
     "Eisman",
     "Flores",
@@ -1341,6 +1354,45 @@ def get_default_config() -> ScheduleConfig:
         call_day="saturday",
         call_hours=24.0,
         call_excluded_blocks=["Night Float", "PTO"],
+        structured_call_rules_enabled=True,
+        call_eligible_years=[TrainingYear.F1],
+        call_allowed_block_names=[
+            "EP",
+            "CHF",
+            "Yale Nuclear",
+            "VA Nuclear",
+            "Yale Echo",
+            "VA Echo",
+            "SRC Echo",
+            "Yale Cath",
+            "VA Cath",
+            "SRC Cath",
+        ],
+        call_min_per_fellow=5,
+        call_max_per_fellow=6,
+        call_forbidden_following_blocks=["Night Float"],
+        call_max_consecutive_weeks_per_fellow=1,
+        call_first_call_preferred_blocks=["Yale Echo"],
+        call_first_call_preference_weight=8,
+        call_first_call_prerequisite_blocks=["White Consults"],
+        call_first_call_prerequisite_weight=6,
+        call_holiday_anchor_week=_week_index_for_date(date(2026, 11, 26)),
+        call_holiday_sensitive_blocks=[
+            "White Consults",
+            "CCU",
+            "SRC Consults",
+            "VA Consults",
+            "Night Float",
+        ],
+        call_holiday_target_weeks=[
+            week
+            for week in (
+                _week_index_for_date(date(2026, 12, 24)),
+                _week_index_for_date(date(2026, 12, 31)),
+            )
+            if week is not None
+        ],
+        call_holiday_conflict_weight=-5,
         hours_cap=80.0,
         trailing_avg_weeks=4,
         solver_timeout_seconds=60.0,

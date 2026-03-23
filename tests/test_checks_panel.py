@@ -53,7 +53,7 @@ def test_build_schedule_checks_counts_schedule_patterns() -> None:
 
     checks = build_schedule_checks(config, result)
 
-    assert checks["night_float_followed_by_call"].value == 2
+    assert checks["call_before_night_float"].value == 0
     assert checks["weeks_with_gt_two_ccu"].value == 1
     assert checks["max_ccu_per_week"].value == 3
     assert checks["weeks_without_exactly_one_call"].value == 0

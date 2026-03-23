@@ -12,6 +12,49 @@
     "Night Float",
     "PTO"
   ],
+  "structured_call_rules_enabled": true,
+  "call_eligible_years": [
+    "F1"
+  ],
+  "call_allowed_block_names": [
+    "EP",
+    "CHF",
+    "Yale Nuclear",
+    "VA Nuclear",
+    "Yale Echo",
+    "VA Echo",
+    "SRC Echo",
+    "Yale Cath",
+    "VA Cath",
+    "SRC Cath"
+  ],
+  "call_min_per_fellow": 5,
+  "call_max_per_fellow": 6,
+  "call_forbidden_following_blocks": [
+    "Night Float"
+  ],
+  "call_max_consecutive_weeks_per_fellow": 1,
+  "call_first_call_preferred_blocks": [
+    "Yale Echo"
+  ],
+  "call_first_call_preference_weight": 8,
+  "call_first_call_prerequisite_blocks": [
+    "White Consults"
+  ],
+  "call_first_call_prerequisite_weight": 6,
+  "call_holiday_anchor_week": 19,
+  "call_holiday_sensitive_blocks": [
+    "White Consults",
+    "CCU",
+    "SRC Consults",
+    "VA Consults",
+    "Night Float"
+  ],
+  "call_holiday_target_weeks": [
+    23,
+    24
+  ],
+  "call_holiday_conflict_weight": -5,
   "hours_cap": 80.0,
   "trailing_avg_weeks": 4,
   "solver_timeout_seconds": 60.0,
