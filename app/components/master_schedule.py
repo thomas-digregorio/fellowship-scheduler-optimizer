@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 from datetime import timedelta
 
 import pandas as pd
@@ -33,16 +34,37 @@ def render_master_schedule(
         st.warning("No fellows match the selected training-year filter.")
         return
 
-    df = _build_schedule_dataframe(config, result, visible_fellows)
+    fellow_schedule_df = _build_schedule_dataframe(config, result, visible_fellows)
     label = "All cohorts" if training_year_filter is None else training_year_filter.value
 
     with st.container(border=True):
         st.markdown("#### Schedule Grid")
-        st.caption(
-            f"Showing schedule for **{label}**. Use edit mode from the workspace header "
-            f"to override assignments for the displayed fellows."
-        )
-        _render_colored_schedule_grid(config, df, visible_fellows)
+        caption_col, toggle_col = st.columns([3, 2])
+        with caption_col:
+            st.caption(
+                f"Showing schedule for **{label}**. Use edit mode from the workspace "
+                f"header to override assignments for the displayed fellows."
+            )
+        with toggle_col:
+            grid_view = st.radio(
+                "Schedule grid layout",
+                options=("Fellows as columns", "Rotations as columns"),
+                horizontal=True,
+                key=(
+                    "schedule_grid_layout_"
+                    f"{training_year_filter.value if training_year_filter else 'all'}"
+                ),
+            )
+
+        if grid_view == "Rotations as columns":
+            rotation_schedule_df = _build_rotation_schedule_dataframe(
+                config,
+                result,
+                visible_fellows,
+            )
+            _render_rotation_schedule_grid(config, rotation_schedule_df, visible_fellows)
+        else:
+            _render_colored_schedule_grid(config, fellow_schedule_df, visible_fellows)
 
     with st.container(border=True):
         st.subheader("📋 Master Schedule")
@@ -52,7 +74,12 @@ def render_master_schedule(
     if edit_mode:
         with st.container(border=True):
             st.markdown("#### Edit Mode")
-            _render_manual_edit_mode(config, result, df, visible_fellows)
+            _render_manual_edit_mode(
+                config,
+                result,
+                fellow_schedule_df,
+                visible_fellows,
+            )
 
     with st.container(border=True):
         _render_rotation_counts(config, result, visible_fellows)
@@ -164,6 +191,69 @@ def _render_colored_schedule_grid(
                     width="small",
                 )
                 for fellow_idx in visible_fellows
+            },
+        },
+    )
+
+
+def _build_rotation_schedule_dataframe(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> pd.DataFrame:
+    """Build a week-by-rotation DataFrame with fellow names as cell values."""
+
+    week_labels = []
+    for week in range(config.num_weeks):
+        week_date = config.start_date + timedelta(weeks=week)
+        week_labels.append(f"W{week + 1} ({week_date.strftime('%m/%d')})")
+
+    data: dict[str, list[str]] = {"Week": week_labels}
+    for state_name in config.all_states:
+        state_assignments: list[str] = []
+        for week in range(config.num_weeks):
+            names = [
+                config.fellows[fellow_idx].name
+                for fellow_idx in visible_fellows
+                if result.assignments[fellow_idx][week] == state_name
+            ]
+            state_assignments.append(", ".join(names))
+        data[state_name] = state_assignments
+    return pd.DataFrame(data)
+
+
+def _render_rotation_schedule_grid(
+    config: ScheduleConfig,
+    df: pd.DataFrame,
+    visible_fellows: list[int],
+) -> None:
+    """Render the alternate grid with rotations as columns."""
+
+    fellow_colors = _build_fellow_color_map(config, visible_fellows)
+    state_columns = [column for column in df.columns if column != "Week"]
+    styled_df = df.style.set_properties(
+        subset=["Week"],
+        **{
+            "background-color": "#F7F9FB",
+            "color": "#1F2933",
+            "font-weight": "600",
+        },
+    )
+    styled_df = styled_df.map(
+        lambda value: _style_fellow_assignment_cell(value, fellow_colors),
+        subset=state_columns,
+    )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(800, 35 * len(df) + 40),
+        column_config={
+            "Week": st.column_config.TextColumn("Week", width="medium"),
+            **{
+                state_name: st.column_config.TextColumn(state_name, width="small")
+                for state_name in state_columns
             },
         },
     )
@@ -288,6 +378,73 @@ def _style_block_cell(value: str) -> str:
         "font-weight: 600; "
         "text-align: center;"
     )
+
+
+def _build_fellow_color_map(
+    config: ScheduleConfig,
+    visible_fellows: list[int],
+) -> dict[str, str]:
+    """Return a deterministic pastel color for each visible fellow."""
+
+    return {
+        config.fellows[fellow_idx].name: _fellow_color(fellow_idx)
+        for fellow_idx in visible_fellows
+    }
+
+
+def _fellow_color(seed: int) -> str:
+    """Generate a readable pastel color from a fellow index."""
+
+    hue = (seed * 0.61803398875) % 1.0
+    red, green, blue = colorsys.hls_to_rgb(hue, 0.82, 0.55)
+    return "#{:02X}{:02X}{:02X}".format(
+        int(red * 255),
+        int(green * 255),
+        int(blue * 255),
+    )
+
+
+def _style_fellow_assignment_cell(
+    value: str,
+    fellow_colors: dict[str, str],
+) -> str:
+    """Return CSS for rotation-view cells using fellow-based colors."""
+
+    if not value:
+        return (
+            "background-color: #FFFFFF; "
+            "color: #94A3B8; "
+            "text-align: center;"
+        )
+
+    names = [name.strip() for name in value.split(",") if name.strip()]
+    colors = [fellow_colors.get(name, "#E2E8F0") for name in names]
+    text_color = "#102A43"
+    background_style = (
+        f"background-color: {colors[0]}; "
+        if len(colors) == 1
+        else f"background: {_build_color_gradient(colors)}; "
+    )
+    return (
+        f"{background_style}"
+        f"color: {text_color}; "
+        "font-weight: 600; "
+        "text-align: center; "
+        "white-space: normal;"
+    )
+
+
+def _build_color_gradient(colors: list[str]) -> str:
+    """Return a left-to-right gradient splitting the cell by fellow color."""
+
+    stop_size = 100 / len(colors)
+    stops: list[str] = []
+    for index, color in enumerate(colors):
+        start = index * stop_size
+        end = (index + 1) * stop_size
+        stops.append(f"{color} {start:.2f}%")
+        stops.append(f"{color} {end:.2f}%")
+    return f"linear-gradient(90deg, {', '.join(stops)})"
 
 
 def _is_dark_color(hex_color: str) -> bool:

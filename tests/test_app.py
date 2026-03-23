@@ -12,7 +12,12 @@ from streamlit.testing.v1 import AppTest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app.state as app_state
-from app.components.master_schedule import _build_rotation_counts_dataframe
+from app.components.master_schedule import (
+    _build_rotation_counts_dataframe,
+    _build_rotation_schedule_dataframe,
+    _build_fellow_color_map,
+    _style_fellow_assignment_cell,
+)
 from app.components.rules_tab import (
     _display_optional_week_index,
     _display_week_index,
@@ -28,7 +33,9 @@ from src.models import (
     EligibilityRule,
     FellowConfig,
     ForbiddenTransitionRule,
+    ScheduleResult,
     ScheduleConfig,
+    SolverStatus,
     SoftSequenceRule,
     TrainingYear,
     WeekCountRule,
@@ -805,6 +812,46 @@ def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
     assert counts_by_rotation["Research"]["F1 A"] == 1
     assert counts_by_rotation["Research"]["F1 B"] == 1
     assert counts_by_rotation["CCU"]["F1 A"] == 0
+
+
+def test_rotation_schedule_dataframe_groups_names_by_rotation() -> None:
+    """The alternate schedule grid should pivot fellows into rotation columns."""
+
+    config = make_small_ui_config()
+    visible_fellows = [0, 1, 2]
+    result = ScheduleResult(
+        assignments=[
+            ["White Consults", "Research", "PTO", "CCU"],
+            ["White Consults", "Elective", "Research", "CCU"],
+            ["CCU", "CCU", "White Consults", "Research"],
+            ["Research", "Research", "Research", "Research"],
+            ["Elective", "Elective", "Elective", "Elective"],
+        ],
+        call_assignments=[[False] * 4 for _ in range(5)],
+        solver_status=SolverStatus.FEASIBLE,
+    )
+
+    rotation_df = _build_rotation_schedule_dataframe(config, result, visible_fellows)
+
+    assert rotation_df.loc[0, "White Consults"] == "F1 A, F1 B"
+    assert rotation_df.loc[0, "CCU"] == "S2 A"
+    assert rotation_df.loc[2, "PTO"] == "F1 A"
+    assert rotation_df.loc[3, "CCU"] == "F1 A, F1 B"
+
+
+def test_rotation_schedule_styling_uses_fellow_colors() -> None:
+    """Rotation-view cells should style fellow assignments with fellow colors."""
+
+    config = make_small_ui_config()
+    fellow_colors = _build_fellow_color_map(config, [0, 1, 2])
+
+    single_style = _style_fellow_assignment_cell("F1 A", fellow_colors)
+    multi_style = _style_fellow_assignment_cell("F1 A, F1 B", fellow_colors)
+
+    assert fellow_colors["F1 A"] in single_style
+    assert "linear-gradient" in multi_style
+    assert fellow_colors["F1 A"] in multi_style
+    assert fellow_colors["F1 B"] in multi_style
 
 
 def test_rules_tab_week_windows_are_1_based_in_the_ui() -> None:
