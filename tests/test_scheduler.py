@@ -1160,6 +1160,55 @@ class TestStructuredRules:
                         and result.srcva_weekday_call_assignments[fellow_idx][week][day_idx + 1]
                     )
 
+    def test_srcva_weekday_and_24hr_same_week_penalty_appears_in_objective(self) -> None:
+        """The solver should score the SRC/VA weekday + 24-hr same-week penalty."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=1,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            structured_call_rules_enabled=True,
+            call_eligible_years=[TrainingYear.F1],
+            call_allowed_block_names=["CT-MRI"],
+            call_min_per_fellow=1,
+            call_max_per_fellow=1,
+            call_forbidden_following_blocks=[],
+            call_max_consecutive_weeks_per_fellow=1,
+            srcva_weekday_call_enabled=True,
+            srcva_weekday_call_eligible_years=[TrainingYear.F1],
+            srcva_weekday_call_allowed_block_names=["CT-MRI"],
+            srcva_weekday_call_f1_start_week=0,
+            srcva_weekday_call_f1_min=4,
+            srcva_weekday_call_f1_max=4,
+            srcva_weekday_call_s2_min=0,
+            srcva_weekday_call_s2_max=0,
+            srcva_weekday_call_max_consecutive_nights=4,
+            srcva_weekday_same_week_as_24hr_weight=-7,
+            hours_cap=200.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[BlockConfig(name="CT-MRI", hours_per_week=40.0)],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        penalty_row = next(
+            row
+            for row in result.objective_breakdown
+            if row["Category"] == "Penalty: SRC/VA weekday and 24-hr call in same week"
+        )
+        assert penalty_row["F1"] == -7
+        assert penalty_row["Total"] == -7
+
     def test_rolling_window_rule_enforces_multi_state_cap(self) -> None:
         """Rolling-window rules should cap per-fellow state clustering."""
 
@@ -1684,6 +1733,7 @@ class TestBuiltInDefaults:
         assert config.srcva_holiday_repeat_weight == -5
         assert config.srcva_weekday_max_one_per_week_weight == -3
         assert config.srcva_weekday_same_week_as_weekend_weight == -2
+        assert config.srcva_weekday_same_week_as_24hr_weight == -4
 
         coverage_rule_names = {rule.name for rule in config.coverage_rules}
         assert "White Consults staffed by F1" in coverage_rule_names

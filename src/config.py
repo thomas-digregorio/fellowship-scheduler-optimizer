@@ -1454,6 +1454,7 @@ def get_default_config() -> ScheduleConfig:
         srcva_holiday_repeat_weight=-5,
         srcva_weekday_max_one_per_week_weight=-3,
         srcva_weekday_same_week_as_weekend_weight=-2,
+        srcva_weekday_same_week_as_24hr_weight=-4,
         hours_cap=80.0,
         trailing_avg_weeks=4,
         solver_timeout_seconds=60.0,

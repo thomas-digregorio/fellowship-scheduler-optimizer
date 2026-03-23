@@ -231,6 +231,7 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         "srcva_holiday_repeat_weight": default_config.srcva_holiday_repeat_weight,
         "srcva_weekday_max_one_per_week_weight": default_config.srcva_weekday_max_one_per_week_weight,
         "srcva_weekday_same_week_as_weekend_weight": default_config.srcva_weekday_same_week_as_weekend_weight,
+        "srcva_weekday_same_week_as_24hr_weight": default_config.srcva_weekday_same_week_as_24hr_weight,
     }
     for field_name, default_value in structured_call_fields.items():
         if getattr(config, field_name) != default_value:

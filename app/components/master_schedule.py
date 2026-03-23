@@ -370,6 +370,100 @@ def _render_rotation_counts(
     )
 
 
+def _build_call_counts_dataframe(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> pd.DataFrame:
+    """Return a 24-hour call count table for the visible fellows."""
+
+    row: dict[str, int | str] = {"Call Type": "24-Hr Call"}
+    for fellow_idx in visible_fellows:
+        fellow_name = config.fellows[fellow_idx].name
+        row[fellow_name] = int(sum(result.call_assignments[fellow_idx]))
+    return pd.DataFrame([row])
+
+
+def _render_call_counts(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> None:
+    """Render a standalone 24-hour call count summary for the visible fellows."""
+
+    st.markdown("#### Counts")
+    st.caption("24-hr call counts for the currently displayed fellows.")
+    st.dataframe(
+        _build_call_counts_dataframe(config, result, visible_fellows),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Call Type": st.column_config.TextColumn("Call Type", width="large"),
+            **{
+                config.fellows[fellow_idx].name: st.column_config.NumberColumn(
+                    config.fellows[fellow_idx].name,
+                    format="%d",
+                )
+                for fellow_idx in visible_fellows
+            },
+        },
+    )
+
+
+def _build_srcva_call_counts_dataframe(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> pd.DataFrame:
+    """Return SRC/VA weekend, weekday, and total overlay-call counts."""
+
+    weekend_row: dict[str, int | str] = {"Call Type": "SRC/VA Weekend Call"}
+    weekday_row: dict[str, int | str] = {"Call Type": "SRC/VA Weekday Call"}
+    total_row: dict[str, int | str] = {"Call Type": "SRC/VA Total Call"}
+
+    for fellow_idx in visible_fellows:
+        fellow_name = config.fellows[fellow_idx].name
+        weekend_count = int(sum(result.srcva_weekend_call_assignments[fellow_idx]))
+        weekday_count = int(
+            sum(
+                assigned
+                for week_calls in result.srcva_weekday_call_assignments[fellow_idx]
+                for assigned in week_calls
+            )
+        )
+        weekend_row[fellow_name] = weekend_count
+        weekday_row[fellow_name] = weekday_count
+        total_row[fellow_name] = weekend_count + weekday_count
+
+    return pd.DataFrame([weekend_row, weekday_row, total_row])
+
+
+def _render_srcva_call_counts(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> None:
+    """Render SRC/VA overlay-call counts for the visible fellows."""
+
+    st.markdown("#### Counts")
+    st.caption("SRC/VA call counts for the currently displayed fellows.")
+    st.dataframe(
+        _build_srcva_call_counts_dataframe(config, result, visible_fellows),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Call Type": st.column_config.TextColumn("Call Type", width="large"),
+            **{
+                config.fellows[fellow_idx].name: st.column_config.NumberColumn(
+                    config.fellows[fellow_idx].name,
+                    format="%d",
+                )
+                for fellow_idx in visible_fellows
+            },
+        },
+    )
+
+
 def _style_block_cell(value: str) -> str:
     """Return CSS matching the block legend."""
 
@@ -472,6 +566,7 @@ def _render_call_overlay(
 
     if config.structured_call_rules_enabled:
         _render_structured_call_calendar(config, result)
+        _render_call_counts(config, result, visible_fellows)
         return
 
     st.markdown("#### 24-Hr Call Assignments")
@@ -511,6 +606,7 @@ def _render_call_overlay(
             height=220,
             hide_index=True,
         )
+    _render_call_counts(config, result, visible_fellows)
 
 
 def _render_structured_call_calendar(
@@ -700,6 +796,7 @@ def _render_srcva_call_calendar(
             },
         },
     )
+    _render_srcva_call_counts(config, result, eligible_fellows)
 
 
 def _build_srcva_call_calendar_dataframe(

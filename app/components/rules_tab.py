@@ -596,12 +596,20 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_srcva_same_week_penalty",
         )
 
-        config.srcva_weekday_max_one_per_week_weight = st.number_input(
+        left_col, right_col = st.columns(2)
+        config.srcva_weekday_max_one_per_week_weight = left_col.number_input(
             "More-than-one weekday call per week penalty weight",
             min_value=-50,
             max_value=50,
             value=config.srcva_weekday_max_one_per_week_weight,
             key="program_srcva_max_one_week_penalty",
+        )
+        config.srcva_weekday_same_week_as_24hr_weight = right_col.number_input(
+            "Weekday + 24-hr same-week penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_weekday_same_week_as_24hr_weight,
+            key="program_srcva_same_week_24hr_penalty",
         )
 
     with st.container(border=True):

@@ -841,6 +841,7 @@ class ScheduleConfig:
     srcva_holiday_repeat_weight: int = 0
     srcva_weekday_max_one_per_week_weight: int = 0
     srcva_weekday_same_week_as_weekend_weight: int = 0
+    srcva_weekday_same_week_as_24hr_weight: int = 0
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
     solver_timeout_seconds: float = 60.0
@@ -1052,6 +1053,7 @@ class ScheduleConfig:
             "srcva_holiday_repeat_weight": self.srcva_holiday_repeat_weight,
             "srcva_weekday_max_one_per_week_weight": self.srcva_weekday_max_one_per_week_weight,
             "srcva_weekday_same_week_as_weekend_weight": self.srcva_weekday_same_week_as_weekend_weight,
+            "srcva_weekday_same_week_as_24hr_weight": self.srcva_weekday_same_week_as_24hr_weight,
             "hours_cap": self.hours_cap,
             "trailing_avg_weeks": self.trailing_avg_weeks,
             "solver_timeout_seconds": self.solver_timeout_seconds,

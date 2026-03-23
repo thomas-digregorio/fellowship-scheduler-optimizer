@@ -975,6 +975,7 @@ def _build_objective_terms(
             assign,
             srcva_weekend_call,
             srcva_weekday_call,
+            call,
             config,
             block_name_to_idx,
         )
@@ -1235,6 +1236,7 @@ def _build_srcva_call_objective_terms(
     assign: dict[tuple[int, int, int], cp_model.IntVar],
     weekend_call: dict[tuple[int, int], cp_model.IntVar],
     weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
     config: ScheduleConfig,
     block_name_to_idx: dict[str, int],
 ) -> list[cp_model.LinearExpr]:
@@ -1274,6 +1276,14 @@ def _build_srcva_call_objective_terms(
             model,
             weekend_call,
             weekday_call,
+            config,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_weekday_same_week_as_24hr_terms(
+            model,
+            weekday_call,
+            call,
             config,
         )
     )
@@ -1497,6 +1507,41 @@ def _build_srcva_weekday_same_week_as_weekend_terms(
             )
             objective_terms.append(
                 match_var * config.srcva_weekday_same_week_as_weekend_weight
+            )
+    return objective_terms
+
+
+def _build_srcva_weekday_same_week_as_24hr_terms(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> list[cp_model.LinearExpr]:
+    """Penalize any week where the same fellow has SRC/VA weekday call and 24-hour call."""
+
+    if config.srcva_weekday_same_week_as_24hr_weight == 0:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    eligible_years = sorted(
+        set(config.srcva_weekday_call_eligible_years + config.call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for week in range(config.num_weeks):
+            weekday_any = _srcva_any_weekday_call_var(
+                model,
+                weekday_call,
+                fellow_idx,
+                week,
+                "srcva_same_weekday_24hr",
+            )
+            match_var = model.NewBoolVar(f"srcva_same_week_24hr_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= call[fellow_idx, week])
+            model.Add(match_var <= weekday_any)
+            model.Add(match_var >= call[fellow_idx, week] + weekday_any - 1)
+            objective_terms.append(
+                match_var * config.srcva_weekday_same_week_as_24hr_weight
             )
     return objective_terms
 
@@ -1903,6 +1948,7 @@ def _build_objective_breakdown(
     rows.extend(
         _build_srcva_call_breakdown_rows(
             config,
+            call_assignments,
             assignments,
             srcva_weekend_call_assignments,
             srcva_weekday_call_assignments,
@@ -1919,6 +1965,7 @@ def _build_objective_breakdown(
 
 def _build_srcva_call_breakdown_rows(
     config: ScheduleConfig,
+    call_assignments: list[list[bool]],
     assignments: list[list[str]],
     weekend_call_assignments: list[list[bool]],
     weekday_call_assignments: list[list[list[bool]]],
@@ -1954,6 +2001,13 @@ def _build_srcva_call_breakdown_rows(
         _build_srcva_weekday_same_week_as_weekend_breakdown_row(
             config,
             weekend_call_assignments,
+            weekday_call_assignments,
+        )
+    )
+    rows.append(
+        _build_srcva_weekday_same_week_as_24hr_breakdown_row(
+            config,
+            call_assignments,
             weekday_call_assignments,
         )
     )
@@ -2351,6 +2405,28 @@ def _build_srcva_weekday_same_week_as_weekend_breakdown_row(
                 weekday_call_assignments[fellow_idx][week]
             ):
                 _add_points_to_row(row, year, config.srcva_weekday_same_week_as_weekend_weight)
+    return row
+
+
+def _build_srcva_weekday_same_week_as_24hr_breakdown_row(
+    config: ScheduleConfig,
+    call_assignments: list[list[bool]],
+    weekday_call_assignments: list[list[list[bool]]],
+) -> dict[str, int | str]:
+    """Return the same-week SRC/VA weekday and 24-hour call penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: SRC/VA weekday and 24-hr call in same week")
+    if config.srcva_weekday_same_week_as_24hr_weight == 0:
+        return row
+
+    eligible_years = set(config.srcva_weekday_call_eligible_years + config.call_eligible_years)
+    for fellow_idx in config.fellow_indices_for_years(list(eligible_years)):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            if call_assignments[fellow_idx][week] and any(
+                weekday_call_assignments[fellow_idx][week]
+            ):
+                _add_points_to_row(row, year, config.srcva_weekday_same_week_as_24hr_weight)
     return row
 
 

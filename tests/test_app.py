@@ -13,8 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app.state as app_state
 from app.components.master_schedule import (
+    _build_call_counts_dataframe,
     _build_rotation_counts_dataframe,
     _build_rotation_schedule_dataframe,
+    _build_srcva_call_counts_dataframe,
     _build_srcva_call_calendar_dataframe,
     _build_fellow_color_map,
     _style_fellow_assignment_cell,
@@ -816,6 +818,31 @@ def test_rotation_counts_dataframe_summarizes_visible_fellows() -> None:
     assert counts_by_rotation["CCU"]["F1 A"] == 0
 
 
+def test_call_counts_dataframe_summarizes_visible_fellows() -> None:
+    """The 24-hour call counts table should total call assignments per visible fellow."""
+
+    config = make_small_ui_config()
+    visible_fellows = [0, 1, 2]
+    result = ScheduleResult(
+        assignments=[["Research"] * 4 for _ in range(5)],
+        call_assignments=[
+            [True, False, True, False],
+            [False, True, False, False],
+            [False, False, True, True],
+            [False, False, False, False],
+            [False, False, False, False],
+        ],
+        solver_status=SolverStatus.FEASIBLE,
+    )
+
+    counts_df = _build_call_counts_dataframe(config, result, visible_fellows)
+
+    assert counts_df.loc[0, "Call Type"] == "24-Hr Call"
+    assert counts_df.loc[0, "F1 A"] == 2
+    assert counts_df.loc[0, "F1 B"] == 1
+    assert counts_df.loc[0, "S2 A"] == 2
+
+
 def test_rotation_schedule_dataframe_groups_names_by_rotation() -> None:
     """The alternate schedule grid should pivot fellows into rotation columns."""
 
@@ -901,6 +928,51 @@ def test_srcva_call_calendar_dataframe_shows_weekend_and_weekday_overlays() -> N
     assert srcva_df.loc[1, "Weekend"] == "F1 A"
     assert srcva_df.loc[1, "Mon"] == "S2 A"
     assert srcva_df.loc[1, "Tue"] == "S2 B"
+
+
+def test_srcva_call_counts_dataframe_summarizes_visible_fellows() -> None:
+    """The SRC/VA call counts table should total weekend, weekday, and total calls."""
+
+    config = make_small_ui_config()
+    visible_fellows = [0, 1, 2, 3]
+    result = ScheduleResult(
+        assignments=[["Research"] * 4 for _ in range(5)],
+        call_assignments=[[False] * 4 for _ in range(5)],
+        srcva_weekend_call_assignments=[
+            [False, True, False, False],
+            [False, False, False, False],
+            [True, False, False, False],
+            [False, False, True, False],
+            [False, False, False, False],
+        ],
+        srcva_weekday_call_assignments=[
+            [[True, False, False, False], [False, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, True, False, False], [False, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, False, True, False], [True, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, False, False, True], [False, True, False, False], [True, False, False, False], [False, False, False, False]],
+            [[False, False, False, False] for _ in range(4)],
+        ],
+        solver_status=SolverStatus.FEASIBLE,
+    )
+
+    counts_df = _build_srcva_call_counts_dataframe(config, result, visible_fellows)
+
+    weekend_row = counts_df[counts_df["Call Type"] == "SRC/VA Weekend Call"].iloc[0]
+    weekday_row = counts_df[counts_df["Call Type"] == "SRC/VA Weekday Call"].iloc[0]
+    total_row = counts_df[counts_df["Call Type"] == "SRC/VA Total Call"].iloc[0]
+
+    assert weekend_row["F1 A"] == 1
+    assert weekend_row["F1 B"] == 0
+    assert weekend_row["S2 A"] == 1
+    assert weekend_row["S2 B"] == 1
+    assert weekday_row["F1 A"] == 1
+    assert weekday_row["F1 B"] == 1
+    assert weekday_row["S2 A"] == 2
+    assert weekday_row["S2 B"] == 3
+    assert total_row["F1 A"] == 2
+    assert total_row["F1 B"] == 1
+    assert total_row["S2 A"] == 3
+    assert total_row["S2 B"] == 4
 
 
 def test_rules_tab_week_windows_are_1_based_in_the_ui() -> None:
