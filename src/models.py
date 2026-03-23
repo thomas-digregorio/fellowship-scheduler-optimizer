@@ -814,6 +814,33 @@ class ScheduleConfig:
     call_holiday_sensitive_blocks: list[str] = field(default_factory=list)
     call_holiday_target_weeks: list[int] = field(default_factory=list)
     call_holiday_conflict_weight: int = 0
+    srcva_weekend_call_enabled: bool = False
+    srcva_weekend_call_eligible_years: list[TrainingYear] = field(default_factory=list)
+    srcva_weekend_call_allowed_block_names: list[str] = field(default_factory=list)
+    srcva_weekend_call_f1_start_week: int | None = None
+    srcva_weekend_call_f1_min: int = 0
+    srcva_weekend_call_f1_max: int = 0
+    srcva_weekend_call_s2_min: int = 0
+    srcva_weekend_call_s2_max: int = 0
+    srcva_total_call_f1_min: int = 0
+    srcva_total_call_f1_max: int = 52
+    srcva_weekday_call_enabled: bool = False
+    srcva_weekday_call_eligible_years: list[TrainingYear] = field(default_factory=list)
+    srcva_weekday_call_allowed_block_names: list[str] = field(default_factory=list)
+    srcva_weekday_call_f1_start_week: int | None = None
+    srcva_weekday_call_f1_min: int = 0
+    srcva_weekday_call_f1_max: int = 0
+    srcva_weekday_call_s2_min: int = 0
+    srcva_weekday_call_s2_max: int = 0
+    srcva_weekday_call_max_consecutive_nights: int = 1
+    srcva_holiday_anchor_week: int | None = None
+    srcva_christmas_target_week: int | None = None
+    srcva_new_year_target_week: int | None = None
+    srcva_holiday_preferred_anchor_blocks: list[str] = field(default_factory=list)
+    srcva_holiday_preference_weight: int = 0
+    srcva_holiday_repeat_weight: int = 0
+    srcva_weekday_max_one_per_week_weight: int = 0
+    srcva_weekday_same_week_as_weekend_weight: int = 0
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
     solver_timeout_seconds: float = 60.0
@@ -998,6 +1025,33 @@ class ScheduleConfig:
             "call_holiday_sensitive_blocks": self.call_holiday_sensitive_blocks,
             "call_holiday_target_weeks": self.call_holiday_target_weeks,
             "call_holiday_conflict_weight": self.call_holiday_conflict_weight,
+            "srcva_weekend_call_enabled": self.srcva_weekend_call_enabled,
+            "srcva_weekend_call_eligible_years": _serialize_years(self.srcva_weekend_call_eligible_years),
+            "srcva_weekend_call_allowed_block_names": self.srcva_weekend_call_allowed_block_names,
+            "srcva_weekend_call_f1_start_week": self.srcva_weekend_call_f1_start_week,
+            "srcva_weekend_call_f1_min": self.srcva_weekend_call_f1_min,
+            "srcva_weekend_call_f1_max": self.srcva_weekend_call_f1_max,
+            "srcva_weekend_call_s2_min": self.srcva_weekend_call_s2_min,
+            "srcva_weekend_call_s2_max": self.srcva_weekend_call_s2_max,
+            "srcva_total_call_f1_min": self.srcva_total_call_f1_min,
+            "srcva_total_call_f1_max": self.srcva_total_call_f1_max,
+            "srcva_weekday_call_enabled": self.srcva_weekday_call_enabled,
+            "srcva_weekday_call_eligible_years": _serialize_years(self.srcva_weekday_call_eligible_years),
+            "srcva_weekday_call_allowed_block_names": self.srcva_weekday_call_allowed_block_names,
+            "srcva_weekday_call_f1_start_week": self.srcva_weekday_call_f1_start_week,
+            "srcva_weekday_call_f1_min": self.srcva_weekday_call_f1_min,
+            "srcva_weekday_call_f1_max": self.srcva_weekday_call_f1_max,
+            "srcva_weekday_call_s2_min": self.srcva_weekday_call_s2_min,
+            "srcva_weekday_call_s2_max": self.srcva_weekday_call_s2_max,
+            "srcva_weekday_call_max_consecutive_nights": self.srcva_weekday_call_max_consecutive_nights,
+            "srcva_holiday_anchor_week": self.srcva_holiday_anchor_week,
+            "srcva_christmas_target_week": self.srcva_christmas_target_week,
+            "srcva_new_year_target_week": self.srcva_new_year_target_week,
+            "srcva_holiday_preferred_anchor_blocks": self.srcva_holiday_preferred_anchor_blocks,
+            "srcva_holiday_preference_weight": self.srcva_holiday_preference_weight,
+            "srcva_holiday_repeat_weight": self.srcva_holiday_repeat_weight,
+            "srcva_weekday_max_one_per_week_weight": self.srcva_weekday_max_one_per_week_weight,
+            "srcva_weekday_same_week_as_weekend_weight": self.srcva_weekday_same_week_as_weekend_weight,
             "hours_cap": self.hours_cap,
             "trailing_avg_weeks": self.trailing_avg_weeks,
             "solver_timeout_seconds": self.solver_timeout_seconds,
@@ -1068,6 +1122,12 @@ class ScheduleConfig:
         )
         payload["call_eligible_years"] = _deserialize_years(
             payload.get("call_eligible_years")
+        )
+        payload["srcva_weekend_call_eligible_years"] = _deserialize_years(
+            payload.get("srcva_weekend_call_eligible_years")
+        )
+        payload["srcva_weekday_call_eligible_years"] = _deserialize_years(
+            payload.get("srcva_weekday_call_eligible_years")
         )
         payload["blocks"] = [
             BlockConfig.from_dict(block) for block in payload.get("blocks", [])
@@ -1161,6 +1221,8 @@ class ScheduleResult:
 
     assignments: list[list[str]]
     call_assignments: list[list[bool]]
+    srcva_weekend_call_assignments: list[list[bool]] = field(default_factory=list)
+    srcva_weekday_call_assignments: list[list[list[bool]]] = field(default_factory=list)
     solver_status: SolverStatus = SolverStatus.ERROR
     objective_value: float = 0.0
     solve_time_seconds: float = 0.0
@@ -1171,6 +1233,8 @@ class ScheduleResult:
         return {
             "assignments": self.assignments,
             "call_assignments": self.call_assignments,
+            "srcva_weekend_call_assignments": self.srcva_weekend_call_assignments,
+            "srcva_weekday_call_assignments": self.srcva_weekday_call_assignments,
             "solver_status": self.solver_status.value,
             "objective_value": self.objective_value,
             "solve_time_seconds": self.solve_time_seconds,
@@ -1182,4 +1246,6 @@ class ScheduleResult:
         """Deserialize from a JSON dictionary."""
         payload = _normalize_legacy_year_aliases(data.copy())
         payload["solver_status"] = SolverStatus(payload["solver_status"])
+        payload.setdefault("srcva_weekend_call_assignments", [])
+        payload.setdefault("srcva_weekday_call_assignments", [])
         return cls(**payload)

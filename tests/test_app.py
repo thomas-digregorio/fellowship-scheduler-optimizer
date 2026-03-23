@@ -15,6 +15,7 @@ import app.state as app_state
 from app.components.master_schedule import (
     _build_rotation_counts_dataframe,
     _build_rotation_schedule_dataframe,
+    _build_srcva_call_calendar_dataframe,
     _build_fellow_color_map,
     _style_fellow_assignment_cell,
 )
@@ -211,6 +212,7 @@ def test_app_renders_and_generates_schedule(
     assert "Schedule Config" not in tab_labels
     assert "Block Metadata" not in tab_labels
     assert any(markdown.value == "**Weighted Soft Rules**" for markdown in at.markdown)
+    assert any(markdown.value == "#### SRC/VA Call Rules" for markdown in at.markdown)
 
     at = _click_workspace(at, "Generate Schedule")
 
@@ -852,6 +854,53 @@ def test_rotation_schedule_styling_uses_fellow_colors() -> None:
     assert "linear-gradient" in multi_style
     assert fellow_colors["F1 A"] in multi_style
     assert fellow_colors["F1 B"] in multi_style
+
+
+def test_srcva_call_calendar_dataframe_shows_weekend_and_weekday_overlays() -> None:
+    """The SRC/VA call tile should map overlay call assignments by week and day."""
+
+    config = make_small_ui_config()
+    config.srcva_weekend_call_enabled = True
+    config.srcva_weekday_call_enabled = True
+    config.srcva_weekend_call_eligible_years = [TrainingYear.F1, TrainingYear.S2]
+    config.srcva_weekday_call_eligible_years = [TrainingYear.F1, TrainingYear.S2]
+    visible_fellows = [0, 1, 2, 3]
+    result = ScheduleResult(
+        assignments=[
+            ["Research", "White Consults", "Research", "Research"],
+            ["Research", "Research", "Research", "Research"],
+            ["CCU", "CCU", "CCU", "CCU"],
+            ["Research", "Research", "Research", "Research"],
+            ["Elective", "Elective", "Elective", "Elective"],
+        ],
+        call_assignments=[[False] * 4 for _ in range(5)],
+        srcva_weekend_call_assignments=[
+            [False, True, False, False],
+            [False, False, False, False],
+            [True, False, False, False],
+            [False, False, True, False],
+            [False, False, False, False],
+        ],
+        srcva_weekday_call_assignments=[
+            [[True, False, False, False], [False, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, True, False, False], [False, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, False, True, False], [True, False, False, False], [False, False, False, False], [False, False, False, False]],
+            [[False, False, False, True], [False, True, False, False], [True, False, False, False], [False, False, False, False]],
+            [[False, False, False, False] for _ in range(4)],
+        ],
+        solver_status=SolverStatus.FEASIBLE,
+    )
+
+    srcva_df = _build_srcva_call_calendar_dataframe(config, result, visible_fellows)
+
+    assert srcva_df.loc[0, "Weekend"] == "S2 A"
+    assert srcva_df.loc[0, "Mon"] == "F1 A"
+    assert srcva_df.loc[0, "Tue"] == "F1 B"
+    assert srcva_df.loc[0, "Wed"] == "S2 A"
+    assert srcva_df.loc[0, "Thu"] == "S2 B"
+    assert srcva_df.loc[1, "Weekend"] == "F1 A"
+    assert srcva_df.loc[1, "Mon"] == "S2 A"
+    assert srcva_df.loc[1, "Tue"] == "S2 B"
 
 
 def test_rules_tab_week_windows_are_1_based_in_the_ui() -> None:

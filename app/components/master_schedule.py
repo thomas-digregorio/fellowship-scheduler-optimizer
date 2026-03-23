@@ -87,6 +87,9 @@ def render_master_schedule(
     with st.container(border=True):
         _render_call_overlay(config, result, visible_fellows)
 
+    with st.container(border=True):
+        _render_srcva_call_calendar(config, result, visible_fellows)
+
 
 def _visible_fellow_indices(
     config: ScheduleConfig,
@@ -601,7 +604,7 @@ def _build_call_calendar_dataframe(
 def _style_call_calendar_cell(value: str, color: str) -> str:
     """Return CSS for one structured call-calendar cell."""
 
-    if value != "CALL":
+    if not value:
         return "background-color: #FFFFFF; color: #94A3B8; text-align: center;"
     text_color = "#FFFFFF" if _is_dark_color(color) else "#102A43"
     return (
@@ -621,3 +624,131 @@ def _call_date_for_week(config: ScheduleConfig, week: int):
         "sunday": 6,
     }
     return config.start_date + timedelta(weeks=week, days=offsets.get(config.call_day, 5))
+
+
+def _render_srcva_call_calendar(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    visible_fellows: list[int],
+) -> None:
+    """Render the SRC/VA overlay call calendar."""
+
+    if not (config.srcva_weekend_call_enabled or config.srcva_weekday_call_enabled):
+        return
+
+    eligible_years = set(
+        config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years
+    )
+    eligible_fellows = [
+        fellow_idx
+        for fellow_idx in visible_fellows
+        if config.fellows[fellow_idx].training_year in eligible_years
+    ]
+
+    st.markdown("#### SRC/VA Call Calendar")
+    st.caption(
+        "SRC/VA weekday and weekend call are shown separately because they overlay "
+        "the weekly rotation schedule instead of replacing it."
+    )
+
+    if not eligible_fellows:
+        st.caption("No displayed fellows are currently eligible for SRC/VA call.")
+        return
+
+    call_df = _build_srcva_call_calendar_dataframe(config, result, eligible_fellows)
+    fellow_colors = _build_fellow_color_map(config, eligible_fellows)
+    styled_df = call_df.style.set_properties(
+        subset=["Week"],
+        **{
+            "background-color": "#F7F9FB",
+            "color": "#1F2933",
+            "font-weight": "600",
+        },
+    )
+    styled_df = styled_df.map(
+        lambda value: _style_fellow_assignment_cell(value, fellow_colors),
+        subset=["Weekend", "Mon", "Tue", "Wed", "Thu"],
+    )
+    for fellow_idx in eligible_fellows:
+        fellow_name = config.fellows[fellow_idx].name
+        styled_df = styled_df.map(
+            lambda value, color=fellow_colors[fellow_name]: _style_call_calendar_cell(
+                value,
+                color,
+            ),
+            subset=[fellow_name],
+        )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(800, 35 * len(call_df) + 40),
+        column_config={
+            "Week": st.column_config.TextColumn("Week", width="medium"),
+            "Weekend": st.column_config.TextColumn("Weekend", width="small"),
+            "Mon": st.column_config.TextColumn("Mon", width="small"),
+            "Tue": st.column_config.TextColumn("Tue", width="small"),
+            "Wed": st.column_config.TextColumn("Wed", width="small"),
+            "Thu": st.column_config.TextColumn("Thu", width="small"),
+            **{
+                config.fellows[fellow_idx].name: st.column_config.TextColumn(
+                    config.fellows[fellow_idx].name,
+                    width="small",
+                )
+                for fellow_idx in eligible_fellows
+            },
+        },
+    )
+
+
+def _build_srcva_call_calendar_dataframe(
+    config: ScheduleConfig,
+    result: ScheduleResult,
+    eligible_fellows: list[int],
+) -> pd.DataFrame:
+    """Return a week-by-week SRC/VA call calendar."""
+
+    day_labels = ["Mon", "Tue", "Wed", "Thu"]
+    rows: list[dict[str, str]] = []
+    for week in range(config.num_weeks):
+        week_date = config.start_date + timedelta(weeks=week)
+        row: dict[str, str] = {
+            "Week": f"W{week + 1} ({week_date.strftime('%m/%d')})",
+            "Weekend": "",
+            "Mon": "",
+            "Tue": "",
+            "Wed": "",
+            "Thu": "",
+        }
+
+        weekend_indices = [
+            fellow_idx
+            for fellow_idx in eligible_fellows
+            if result.srcva_weekend_call_assignments
+            and result.srcva_weekend_call_assignments[fellow_idx][week]
+        ]
+        if weekend_indices:
+            row["Weekend"] = config.fellows[weekend_indices[0]].name
+
+        for day_idx, day_label in enumerate(day_labels):
+            day_indices = [
+                fellow_idx
+                for fellow_idx in eligible_fellows
+                if result.srcva_weekday_call_assignments
+                and result.srcva_weekday_call_assignments[fellow_idx][week][day_idx]
+            ]
+            if day_indices:
+                row[day_label] = config.fellows[day_indices[0]].name
+
+        for fellow_idx in eligible_fellows:
+            tokens: list[str] = []
+            if weekend_indices and fellow_idx == weekend_indices[0]:
+                tokens.append("WE")
+            for day_idx, day_label in enumerate(day_labels):
+                if row[day_label] == config.fellows[fellow_idx].name:
+                    tokens.append(day_label)
+            row[config.fellows[fellow_idx].name] = ", ".join(tokens)
+
+        rows.append(row)
+    return pd.DataFrame(rows)

@@ -328,6 +328,283 @@ def _render_program_setup(config: ScheduleConfig) -> None:
         )
 
     with st.container(border=True):
+        st.markdown("#### SRC/VA Call Rules")
+        st.caption(
+            "SRC/VA weekend and weekday call are overlay assignments, not rotation "
+            "blocks. Hard rules control who can take them and soft rules shape "
+            "holiday/stacking preferences."
+        )
+
+        block_options = [block.name for block in config.blocks]
+        week_options = _build_week_options(config)
+        week_labels = list(week_options.keys())
+        week_values = list(week_options.values())
+        year_options = [year.value for year in TrainingYear]
+
+        left_col, right_col = st.columns(2)
+        config.srcva_weekend_call_enabled = left_col.checkbox(
+            "Enable SRC/VA weekend call",
+            value=config.srcva_weekend_call_enabled,
+            key="program_srcva_weekend_enabled",
+        )
+        config.srcva_weekday_call_enabled = right_col.checkbox(
+            "Enable SRC/VA weekday call",
+            value=config.srcva_weekday_call_enabled,
+            key="program_srcva_weekday_enabled",
+        )
+
+        st.markdown("**Weekend SRC/VA Call**")
+        left_col, middle_col, right_col = st.columns(3)
+        selected_weekend_years = left_col.multiselect(
+            "Weekend eligible cohorts",
+            options=year_options,
+            default=[
+                year.value
+                for year in config.srcva_weekend_call_eligible_years
+                if year.value in year_options
+            ],
+            key="program_srcva_weekend_years",
+        )
+        config.srcva_weekend_call_eligible_years = [
+            TrainingYear(value) for value in selected_weekend_years
+        ]
+        config.srcva_weekend_call_allowed_block_names = middle_col.multiselect(
+            "Weekend eligible rotations",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.srcva_weekend_call_allowed_block_names
+                if block_name in block_options
+            ],
+            key="program_srcva_weekend_blocks",
+        )
+        weekend_start_index = (
+            week_values.index(config.srcva_weekend_call_f1_start_week)
+            if config.srcva_weekend_call_f1_start_week in week_values
+            else 0
+        )
+        selected_weekend_start = right_col.selectbox(
+            "First F1 weekend-call week",
+            options=week_labels,
+            index=weekend_start_index,
+            key="program_srcva_weekend_f1_start",
+        )
+        config.srcva_weekend_call_f1_start_week = week_options[selected_weekend_start]
+
+        left_col, middle_col, right_col = st.columns(3)
+        current_total_f1_min = max(0, min(config.srcva_total_call_f1_min, config.num_weeks))
+        current_total_f1_max = max(
+            current_total_f1_min,
+            min(config.srcva_total_call_f1_max, config.num_weeks),
+        )
+        config.srcva_weekend_call_f1_min = left_col.number_input(
+            "Weekend calls per F1: min",
+            min_value=0,
+            max_value=config.num_weeks,
+            value=config.srcva_weekend_call_f1_min,
+            key="program_srcva_weekend_f1_min",
+        )
+        config.srcva_weekend_call_f1_max = middle_col.number_input(
+            "Weekend calls per F1: max",
+            min_value=config.srcva_weekend_call_f1_min,
+            max_value=config.num_weeks,
+            value=max(config.srcva_weekend_call_f1_min, config.srcva_weekend_call_f1_max),
+            key="program_srcva_weekend_f1_max",
+        )
+        config.srcva_total_call_f1_min = right_col.number_input(
+            "Total F1 24-hr + weekend call: min",
+            min_value=0,
+            max_value=config.num_weeks,
+            value=current_total_f1_min,
+            key="program_srcva_total_f1_min",
+        )
+
+        left_col, middle_col, right_col = st.columns(3)
+        config.srcva_weekend_call_s2_min = left_col.number_input(
+            "Weekend calls per S2: min",
+            min_value=0,
+            max_value=config.num_weeks,
+            value=config.srcva_weekend_call_s2_min,
+            key="program_srcva_weekend_s2_min",
+        )
+        config.srcva_weekend_call_s2_max = middle_col.number_input(
+            "Weekend calls per S2: max",
+            min_value=config.srcva_weekend_call_s2_min,
+            max_value=config.num_weeks,
+            value=max(config.srcva_weekend_call_s2_min, config.srcva_weekend_call_s2_max),
+            key="program_srcva_weekend_s2_max",
+        )
+        config.srcva_total_call_f1_max = right_col.number_input(
+            "Total F1 24-hr + weekend call: max",
+            min_value=config.srcva_total_call_f1_min,
+            max_value=config.num_weeks,
+            value=current_total_f1_max,
+            key="program_srcva_total_f1_max",
+        )
+
+        st.markdown("**Weekday SRC/VA Call**")
+        left_col, middle_col, right_col = st.columns(3)
+        selected_weekday_years = left_col.multiselect(
+            "Weekday eligible cohorts",
+            options=year_options,
+            default=[
+                year.value
+                for year in config.srcva_weekday_call_eligible_years
+                if year.value in year_options
+            ],
+            key="program_srcva_weekday_years",
+        )
+        config.srcva_weekday_call_eligible_years = [
+            TrainingYear(value) for value in selected_weekday_years
+        ]
+        config.srcva_weekday_call_allowed_block_names = middle_col.multiselect(
+            "Weekday eligible rotations",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.srcva_weekday_call_allowed_block_names
+                if block_name in block_options
+            ],
+            key="program_srcva_weekday_blocks",
+        )
+        weekday_start_index = (
+            week_values.index(config.srcva_weekday_call_f1_start_week)
+            if config.srcva_weekday_call_f1_start_week in week_values
+            else 0
+        )
+        selected_weekday_start = right_col.selectbox(
+            "First F1 weekday-call week",
+            options=week_labels,
+            index=weekday_start_index,
+            key="program_srcva_weekday_f1_start",
+        )
+        config.srcva_weekday_call_f1_start_week = week_options[selected_weekday_start]
+
+        left_col, middle_col, right_col = st.columns(3)
+        config.srcva_weekday_call_f1_min = left_col.number_input(
+            "Weekday calls per F1: min",
+            min_value=0,
+            max_value=config.num_weeks * 4,
+            value=config.srcva_weekday_call_f1_min,
+            key="program_srcva_weekday_f1_min",
+        )
+        config.srcva_weekday_call_f1_max = middle_col.number_input(
+            "Weekday calls per F1: max",
+            min_value=config.srcva_weekday_call_f1_min,
+            max_value=config.num_weeks * 4,
+            value=max(config.srcva_weekday_call_f1_min, config.srcva_weekday_call_f1_max),
+            key="program_srcva_weekday_f1_max",
+        )
+        config.srcva_weekday_call_max_consecutive_nights = right_col.number_input(
+            "Max consecutive weekday-call nights",
+            min_value=1,
+            max_value=4,
+            value=max(1, min(config.srcva_weekday_call_max_consecutive_nights, 4)),
+            key="program_srcva_weekday_max_consecutive",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.srcva_weekday_call_s2_min = left_col.number_input(
+            "Weekday calls per S2: min",
+            min_value=0,
+            max_value=config.num_weeks * 4,
+            value=config.srcva_weekday_call_s2_min,
+            key="program_srcva_weekday_s2_min",
+        )
+        config.srcva_weekday_call_s2_max = middle_col.number_input(
+            "Weekday calls per S2: max",
+            min_value=config.srcva_weekday_call_s2_min,
+            max_value=config.num_weeks * 4,
+            value=max(config.srcva_weekday_call_s2_min, config.srcva_weekday_call_s2_max),
+            key="program_srcva_weekday_s2_max",
+        )
+
+        st.markdown("**SRC/VA Soft Preferences**")
+        st.caption(
+            "Keep these weights modest if PTO preferences should still dominate the objective."
+        )
+
+        left_col, middle_col, right_col = st.columns(3)
+        anchor_index = (
+            week_values.index(config.srcva_holiday_anchor_week)
+            if config.srcva_holiday_anchor_week in week_values
+            else 0
+        )
+        selected_anchor_week = left_col.selectbox(
+            "Thanksgiving anchor week",
+            options=week_labels,
+            index=anchor_index,
+            key="program_srcva_anchor_week",
+        )
+        config.srcva_holiday_anchor_week = week_options[selected_anchor_week]
+        christmas_index = (
+            week_values.index(config.srcva_christmas_target_week)
+            if config.srcva_christmas_target_week in week_values
+            else 0
+        )
+        selected_christmas_week = middle_col.selectbox(
+            "Christmas target week",
+            options=week_labels,
+            index=christmas_index,
+            key="program_srcva_christmas_week",
+        )
+        config.srcva_christmas_target_week = week_options[selected_christmas_week]
+        new_year_index = (
+            week_values.index(config.srcva_new_year_target_week)
+            if config.srcva_new_year_target_week in week_values
+            else 0
+        )
+        selected_new_year_week = right_col.selectbox(
+            "New Year's target week",
+            options=week_labels,
+            index=new_year_index,
+            key="program_srcva_new_year_week",
+        )
+        config.srcva_new_year_target_week = week_options[selected_new_year_week]
+
+        config.srcva_holiday_preferred_anchor_blocks = st.multiselect(
+            "Preferred Thanksgiving-week anchor rotations",
+            options=block_options + ["PTO"],
+            default=[
+                block_name
+                for block_name in config.srcva_holiday_preferred_anchor_blocks
+                if block_name in (block_options + ["PTO"])
+            ],
+            key="program_srcva_anchor_blocks",
+        )
+
+        left_col, middle_col, right_col = st.columns(3)
+        config.srcva_holiday_preference_weight = left_col.number_input(
+            "Thanksgiving-to-Christmas bonus weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_holiday_preference_weight,
+            key="program_srcva_holiday_bonus",
+        )
+        config.srcva_holiday_repeat_weight = middle_col.number_input(
+            "Repeated holiday call penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_holiday_repeat_weight,
+            key="program_srcva_holiday_repeat",
+        )
+        config.srcva_weekday_same_week_as_weekend_weight = right_col.number_input(
+            "Weekday + weekend same-week penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_weekday_same_week_as_weekend_weight,
+            key="program_srcva_same_week_penalty",
+        )
+
+        config.srcva_weekday_max_one_per_week_weight = st.number_input(
+            "More-than-one weekday call per week penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_weekday_max_one_per_week_weight,
+            key="program_srcva_max_one_week_penalty",
+        )
+
+    with st.container(border=True):
         st.markdown("#### Block Catalog")
         st.caption(
             "These fields apply to the shared block catalog. Cohort-specific staffing, "

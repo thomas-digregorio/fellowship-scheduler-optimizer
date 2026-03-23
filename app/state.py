@@ -204,6 +204,33 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         "call_holiday_sensitive_blocks": default_config.call_holiday_sensitive_blocks,
         "call_holiday_target_weeks": default_config.call_holiday_target_weeks,
         "call_holiday_conflict_weight": default_config.call_holiday_conflict_weight,
+        "srcva_weekend_call_enabled": default_config.srcva_weekend_call_enabled,
+        "srcva_weekend_call_eligible_years": default_config.srcva_weekend_call_eligible_years,
+        "srcva_weekend_call_allowed_block_names": default_config.srcva_weekend_call_allowed_block_names,
+        "srcva_weekend_call_f1_start_week": default_config.srcva_weekend_call_f1_start_week,
+        "srcva_weekend_call_f1_min": default_config.srcva_weekend_call_f1_min,
+        "srcva_weekend_call_f1_max": default_config.srcva_weekend_call_f1_max,
+        "srcva_weekend_call_s2_min": default_config.srcva_weekend_call_s2_min,
+        "srcva_weekend_call_s2_max": default_config.srcva_weekend_call_s2_max,
+        "srcva_total_call_f1_min": default_config.srcva_total_call_f1_min,
+        "srcva_total_call_f1_max": default_config.srcva_total_call_f1_max,
+        "srcva_weekday_call_enabled": default_config.srcva_weekday_call_enabled,
+        "srcva_weekday_call_eligible_years": default_config.srcva_weekday_call_eligible_years,
+        "srcva_weekday_call_allowed_block_names": default_config.srcva_weekday_call_allowed_block_names,
+        "srcva_weekday_call_f1_start_week": default_config.srcva_weekday_call_f1_start_week,
+        "srcva_weekday_call_f1_min": default_config.srcva_weekday_call_f1_min,
+        "srcva_weekday_call_f1_max": default_config.srcva_weekday_call_f1_max,
+        "srcva_weekday_call_s2_min": default_config.srcva_weekday_call_s2_min,
+        "srcva_weekday_call_s2_max": default_config.srcva_weekday_call_s2_max,
+        "srcva_weekday_call_max_consecutive_nights": default_config.srcva_weekday_call_max_consecutive_nights,
+        "srcva_holiday_anchor_week": default_config.srcva_holiday_anchor_week,
+        "srcva_christmas_target_week": default_config.srcva_christmas_target_week,
+        "srcva_new_year_target_week": default_config.srcva_new_year_target_week,
+        "srcva_holiday_preferred_anchor_blocks": default_config.srcva_holiday_preferred_anchor_blocks,
+        "srcva_holiday_preference_weight": default_config.srcva_holiday_preference_weight,
+        "srcva_holiday_repeat_weight": default_config.srcva_holiday_repeat_weight,
+        "srcva_weekday_max_one_per_week_weight": default_config.srcva_weekday_max_one_per_week_weight,
+        "srcva_weekday_same_week_as_weekend_weight": default_config.srcva_weekday_same_week_as_weekend_weight,
     }
     for field_name, default_value in structured_call_fields.items():
         if getattr(config, field_name) != default_value:
@@ -1451,6 +1478,10 @@ def _result_matches_config(
         return False
     if len(result.call_assignments) != len(config.fellows):
         return False
+    if len(result.srcva_weekend_call_assignments) != len(config.fellows):
+        return False
+    if len(result.srcva_weekday_call_assignments) != len(config.fellows):
+        return False
 
     return all(
         len(week_assignments) == config.num_weeks
@@ -1458,6 +1489,13 @@ def _result_matches_config(
     ) and all(
         len(week_calls) == config.num_weeks
         for week_calls in result.call_assignments
+    ) and all(
+        len(week_calls) == config.num_weeks
+        for week_calls in result.srcva_weekend_call_assignments
+    ) and all(
+        len(week_calls) == config.num_weeks
+        and all(len(day_calls) == 4 for day_calls in week_calls)
+        for week_calls in result.srcva_weekday_call_assignments
     )
 
 

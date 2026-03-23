@@ -1,10 +1,10 @@
-"""24-hour weekend call scheduling."""
+"""Overlay call scheduling."""
 
 from __future__ import annotations
 
 from ortools.sat.python import cp_model
 
-from src.models import ScheduleConfig
+from src.models import ScheduleConfig, TrainingYear
 
 
 def add_call_constraints(
@@ -38,6 +38,55 @@ def add_call_constraints(
     _add_legacy_call_fairness(model, call, config)
 
 
+def add_srcva_call_constraints(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    num_blocks: int,
+    pto_idx: int,
+) -> None:
+    """Add all SRC/VA weekend and weekday overlay-call constraints."""
+
+    if config.srcva_weekend_call_enabled:
+        _add_srcva_weekend_coverage(model, weekend_call, config)
+        _add_srcva_weekend_eligibility(
+            model,
+            assign,
+            weekend_call,
+            config,
+            num_blocks,
+            pto_idx,
+        )
+        _add_srcva_weekend_24hr_exclusion(model, weekend_call, call, config)
+        _add_srcva_weekend_fairness(model, weekend_call, config)
+        _add_srcva_total_f1_call_bounds(model, weekend_call, call, config)
+    else:
+        for fellow_idx in range(config.num_fellows):
+            for week in range(config.num_weeks):
+                model.Add(weekend_call[fellow_idx, week] == 0)
+
+    if config.srcva_weekday_call_enabled:
+        _add_srcva_weekday_coverage(model, weekday_call, config)
+        _add_srcva_weekday_eligibility(
+            model,
+            assign,
+            weekday_call,
+            config,
+            num_blocks,
+            pto_idx,
+        )
+        _add_srcva_weekday_fairness(model, weekday_call, config)
+        _add_srcva_weekday_consecutive_rules(model, weekday_call, config)
+    else:
+        for fellow_idx in range(config.num_fellows):
+            for week in range(config.num_weeks):
+                for day_idx in range(4):
+                    model.Add(weekday_call[fellow_idx, week, day_idx] == 0)
+
+
 def _add_structured_call_coverage(
     model: cp_model.CpModel,
     call: dict[tuple[int, int], cp_model.IntVar],
@@ -47,6 +96,235 @@ def _add_structured_call_coverage(
 
     for week in range(config.num_weeks):
         model.Add(sum(call[fellow_idx, week] for fellow_idx in range(config.num_fellows)) == 1)
+
+
+def _allowed_overlay_block_indices(
+    config: ScheduleConfig,
+    allowed_block_names: list[str],
+) -> list[int]:
+    """Return active block indices allowed for one overlay call model."""
+
+    block_name_to_idx = {block.name: index for index, block in enumerate(config.blocks)}
+    return [
+        block_name_to_idx[block_name]
+        for block_name in allowed_block_names
+        if block_name in block_name_to_idx
+    ]
+
+
+def _add_srcva_weekend_coverage(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Require exactly one SRC/VA weekend-call fellow each week."""
+
+    for week in range(config.num_weeks):
+        model.Add(
+            sum(weekend_call[fellow_idx, week] for fellow_idx in range(config.num_fellows))
+            == 1
+        )
+
+
+def _add_srcva_weekend_eligibility(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    num_blocks: int,
+    pto_idx: int,
+) -> None:
+    """Restrict SRC/VA weekend call to configured cohorts, dates, and rotations."""
+
+    del num_blocks, pto_idx
+    eligible_fellows = set(config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years))
+    allowed_indices = _allowed_overlay_block_indices(
+        config,
+        config.srcva_weekend_call_allowed_block_names,
+    )
+
+    for fellow_idx, fellow in enumerate(config.fellows):
+        for week in range(config.num_weeks):
+            if fellow_idx not in eligible_fellows:
+                model.Add(weekend_call[fellow_idx, week] == 0)
+                continue
+            if (
+                fellow.training_year == TrainingYear.F1
+                and config.srcva_weekend_call_f1_start_week is not None
+                and week < config.srcva_weekend_call_f1_start_week
+            ):
+                model.Add(weekend_call[fellow_idx, week] == 0)
+                continue
+            if not allowed_indices:
+                model.Add(weekend_call[fellow_idx, week] == 0)
+                continue
+            model.Add(
+                weekend_call[fellow_idx, week]
+                <= sum(assign[fellow_idx, week, block_idx] for block_idx in allowed_indices)
+            )
+
+
+def _add_srcva_weekend_24hr_exclusion(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """A fellow cannot take SRC/VA weekend call and 24-hour call in the same week."""
+
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            model.Add(weekend_call[fellow_idx, week] + call[fellow_idx, week] <= 1)
+
+
+def _add_srcva_weekend_fairness(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Apply weekend-call totals by cohort."""
+
+    eligible_fellows = set(config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years))
+    for fellow_idx, fellow in enumerate(config.fellows):
+        total_calls = sum(
+            weekend_call[fellow_idx, week] for week in range(config.num_weeks)
+        )
+        if fellow_idx not in eligible_fellows:
+            model.Add(total_calls == 0)
+            continue
+        if fellow.training_year == TrainingYear.F1:
+            model.Add(total_calls >= config.srcva_weekend_call_f1_min)
+            model.Add(total_calls <= config.srcva_weekend_call_f1_max)
+        elif fellow.training_year == TrainingYear.S2:
+            model.Add(total_calls >= config.srcva_weekend_call_s2_min)
+            model.Add(total_calls <= config.srcva_weekend_call_s2_max)
+        else:
+            model.Add(total_calls == 0)
+
+
+def _add_srcva_total_f1_call_bounds(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Enforce total 24-hour plus SRC/VA weekend call bounds for F1 fellows."""
+
+    for fellow_idx, fellow in enumerate(config.fellows):
+        if fellow.training_year != TrainingYear.F1:
+            continue
+        total_calls = sum(call[fellow_idx, week] + weekend_call[fellow_idx, week] for week in range(config.num_weeks))
+        model.Add(total_calls >= config.srcva_total_call_f1_min)
+        model.Add(total_calls <= config.srcva_total_call_f1_max)
+
+
+def _add_srcva_weekday_coverage(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Require exactly one SRC/VA weekday-call fellow on each Mon-Thu night."""
+
+    for week in range(config.num_weeks):
+        for day_idx in range(4):
+            model.Add(
+                sum(
+                    weekday_call[fellow_idx, week, day_idx]
+                    for fellow_idx in range(config.num_fellows)
+                )
+                == 1
+            )
+
+
+def _add_srcva_weekday_eligibility(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    num_blocks: int,
+    pto_idx: int,
+) -> None:
+    """Restrict SRC/VA weekday call to configured cohorts, dates, and rotations."""
+
+    del num_blocks, pto_idx
+    eligible_fellows = set(config.fellow_indices_for_years(config.srcva_weekday_call_eligible_years))
+    allowed_indices = _allowed_overlay_block_indices(
+        config,
+        config.srcva_weekday_call_allowed_block_names,
+    )
+
+    for fellow_idx, fellow in enumerate(config.fellows):
+        for week in range(config.num_weeks):
+            for day_idx in range(4):
+                if fellow_idx not in eligible_fellows:
+                    model.Add(weekday_call[fellow_idx, week, day_idx] == 0)
+                    continue
+                if (
+                    fellow.training_year == TrainingYear.F1
+                    and config.srcva_weekday_call_f1_start_week is not None
+                    and week < config.srcva_weekday_call_f1_start_week
+                ):
+                    model.Add(weekday_call[fellow_idx, week, day_idx] == 0)
+                    continue
+                if not allowed_indices:
+                    model.Add(weekday_call[fellow_idx, week, day_idx] == 0)
+                    continue
+                model.Add(
+                    weekday_call[fellow_idx, week, day_idx]
+                    <= sum(assign[fellow_idx, week, block_idx] for block_idx in allowed_indices)
+                )
+
+
+def _add_srcva_weekday_fairness(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Apply weekday-call totals by cohort."""
+
+    eligible_fellows = set(config.fellow_indices_for_years(config.srcva_weekday_call_eligible_years))
+    for fellow_idx, fellow in enumerate(config.fellows):
+        total_calls = sum(
+            weekday_call[fellow_idx, week, day_idx]
+            for week in range(config.num_weeks)
+            for day_idx in range(4)
+        )
+        if fellow_idx not in eligible_fellows:
+            model.Add(total_calls == 0)
+            continue
+        if fellow.training_year == TrainingYear.F1:
+            model.Add(total_calls >= config.srcva_weekday_call_f1_min)
+            model.Add(total_calls <= config.srcva_weekday_call_f1_max)
+        elif fellow.training_year == TrainingYear.S2:
+            model.Add(total_calls >= config.srcva_weekday_call_s2_min)
+            model.Add(total_calls <= config.srcva_weekday_call_s2_max)
+        else:
+            model.Add(total_calls == 0)
+
+
+def _add_srcva_weekday_consecutive_rules(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Limit consecutive weekday-call nights inside each week."""
+
+    max_consecutive = config.srcva_weekday_call_max_consecutive_nights
+    if max_consecutive < 1 or 4 <= max_consecutive:
+        return
+
+    window = max_consecutive + 1
+    eligible_fellows = config.fellow_indices_for_years(config.srcva_weekday_call_eligible_years)
+    for fellow_idx in eligible_fellows:
+        for week in range(config.num_weeks):
+            for start_day in range(4 - window + 1):
+                model.Add(
+                    sum(
+                        weekday_call[fellow_idx, week, day_idx]
+                        for day_idx in range(start_day, start_day + window)
+                    )
+                    <= max_consecutive
+                )
 
 
 def _add_structured_call_eligibility(

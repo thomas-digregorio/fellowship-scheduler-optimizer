@@ -7,7 +7,7 @@ import time
 from ortools.sat.python import cp_model
 
 from src.acgme import add_trailing_hours_cap
-from src.call_scheduler import add_call_constraints
+from src.call_scheduler import add_call_constraints, add_srcva_call_constraints
 from src.constraints import (
     add_block_completion,
     add_cohort_limit_rules,
@@ -540,6 +540,154 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"{', '.join(str(week + 1) for week in invalid_holiday_target_weeks)}."
             )
 
+    if config.srcva_weekend_call_enabled:
+        weekend_eligible = config.fellow_indices_for_years(
+            config.srcva_weekend_call_eligible_years
+        )
+        if not weekend_eligible:
+            issues.append("⚠️ SRC/VA weekend call rules have no eligible fellows.")
+
+        f1_weekend = sum(
+            1
+            for fellow_idx in weekend_eligible
+            if config.fellows[fellow_idx].training_year == TrainingYear.F1
+        )
+        s2_weekend = sum(
+            1
+            for fellow_idx in weekend_eligible
+            if config.fellows[fellow_idx].training_year == TrainingYear.S2
+        )
+        if config.srcva_weekend_call_f1_min > config.srcva_weekend_call_f1_max:
+            issues.append(
+                "⚠️ SRC/VA weekend call F1 minimum is greater than the maximum."
+            )
+        if config.srcva_weekend_call_s2_min > config.srcva_weekend_call_s2_max:
+            issues.append(
+                "⚠️ SRC/VA weekend call S2 minimum is greater than the maximum."
+            )
+        min_weekend_capacity = (
+            f1_weekend * config.srcva_weekend_call_f1_min
+            + s2_weekend * config.srcva_weekend_call_s2_min
+        )
+        max_weekend_capacity = (
+            f1_weekend * config.srcva_weekend_call_f1_max
+            + s2_weekend * config.srcva_weekend_call_s2_max
+        )
+        if min_weekend_capacity > config.num_weeks:
+            issues.append(
+                f"⚠️ SRC/VA weekend-call minimums require at least "
+                f"{min_weekend_capacity} weekends, but only {config.num_weeks} exist."
+            )
+        if max_weekend_capacity < config.num_weeks:
+            issues.append(
+                f"⚠️ SRC/VA weekend-call maximums cover only {max_weekend_capacity} "
+                f"weekends, but {config.num_weeks} need coverage."
+            )
+        unknown_weekend_blocks = [
+            block_name
+            for block_name in config.srcva_weekend_call_allowed_block_names
+            if block_name not in block_names
+        ]
+        if unknown_weekend_blocks:
+            issues.append(
+                "⚠️ SRC/VA weekend-call eligible rotations reference unknown "
+                f"blocks: {', '.join(sorted(set(unknown_weekend_blocks)))}."
+            )
+        if (
+            config.srcva_weekend_call_f1_start_week is not None
+            and not 0 <= config.srcva_weekend_call_f1_start_week < config.num_weeks
+        ):
+            issues.append("⚠️ SRC/VA weekend-call F1 start week is out of range.")
+        if config.srcva_total_call_f1_min > config.srcva_total_call_f1_max:
+            issues.append(
+                "⚠️ Total F1 24-hour + SRC/VA weekend call minimum is greater "
+                "than the maximum."
+            )
+
+    if config.srcva_weekday_call_enabled:
+        weekday_eligible = config.fellow_indices_for_years(
+            config.srcva_weekday_call_eligible_years
+        )
+        if not weekday_eligible:
+            issues.append("⚠️ SRC/VA weekday call rules have no eligible fellows.")
+
+        f1_weekday = sum(
+            1
+            for fellow_idx in weekday_eligible
+            if config.fellows[fellow_idx].training_year == TrainingYear.F1
+        )
+        s2_weekday = sum(
+            1
+            for fellow_idx in weekday_eligible
+            if config.fellows[fellow_idx].training_year == TrainingYear.S2
+        )
+        if config.srcva_weekday_call_f1_min > config.srcva_weekday_call_f1_max:
+            issues.append(
+                "⚠️ SRC/VA weekday-call F1 minimum is greater than the maximum."
+            )
+        if config.srcva_weekday_call_s2_min > config.srcva_weekday_call_s2_max:
+            issues.append(
+                "⚠️ SRC/VA weekday-call S2 minimum is greater than the maximum."
+            )
+        min_weekday_capacity = (
+            f1_weekday * config.srcva_weekday_call_f1_min
+            + s2_weekday * config.srcva_weekday_call_s2_min
+        )
+        max_weekday_capacity = (
+            f1_weekday * config.srcva_weekday_call_f1_max
+            + s2_weekday * config.srcva_weekday_call_s2_max
+        )
+        required_weekday_nights = config.num_weeks * 4
+        if min_weekday_capacity > required_weekday_nights:
+            issues.append(
+                f"⚠️ SRC/VA weekday-call minimums require at least "
+                f"{min_weekday_capacity} nights, but only "
+                f"{required_weekday_nights} need coverage."
+            )
+        if max_weekday_capacity < required_weekday_nights:
+            issues.append(
+                f"⚠️ SRC/VA weekday-call maximums cover only {max_weekday_capacity} "
+                f"nights, but {required_weekday_nights} need coverage."
+            )
+        unknown_weekday_blocks = [
+            block_name
+            for block_name in config.srcva_weekday_call_allowed_block_names
+            if block_name not in block_names
+        ]
+        if unknown_weekday_blocks:
+            issues.append(
+                "⚠️ SRC/VA weekday-call eligible rotations reference unknown "
+                f"blocks: {', '.join(sorted(set(unknown_weekday_blocks)))}."
+            )
+        if (
+            config.srcva_weekday_call_f1_start_week is not None
+            and not 0 <= config.srcva_weekday_call_f1_start_week < config.num_weeks
+        ):
+            issues.append("⚠️ SRC/VA weekday-call F1 start week is out of range.")
+        if config.srcva_weekday_call_max_consecutive_nights < 1:
+            issues.append(
+                "⚠️ SRC/VA weekday-call consecutive-night limit must allow at least 1 night."
+            )
+
+    for week_name, week_value in (
+        ("holiday anchor week", config.srcva_holiday_anchor_week),
+        ("Christmas target week", config.srcva_christmas_target_week),
+        ("New Year's target week", config.srcva_new_year_target_week),
+    ):
+        if week_value is not None and not 0 <= week_value < config.num_weeks:
+            issues.append(f"⚠️ SRC/VA {week_name} is out of range.")
+
+    unknown_srcva_holiday_blocks = [
+        block_name
+        for block_name in config.srcva_holiday_preferred_anchor_blocks
+        if block_name != "PTO" and block_name not in block_names
+    ]
+    if unknown_srcva_holiday_blocks:
+        issues.append(
+            "⚠️ SRC/VA holiday anchor preferred blocks reference unknown blocks: "
+            f"{', '.join(sorted(set(unknown_srcva_holiday_blocks)))}."
+        )
+
     for rule in config.soft_sequence_rules:
         if not rule.is_active:
             continue
@@ -627,6 +775,21 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
                 f"call_f{fellow_idx}_w{week}"
             )
 
+    srcva_weekend_call: dict[tuple[int, int], cp_model.IntVar] = {}
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            srcva_weekend_call[fellow_idx, week] = model.NewBoolVar(
+                f"srcva_weekend_call_f{fellow_idx}_w{week}"
+            )
+
+    srcva_weekday_call: dict[tuple[int, int, int], cp_model.IntVar] = {}
+    for fellow_idx in range(config.num_fellows):
+        for week in range(config.num_weeks):
+            for day_idx in range(4):
+                srcva_weekday_call[fellow_idx, week, day_idx] = model.NewBoolVar(
+                    f"srcva_weekday_call_f{fellow_idx}_w{week}_d{day_idx}"
+                )
+
     for block_idx, block in enumerate(config.blocks):
         if block.is_active:
             continue
@@ -677,11 +840,23 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
     add_staffing_coverage(model, assign, config, num_blocks)
     add_trailing_hours_cap(model, assign, call, config, num_blocks, pto_idx)
     add_call_constraints(model, assign, call, config, num_blocks, pto_idx)
+    add_srcva_call_constraints(
+        model,
+        assign,
+        srcva_weekend_call,
+        srcva_weekday_call,
+        call,
+        config,
+        num_blocks,
+        pto_idx,
+    )
 
     objective_terms = _build_objective_terms(
         model,
         assign,
         call,
+        srcva_weekend_call,
+        srcva_weekday_call,
         config,
         pto_idx,
         block_name_to_idx,
@@ -711,6 +886,8 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
             solver,
             assign,
             call,
+            srcva_weekend_call,
+            srcva_weekday_call,
             config,
             num_blocks,
             solver_status,
@@ -725,6 +902,13 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         call_assignments=[
             [False for _ in range(config.num_weeks)] for _ in range(config.num_fellows)
         ],
+        srcva_weekend_call_assignments=[
+            [False for _ in range(config.num_weeks)] for _ in range(config.num_fellows)
+        ],
+        srcva_weekday_call_assignments=[
+            [[False for _ in range(4)] for _ in range(config.num_weeks)]
+            for _ in range(config.num_fellows)
+        ],
         solver_status=solver_status,
         objective_value=0.0,
         solve_time_seconds=solve_time,
@@ -735,6 +919,8 @@ def _build_objective_terms(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
     call: dict[tuple[int, int], cp_model.IntVar],
+    srcva_weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    srcva_weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
     config: ScheduleConfig,
     pto_idx: int,
     block_name_to_idx: dict[str, int],
@@ -779,6 +965,16 @@ def _build_objective_terms(
             model,
             assign,
             call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_call_objective_terms(
+            model,
+            assign,
+            srcva_weekend_call,
+            srcva_weekday_call,
             config,
             block_name_to_idx,
         )
@@ -1031,6 +1227,277 @@ def _build_structured_call_objective_terms(
             block_name_to_idx,
         )
     )
+    return objective_terms
+
+
+def _build_srcva_call_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted bonus / penalty terms for SRC/VA overlay calls."""
+
+    if not (config.srcva_weekend_call_enabled or config.srcva_weekday_call_enabled):
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    objective_terms.extend(
+        _build_srcva_holiday_preference_terms(
+            model,
+            assign,
+            weekend_call,
+            weekday_call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_holiday_repeat_terms(
+            model,
+            weekend_call,
+            weekday_call,
+            config,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_weekday_max_one_per_week_terms(
+            model,
+            weekday_call,
+            config,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_weekday_same_week_as_weekend_terms(
+            model,
+            weekend_call,
+            weekday_call,
+            config,
+        )
+    )
+    return objective_terms
+
+
+def _srcva_any_weekday_call_var(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    fellow_idx: int,
+    week: int,
+    name_prefix: str,
+) -> cp_model.IntVar:
+    """Return a bool var indicating any weekday SRC/VA call in one week."""
+
+    total = sum(weekday_call[fellow_idx, week, day_idx] for day_idx in range(4))
+    any_call = model.NewBoolVar(f"{name_prefix}_f{fellow_idx}_w{week}")
+    model.Add(total >= 1).OnlyEnforceIf(any_call)
+    model.Add(total == 0).OnlyEnforceIf(any_call.Not())
+    return any_call
+
+
+def _srcva_any_call_in_week_var(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    fellow_idx: int,
+    week: int,
+    name_prefix: str,
+) -> cp_model.IntVar:
+    """Return a bool var indicating any SRC/VA call in one week."""
+
+    weekday_any = _srcva_any_weekday_call_var(
+        model,
+        weekday_call,
+        fellow_idx,
+        week,
+        f"{name_prefix}_weekday",
+    )
+    any_call = model.NewBoolVar(f"{name_prefix}_f{fellow_idx}_w{week}")
+    model.Add(any_call >= weekend_call[fellow_idx, week])
+    model.Add(any_call >= weekday_any)
+    model.Add(any_call <= weekend_call[fellow_idx, week] + weekday_any)
+    return any_call
+
+
+def _build_srcva_holiday_preference_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Reward Christmas-week SRC/VA call after a preferred Thanksgiving-week block."""
+
+    if (
+        config.srcva_holiday_anchor_week is None
+        or config.srcva_christmas_target_week is None
+        or config.srcva_holiday_preference_weight == 0
+    ):
+        return []
+
+    anchor_week = config.srcva_holiday_anchor_week
+    christmas_week = config.srcva_christmas_target_week
+    if not (0 <= anchor_week < config.num_weeks and 0 <= christmas_week < config.num_weeks):
+        return []
+
+    preferred_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.srcva_holiday_preferred_anchor_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not preferred_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        anchor_match = sum(assign[fellow_idx, anchor_week, idx] for idx in preferred_indices)
+        christmas_call = _srcva_any_call_in_week_var(
+            model,
+            weekend_call,
+            weekday_call,
+            fellow_idx,
+            christmas_week,
+            "srcva_christmas_call",
+        )
+        match_var = model.NewBoolVar(f"srcva_holiday_pref_f{fellow_idx}")
+        model.Add(match_var <= anchor_match)
+        model.Add(match_var <= christmas_call)
+        model.Add(match_var >= anchor_match + christmas_call - 1)
+        objective_terms.append(match_var * config.srcva_holiday_preference_weight)
+    return objective_terms
+
+
+def _build_srcva_holiday_repeat_terms(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> list[cp_model.LinearExpr]:
+    """Penalize repeated holiday SRC/VA call assignments on the same fellow."""
+
+    if config.srcva_holiday_repeat_weight == 0:
+        return []
+    if config.srcva_christmas_target_week is None:
+        return []
+
+    christmas_week = config.srcva_christmas_target_week
+    if not 0 <= christmas_week < config.num_weeks:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        christmas_call = _srcva_any_call_in_week_var(
+            model,
+            weekend_call,
+            weekday_call,
+            fellow_idx,
+            christmas_week,
+            "srcva_holiday_repeat_christmas",
+        )
+        if config.srcva_holiday_anchor_week is not None and 0 <= config.srcva_holiday_anchor_week < config.num_weeks:
+            anchor_call = _srcva_any_call_in_week_var(
+                model,
+                weekend_call,
+                weekday_call,
+                fellow_idx,
+                config.srcva_holiday_anchor_week,
+                "srcva_holiday_repeat_anchor",
+            )
+            anchor_conflict = model.NewBoolVar(f"srcva_holiday_repeat_anchor_f{fellow_idx}")
+            model.Add(anchor_conflict <= anchor_call)
+            model.Add(anchor_conflict <= christmas_call)
+            model.Add(anchor_conflict >= anchor_call + christmas_call - 1)
+            objective_terms.append(anchor_conflict * config.srcva_holiday_repeat_weight)
+
+        if config.srcva_new_year_target_week is not None and 0 <= config.srcva_new_year_target_week < config.num_weeks:
+            new_year_call = _srcva_any_call_in_week_var(
+                model,
+                weekend_call,
+                weekday_call,
+                fellow_idx,
+                config.srcva_new_year_target_week,
+                "srcva_holiday_repeat_new_year",
+            )
+            new_year_conflict = model.NewBoolVar(f"srcva_holiday_repeat_newyear_f{fellow_idx}")
+            model.Add(new_year_conflict <= christmas_call)
+            model.Add(new_year_conflict <= new_year_call)
+            model.Add(new_year_conflict >= christmas_call + new_year_call - 1)
+            objective_terms.append(new_year_conflict * config.srcva_holiday_repeat_weight)
+
+    return objective_terms
+
+
+def _build_srcva_weekday_max_one_per_week_terms(
+    model: cp_model.CpModel,
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> list[cp_model.LinearExpr]:
+    """Penalize excess weekday calls after the first one in a week."""
+
+    if not config.srcva_weekday_call_enabled or config.srcva_weekday_max_one_per_week_weight == 0:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekday_call_eligible_years):
+        for week in range(config.num_weeks):
+            total = sum(weekday_call[fellow_idx, week, day_idx] for day_idx in range(4))
+            for threshold in range(2, 5):
+                threshold_var = model.NewBoolVar(
+                    f"srcva_weekday_threshold_{threshold}_f{fellow_idx}_w{week}"
+                )
+                model.Add(total >= threshold).OnlyEnforceIf(threshold_var)
+                model.Add(total < threshold).OnlyEnforceIf(threshold_var.Not())
+                objective_terms.append(
+                    threshold_var * config.srcva_weekday_max_one_per_week_weight
+                )
+    return objective_terms
+
+
+def _build_srcva_weekday_same_week_as_weekend_terms(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> list[cp_model.LinearExpr]:
+    """Penalize any week where the same fellow has both weekday and weekend SRC/VA call."""
+
+    if config.srcva_weekday_same_week_as_weekend_weight == 0:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for week in range(config.num_weeks):
+            weekday_any = _srcva_any_weekday_call_var(
+                model,
+                weekday_call,
+                fellow_idx,
+                week,
+                "srcva_same_weekend_weekday",
+            )
+            match_var = model.NewBoolVar(f"srcva_same_week_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= weekend_call[fellow_idx, week])
+            model.Add(match_var <= weekday_any)
+            model.Add(
+                match_var
+                >= weekend_call[fellow_idx, week] + weekday_any - 1
+            )
+            objective_terms.append(
+                match_var * config.srcva_weekday_same_week_as_weekend_weight
+            )
     return objective_terms
 
 
@@ -1336,6 +1803,8 @@ def _extract_solution(
     solver: cp_model.CpSolver,
     assign: dict[tuple[int, int, int], cp_model.IntVar],
     call: dict[tuple[int, int], cp_model.IntVar],
+    srcva_weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    srcva_weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
     config: ScheduleConfig,
     num_blocks: int,
     status: SolverStatus,
@@ -1347,10 +1816,14 @@ def _extract_solution(
     block_names = [block.name for block in config.blocks] + ["PTO"]
     assignments: list[list[str]] = []
     call_assignments: list[list[bool]] = []
+    srcva_weekend_call_assignments: list[list[bool]] = []
+    srcva_weekday_call_assignments: list[list[list[bool]]] = []
 
     for fellow_idx in range(config.num_fellows):
         fellow_blocks: list[str] = []
         fellow_calls: list[bool] = []
+        fellow_weekend_calls: list[bool] = []
+        fellow_weekday_calls: list[list[bool]] = []
         for week in range(config.num_weeks):
             assigned_block = "UNASSIGNED"
             for block_idx in range(num_blocks + 1):
@@ -1359,13 +1832,30 @@ def _extract_solution(
                     break
             fellow_blocks.append(assigned_block)
             fellow_calls.append(bool(solver.Value(call[fellow_idx, week])))
+            fellow_weekend_calls.append(bool(solver.Value(srcva_weekend_call[fellow_idx, week])))
+            fellow_weekday_calls.append(
+                [
+                    bool(solver.Value(srcva_weekday_call[fellow_idx, week, day_idx]))
+                    for day_idx in range(4)
+                ]
+            )
         assignments.append(fellow_blocks)
         call_assignments.append(fellow_calls)
+        srcva_weekend_call_assignments.append(fellow_weekend_calls)
+        srcva_weekday_call_assignments.append(fellow_weekday_calls)
 
-    objective_breakdown = _build_objective_breakdown(config, assignments, call_assignments)
+    objective_breakdown = _build_objective_breakdown(
+        config,
+        assignments,
+        call_assignments,
+        srcva_weekend_call_assignments,
+        srcva_weekday_call_assignments,
+    )
     return ScheduleResult(
         assignments=assignments,
         call_assignments=call_assignments,
+        srcva_weekend_call_assignments=srcva_weekend_call_assignments,
+        srcva_weekday_call_assignments=srcva_weekday_call_assignments,
         solver_status=status,
         objective_value=objective,
         solve_time_seconds=solve_time,
@@ -1398,6 +1888,8 @@ def _build_objective_breakdown(
     config: ScheduleConfig,
     assignments: list[list[str]],
     call_assignments: list[list[bool]],
+    srcva_weekend_call_assignments: list[list[bool]],
+    srcva_weekday_call_assignments: list[list[list[bool]]],
 ) -> list[dict[str, int | str]]:
     """Recompute objective points by category and cohort for the solved schedule."""
 
@@ -1408,12 +1900,63 @@ def _build_objective_breakdown(
     rows.extend(_build_soft_state_assignment_breakdown_rows(config, assignments))
     rows.extend(_build_soft_cohort_balance_breakdown_rows(config, assignments))
     rows.extend(_build_structured_call_breakdown_rows(config, assignments, call_assignments))
+    rows.extend(
+        _build_srcva_call_breakdown_rows(
+            config,
+            assignments,
+            srcva_weekend_call_assignments,
+            srcva_weekday_call_assignments,
+        )
+    )
 
     total_row = _empty_cohort_score_row("Total")
     for row in rows:
         for year in TrainingYear:
             _add_points_to_row(total_row, year, int(row[year.value]))
     rows.append(total_row)
+    return rows
+
+
+def _build_srcva_call_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    weekend_call_assignments: list[list[bool]],
+    weekday_call_assignments: list[list[list[bool]]],
+) -> list[dict[str, int | str]]:
+    """Return objective-breakdown rows for SRC/VA overlay-call soft preferences."""
+
+    if not (config.srcva_weekend_call_enabled or config.srcva_weekday_call_enabled):
+        return []
+
+    rows: list[dict[str, int | str]] = []
+    rows.append(
+        _build_srcva_holiday_preference_breakdown_row(
+            config,
+            assignments,
+            weekend_call_assignments,
+            weekday_call_assignments,
+        )
+    )
+    rows.append(
+        _build_srcva_holiday_repeat_breakdown_row(
+            config,
+            weekend_call_assignments,
+            weekday_call_assignments,
+        )
+    )
+    rows.append(
+        _build_srcva_weekday_max_one_per_week_breakdown_row(
+            config,
+            weekday_call_assignments,
+        )
+    )
+    rows.append(
+        _build_srcva_weekday_same_week_as_weekend_breakdown_row(
+            config,
+            weekend_call_assignments,
+            weekday_call_assignments,
+        )
+    )
     return rows
 
 
@@ -1686,6 +2229,128 @@ def _build_holiday_call_avoidance_breakdown_row(
         for holiday_week in holiday_weeks:
             if call_assignments[fellow_idx][holiday_week]:
                 _add_points_to_row(row, year, config.call_holiday_conflict_weight)
+    return row
+
+
+def _build_srcva_holiday_preference_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    weekend_call_assignments: list[list[bool]],
+    weekday_call_assignments: list[list[list[bool]]],
+) -> dict[str, int | str]:
+    """Return the Christmas-week SRC/VA call anchor bonus by cohort."""
+
+    row = _empty_cohort_score_row(
+        "Bonus: Thanksgiving-week anchor before Christmas SRC/VA call"
+    )
+    anchor_week = config.srcva_holiday_anchor_week
+    christmas_week = config.srcva_christmas_target_week
+    if (
+        anchor_week is None
+        or christmas_week is None
+        or not 0 <= anchor_week < config.num_weeks
+        or not 0 <= christmas_week < config.num_weeks
+        or config.srcva_holiday_preference_weight == 0
+    ):
+        return row
+
+    preferred_blocks = set(config.srcva_holiday_preferred_anchor_blocks)
+    eligible_years = set(
+        config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years
+    )
+    for fellow_idx in config.fellow_indices_for_years(list(eligible_years)):
+        year = config.fellows[fellow_idx].training_year
+        has_christmas_call = weekend_call_assignments[fellow_idx][christmas_week] or any(
+            weekday_call_assignments[fellow_idx][christmas_week]
+        )
+        if assignments[fellow_idx][anchor_week] in preferred_blocks and has_christmas_call:
+            _add_points_to_row(row, year, config.srcva_holiday_preference_weight)
+    return row
+
+
+def _build_srcva_holiday_repeat_breakdown_row(
+    config: ScheduleConfig,
+    weekend_call_assignments: list[list[bool]],
+    weekday_call_assignments: list[list[list[bool]]],
+) -> dict[str, int | str]:
+    """Return the repeated-holiday SRC/VA call penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: Repeated holiday SRC/VA call assignments")
+    christmas_week = config.srcva_christmas_target_week
+    if (
+        christmas_week is None
+        or not 0 <= christmas_week < config.num_weeks
+        or config.srcva_holiday_repeat_weight == 0
+    ):
+        return row
+
+    eligible_years = set(
+        config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years
+    )
+    for fellow_idx in config.fellow_indices_for_years(list(eligible_years)):
+        year = config.fellows[fellow_idx].training_year
+        christmas_call = weekend_call_assignments[fellow_idx][christmas_week] or any(
+            weekday_call_assignments[fellow_idx][christmas_week]
+        )
+        if config.srcva_holiday_anchor_week is not None and 0 <= config.srcva_holiday_anchor_week < config.num_weeks:
+            anchor_call = weekend_call_assignments[fellow_idx][config.srcva_holiday_anchor_week] or any(
+                weekday_call_assignments[fellow_idx][config.srcva_holiday_anchor_week]
+            )
+            if anchor_call and christmas_call:
+                _add_points_to_row(row, year, config.srcva_holiday_repeat_weight)
+        if config.srcva_new_year_target_week is not None and 0 <= config.srcva_new_year_target_week < config.num_weeks:
+            new_year_call = weekend_call_assignments[fellow_idx][config.srcva_new_year_target_week] or any(
+                weekday_call_assignments[fellow_idx][config.srcva_new_year_target_week]
+            )
+            if christmas_call and new_year_call:
+                _add_points_to_row(row, year, config.srcva_holiday_repeat_weight)
+    return row
+
+
+def _build_srcva_weekday_max_one_per_week_breakdown_row(
+    config: ScheduleConfig,
+    weekday_call_assignments: list[list[list[bool]]],
+) -> dict[str, int | str]:
+    """Return the per-excess-night weekday-call penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: More than one SRC/VA weekday call in one week")
+    if not config.srcva_weekday_call_enabled or config.srcva_weekday_max_one_per_week_weight == 0:
+        return row
+
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekday_call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            weekday_count = sum(1 for assigned in weekday_call_assignments[fellow_idx][week] if assigned)
+            if weekday_count > 1:
+                _add_points_to_row(
+                    row,
+                    year,
+                    (weekday_count - 1) * config.srcva_weekday_max_one_per_week_weight,
+                )
+    return row
+
+
+def _build_srcva_weekday_same_week_as_weekend_breakdown_row(
+    config: ScheduleConfig,
+    weekend_call_assignments: list[list[bool]],
+    weekday_call_assignments: list[list[list[bool]]],
+) -> dict[str, int | str]:
+    """Return the same-week weekday/weekend SRC/VA call penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: SRC/VA weekday and weekend call in same week")
+    if config.srcva_weekday_same_week_as_weekend_weight == 0:
+        return row
+
+    eligible_years = set(
+        config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years
+    )
+    for fellow_idx in config.fellow_indices_for_years(list(eligible_years)):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            if weekend_call_assignments[fellow_idx][week] and any(
+                weekday_call_assignments[fellow_idx][week]
+            ):
+                _add_points_to_row(row, year, config.srcva_weekday_same_week_as_weekend_weight)
     return row
 
 
