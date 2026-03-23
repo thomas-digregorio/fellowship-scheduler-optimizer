@@ -2934,6 +2934,78 @@
       "is_active": true
     }
   ],
+  "soft_fixed_week_pair_rules": [
+    {
+      "name": "Bonus: F1 holiday heavy week paired with lighter holiday week",
+      "applicable_years": [
+        "F1"
+      ],
+      "trigger_states": [
+        "Goodyer Consults",
+        "CCU",
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "Night Float"
+      ],
+      "paired_states": [
+        "EP",
+        "CHF",
+        "Yale Nuclear",
+        "VA Nuclear",
+        "PTO",
+        "Research",
+        "Yale Echo",
+        "VA Echo",
+        "SRC Echo",
+        "Yale Cath",
+        "VA Cath",
+        "SRC Cath",
+        "CT-MRI",
+        "Peripheral vascular",
+        "Elective"
+      ],
+      "first_week": 19,
+      "second_week": 23,
+      "weight": 5,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: S2 holiday heavy week paired with lighter holiday week",
+      "applicable_years": [
+        "S2"
+      ],
+      "trigger_states": [
+        "Goodyer Consults",
+        "CCU",
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "Night Float"
+      ],
+      "paired_states": [
+        "EP",
+        "CHF",
+        "Yale Nuclear",
+        "VA Nuclear",
+        "PTO",
+        "Research",
+        "Yale Echo",
+        "VA Echo",
+        "SRC Echo",
+        "Yale Cath",
+        "VA Cath",
+        "SRC Cath",
+        "CT-MRI",
+        "Peripheral vascular",
+        "Elective"
+      ],
+      "first_week": 19,
+      "second_week": 23,
+      "weight": 5,
+      "is_active": true
+    }
+  ],
   "soft_cohort_balance_rules": [
     {
       "name": "Penalty: S2 uneven CCU distribution",

@@ -21,6 +21,7 @@ from src.models import (
     RollingWindowRule,
     ScheduleConfig,
     SoftCohortBalanceRule,
+    SoftFixedWeekPairRule,
     SoftRuleDirection,
     SoftStateAssignmentRule,
     SoftSequenceRule,
@@ -1391,6 +1392,60 @@ def get_default_soft_state_assignment_rules() -> list[SoftStateAssignmentRule]:
     ]
 
 
+def get_default_soft_fixed_week_pair_rules() -> list[SoftFixedWeekPairRule]:
+    """Return default holiday-week pairing bonuses."""
+
+    heavy_states = [
+        "Goodyer Consults",
+        "CCU",
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "Night Float",
+    ]
+    lighter_states = [
+        "EP",
+        "CHF",
+        "Yale Nuclear",
+        "VA Nuclear",
+        "PTO",
+        "Research",
+        "Yale Echo",
+        "VA Echo",
+        "SRC Echo",
+        "Yale Cath",
+        "VA Cath",
+        "SRC Cath",
+        "CT-MRI",
+        "Peripheral vascular",
+        "Elective",
+    ]
+    thanksgiving_week = _week_index_for_date(date(2026, 11, 23))
+    christmas_week = _week_index_for_date(date(2026, 12, 21))
+    if thanksgiving_week is None or christmas_week is None:
+        return []
+    return [
+        SoftFixedWeekPairRule(
+            name="Bonus: F1 holiday heavy week paired with lighter holiday week",
+            applicable_years=[TrainingYear.F1],
+            trigger_states=heavy_states,
+            paired_states=lighter_states,
+            first_week=thanksgiving_week,
+            second_week=christmas_week,
+            weight=5,
+        ),
+        SoftFixedWeekPairRule(
+            name="Bonus: S2 holiday heavy week paired with lighter holiday week",
+            applicable_years=[TrainingYear.S2],
+            trigger_states=heavy_states,
+            paired_states=lighter_states,
+            first_week=thanksgiving_week,
+            second_week=christmas_week,
+            weight=5,
+        ),
+    ]
+
+
 def get_default_soft_cohort_balance_rules() -> list[SoftCohortBalanceRule]:
     """Return default weighted penalties for uneven within-cohort distribution."""
 
@@ -1562,5 +1617,6 @@ def get_default_config() -> ScheduleConfig:
         soft_sequence_rules=get_default_soft_sequence_rules(),
         soft_single_week_block_rules=get_default_soft_single_week_block_rules(),
         soft_state_assignment_rules=get_default_soft_state_assignment_rules(),
+        soft_fixed_week_pair_rules=get_default_soft_fixed_week_pair_rules(),
         soft_cohort_balance_rules=get_default_soft_cohort_balance_rules(),
     )

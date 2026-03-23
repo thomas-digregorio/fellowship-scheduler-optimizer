@@ -28,6 +28,7 @@ from src.models import (
     ScheduleConfig,
     ScheduleResult,
     SoftCohortBalanceRule,
+    SoftFixedWeekPairRule,
     SoftRuleDirection,
     SoftSequenceRule,
     SoftStateAssignmentRule,
@@ -1630,6 +1631,75 @@ class TestStructuredRules:
             ["EP", "EP", "Research", "Research"],
         )
 
+    def test_soft_fixed_week_pair_rule_rewards_holiday_pairing(self) -> None:
+        """A fixed holiday-week pair bonus should reward a heavy/light split."""
+
+        config = ScheduleConfig(
+            num_fellows=1,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=5.0,
+            blocks=[
+                BlockConfig(name="CCU"),
+                BlockConfig(name="Research"),
+            ],
+            fellows=[FellowConfig(name="F1 A", training_year=TrainingYear.F1)],
+            eligibility_rules=[
+                EligibilityRule(
+                    name="F1 CCU/Research",
+                    block_names=["CCU", "Research"],
+                    allowed_years=[TrainingYear.F1],
+                )
+            ],
+            week_count_rules=[
+                WeekCountRule(
+                    name="F1 CCU exact 1",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["CCU"],
+                    min_weeks=1,
+                    max_weeks=1,
+                ),
+                WeekCountRule(
+                    name="F1 Research exact 1",
+                    applicable_years=[TrainingYear.F1],
+                    block_names=["Research"],
+                    min_weeks=1,
+                    max_weeks=1,
+                ),
+            ],
+            soft_fixed_week_pair_rules=[
+                SoftFixedWeekPairRule(
+                    name="Bonus: F1 holiday split",
+                    applicable_years=[TrainingYear.F1],
+                    trigger_states=["CCU"],
+                    paired_states=["Research"],
+                    first_week=0,
+                    second_week=1,
+                    weight=7,
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in {SolverStatus.FEASIBLE, SolverStatus.OPTIMAL}
+        assert result.objective_value == 7.0
+        breakdown_row = next(
+            row
+            for row in result.objective_breakdown
+            if row["Category"] == "Bonus: F1 holiday split"
+        )
+        assert breakdown_row["F1"] == 7
+
     def test_first_assignment_pairing_rule_requires_supervision(self) -> None:
         """A first-time F1 Yale Nuclear week should need an S2 or experienced F1 partner."""
 
@@ -2037,6 +2107,33 @@ class TestBuiltInDefaults:
             and rule.excluded_states == []
             and rule.is_active
             for rule in config.soft_single_week_block_rules
+        )
+        assert any(
+            rule.name == "Bonus: F1 holiday heavy week paired with lighter holiday week"
+            and rule.weight == 5
+            and rule.first_week == 19
+            and rule.second_week == 23
+            and rule.trigger_states
+            == [
+                "Goodyer Consults",
+                "CCU",
+                "White Consults",
+                "SRC Consults",
+                "VA Consults",
+                "Night Float",
+            ]
+            and "PTO" in rule.paired_states
+            and "Elective" in rule.paired_states
+            and rule.is_active
+            for rule in config.soft_fixed_week_pair_rules
+        )
+        assert any(
+            rule.name == "Bonus: S2 holiday heavy week paired with lighter holiday week"
+            and rule.weight == 5
+            and rule.first_week == 19
+            and rule.second_week == 23
+            and rule.is_active
+            for rule in config.soft_fixed_week_pair_rules
         )
 
     def test_default_config_feasibility_has_no_staffing_conflict(self) -> None:

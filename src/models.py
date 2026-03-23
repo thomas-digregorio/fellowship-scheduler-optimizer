@@ -747,6 +747,42 @@ class SoftStateAssignmentRule:
 
 
 @dataclass
+class SoftFixedWeekPairRule:
+    """Weighted bonus / penalty for a two-week holiday pairing pattern."""
+
+    name: str
+    applicable_years: list[TrainingYear]
+    trigger_states: list[str]
+    paired_states: list[str]
+    first_week: int
+    second_week: int
+    weight: int
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "name": self.name,
+            "applicable_years": _serialize_years(self.applicable_years),
+            "trigger_states": self.trigger_states,
+            "paired_states": self.paired_states,
+            "first_week": self.first_week,
+            "second_week": self.second_week,
+            "weight": self.weight,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SoftFixedWeekPairRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["applicable_years"] = _deserialize_years(
+            payload.get("applicable_years")
+        )
+        return cls(**payload)
+
+
+@dataclass
 class SoftCohortBalanceRule:
     """Weighted penalty on imbalance across fellows for selected states."""
 
@@ -880,6 +916,9 @@ class ScheduleConfig:
     soft_state_assignment_rules: list[SoftStateAssignmentRule] = field(
         default_factory=list
     )
+    soft_fixed_week_pair_rules: list[SoftFixedWeekPairRule] = field(
+        default_factory=list
+    )
     soft_cohort_balance_rules: list[SoftCohortBalanceRule] = field(
         default_factory=list
     )
@@ -930,6 +969,7 @@ class ScheduleConfig:
                 self.soft_sequence_rules,
                 self.soft_single_week_block_rules,
                 self.soft_state_assignment_rules,
+                self.soft_fixed_week_pair_rules,
                 self.soft_cohort_balance_rules,
             )
         )
@@ -1108,6 +1148,9 @@ class ScheduleConfig:
             "soft_state_assignment_rules": [
                 rule.to_dict() for rule in self.soft_state_assignment_rules
             ],
+            "soft_fixed_week_pair_rules": [
+                rule.to_dict() for rule in self.soft_fixed_week_pair_rules
+            ],
             "soft_cohort_balance_rules": [
                 rule.to_dict() for rule in self.soft_cohort_balance_rules
             ],
@@ -1203,6 +1246,10 @@ class ScheduleConfig:
         payload["soft_state_assignment_rules"] = [
             SoftStateAssignmentRule.from_dict(rule)
             for rule in payload.get("soft_state_assignment_rules", [])
+        ]
+        payload["soft_fixed_week_pair_rules"] = [
+            SoftFixedWeekPairRule.from_dict(rule)
+            for rule in payload.get("soft_fixed_week_pair_rules", [])
         ]
         payload["soft_cohort_balance_rules"] = [
             SoftCohortBalanceRule.from_dict(rule)

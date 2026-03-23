@@ -30,6 +30,7 @@ from src.config import (
     get_default_prerequisite_rules,
     get_default_pto_preference_weight_overrides,
     get_default_soft_cohort_balance_rules,
+    get_default_soft_fixed_week_pair_rules,
     get_default_soft_sequence_rules,
     get_default_soft_single_week_block_rules,
     get_default_soft_state_assignment_rules,
@@ -50,6 +51,7 @@ from src.models import (
     ScheduleConfig,
     ScheduleResult,
     SoftCohortBalanceRule,
+    SoftFixedWeekPairRule,
     SoftRuleDirection,
     SoftStateAssignmentRule,
     SoftSequenceRule,
@@ -1385,6 +1387,11 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
     if _upsert_named_rules(
         config.soft_single_week_block_rules,
         default_single_week_rules,
+    ):
+        changed = True
+    if _upsert_named_rules(
+        config.soft_fixed_week_pair_rules,
+        get_default_soft_fixed_week_pair_rules(),
     ):
         changed = True
 

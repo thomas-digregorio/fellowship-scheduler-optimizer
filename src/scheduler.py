@@ -34,6 +34,7 @@ from src.constraints import (
 from src.models import (
     ScheduleConfig,
     ScheduleResult,
+    SoftFixedWeekPairRule,
     SoftRuleDirection,
     SoftSingleWeekBlockRule,
     SolverStatus,
@@ -716,6 +717,28 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"states: {', '.join(sorted(set(unknown_states)))}."
             )
 
+    for rule in config.soft_fixed_week_pair_rules:
+        if not rule.is_active:
+            continue
+        unknown_states = [
+            state
+            for state in (rule.trigger_states + rule.paired_states)
+            if state != "PTO" and state not in block_names
+        ]
+        if unknown_states:
+            issues.append(
+                f"⚠️ Soft fixed-week rule '{rule.name}' references unknown "
+                f"states: {', '.join(sorted(set(unknown_states)))}."
+            )
+        if not 0 <= rule.first_week < config.num_weeks:
+            issues.append(
+                f"⚠️ Soft fixed-week rule '{rule.name}' has a first week out of range."
+            )
+        if not 0 <= rule.second_week < config.num_weeks:
+            issues.append(
+                f"⚠️ Soft fixed-week rule '{rule.name}' has a second week out of range."
+            )
+
     for rule in config.soft_cohort_balance_rules:
         if not rule.is_active:
             continue
@@ -953,6 +976,14 @@ def _build_objective_terms(
         )
     )
     objective_terms.extend(
+        _build_soft_fixed_week_pair_objective_terms(
+            model,
+            assign,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
         _build_soft_cohort_balance_objective_terms(
             model,
             assign,
@@ -1123,6 +1154,78 @@ def _build_soft_state_assignment_objective_terms(
                     objective_terms.append(
                         assign[fellow_idx, week, state_idx] * rule.weight
                     )
+    return objective_terms
+
+
+def _build_soft_fixed_week_pair_objective_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Return weighted terms for two-week holiday pairing preferences."""
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    valid_states = set(config.all_states)
+    for rule_idx, rule in enumerate(config.soft_fixed_week_pair_rules):
+        if not rule.is_active or rule.weight == 0:
+            continue
+        if not (
+            0 <= rule.first_week < config.num_weeks
+            and 0 <= rule.second_week < config.num_weeks
+        ):
+            continue
+
+        trigger_indices = [
+            block_name_to_idx[state]
+            for state in rule.trigger_states
+            if state in valid_states and state in block_name_to_idx
+        ]
+        paired_indices = [
+            block_name_to_idx[state]
+            for state in rule.paired_states
+            if state in valid_states and state in block_name_to_idx
+        ]
+        if not trigger_indices or not paired_indices:
+            continue
+
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        for fellow_idx in fellow_indices:
+            first_trigger = sum(
+                assign[fellow_idx, rule.first_week, block_idx]
+                for block_idx in trigger_indices
+            )
+            second_paired = sum(
+                assign[fellow_idx, rule.second_week, block_idx]
+                for block_idx in paired_indices
+            )
+            forward_match = model.NewBoolVar(
+                f"fixed_pair_r{rule_idx}_f{fellow_idx}_forward"
+            )
+            model.Add(forward_match <= first_trigger)
+            model.Add(forward_match <= second_paired)
+            model.Add(forward_match >= first_trigger + second_paired - 1)
+
+            first_paired = sum(
+                assign[fellow_idx, rule.first_week, block_idx]
+                for block_idx in paired_indices
+            )
+            second_trigger = sum(
+                assign[fellow_idx, rule.second_week, block_idx]
+                for block_idx in trigger_indices
+            )
+            reverse_match = model.NewBoolVar(
+                f"fixed_pair_r{rule_idx}_f{fellow_idx}_reverse"
+            )
+            model.Add(reverse_match <= first_paired)
+            model.Add(reverse_match <= second_trigger)
+            model.Add(reverse_match >= first_paired + second_trigger - 1)
+
+            any_match = model.NewBoolVar(f"fixed_pair_r{rule_idx}_f{fellow_idx}_any")
+            model.Add(any_match >= forward_match)
+            model.Add(any_match >= reverse_match)
+            model.Add(any_match <= forward_match + reverse_match)
+            objective_terms.append(any_match * rule.weight)
     return objective_terms
 
 
@@ -1945,6 +2048,7 @@ def _build_objective_breakdown(
     rows.extend(_build_soft_sequence_breakdown_rows(config, assignments))
     rows.extend(_build_soft_single_week_block_breakdown_rows(config, assignments))
     rows.extend(_build_soft_state_assignment_breakdown_rows(config, assignments))
+    rows.extend(_build_soft_fixed_week_pair_breakdown_rows(config, assignments))
     rows.extend(_build_soft_cohort_balance_breakdown_rows(config, assignments))
     rows.extend(_build_structured_call_breakdown_rows(config, assignments, call_assignments))
     rows.extend(
@@ -2160,6 +2264,52 @@ def _build_soft_state_assignment_breakdown_rows(
             for week in range(max(0, rule.start_week), end_week + 1):
                 if assignments[fellow_idx][week] in target_states:
                     _add_points_to_row(row, year, rule.weight)
+
+        rows.append(row)
+    return rows
+
+
+def _build_soft_fixed_week_pair_breakdown_rows(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+) -> list[dict[str, int | str]]:
+    """Return one objective-breakdown row per active fixed-week pairing rule."""
+
+    rows: list[dict[str, int | str]] = []
+    valid_states = set(config.all_states)
+    for rule in config.soft_fixed_week_pair_rules:
+        if not rule.is_active:
+            continue
+
+        row = _empty_cohort_score_row(rule.name)
+        if not (
+            0 <= rule.first_week < config.num_weeks
+            and 0 <= rule.second_week < config.num_weeks
+        ):
+            rows.append(row)
+            continue
+
+        trigger_states = {
+            state for state in rule.trigger_states if state in valid_states
+        }
+        paired_states = {
+            state for state in rule.paired_states if state in valid_states
+        }
+        if not trigger_states or not paired_states:
+            rows.append(row)
+            continue
+
+        fellow_indices = config.fellow_indices_for_years(rule.applicable_years)
+        for fellow_idx in fellow_indices:
+            year = config.fellows[fellow_idx].training_year
+            first_state = assignments[fellow_idx][rule.first_week]
+            second_state = assignments[fellow_idx][rule.second_week]
+            if (
+                first_state in trigger_states and second_state in paired_states
+            ) or (
+                first_state in paired_states and second_state in trigger_states
+            ):
+                _add_points_to_row(row, year, rule.weight)
 
         rows.append(row)
     return rows

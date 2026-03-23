@@ -685,6 +685,16 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         if rule.name
         == "Bonus: S2 two-week Goodyer, consult, EP, CHF, Yale Nuclear, Yale Echo, and Yale Cath runs"
     )
+    f1_holiday_pair_bonus = next(
+        rule
+        for rule in migrated.soft_fixed_week_pair_rules
+        if rule.name == "Bonus: F1 holiday heavy week paired with lighter holiday week"
+    )
+    s2_holiday_pair_bonus = next(
+        rule
+        for rule in migrated.soft_fixed_week_pair_rules
+        if rule.name == "Bonus: S2 holiday heavy week paired with lighter holiday week"
+    )
 
     assert f1_no_pto.end_week == 3
     assert f1_no_research.end_week == 3
@@ -882,6 +892,24 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert s2_single_week_bonus.start_week == 0
     assert s2_single_week_bonus.adjacent_to_first_state_exemption is None
     assert s2_single_week_bonus.is_active
+    assert f1_holiday_pair_bonus.trigger_states == [
+        "Goodyer Consults",
+        "CCU",
+        "White Consults",
+        "SRC Consults",
+        "VA Consults",
+        "Night Float",
+    ]
+    assert "PTO" in f1_holiday_pair_bonus.paired_states
+    assert "Elective" in f1_holiday_pair_bonus.paired_states
+    assert f1_holiday_pair_bonus.first_week == 19
+    assert f1_holiday_pair_bonus.second_week == 23
+    assert f1_holiday_pair_bonus.weight == 5
+    assert f1_holiday_pair_bonus.is_active
+    assert s2_holiday_pair_bonus.first_week == 19
+    assert s2_holiday_pair_bonus.second_week == 23
+    assert s2_holiday_pair_bonus.weight == 5
+    assert s2_holiday_pair_bonus.is_active
 
 
 def test_current_built_in_defaults_do_not_trigger_upgrade_notice() -> None:

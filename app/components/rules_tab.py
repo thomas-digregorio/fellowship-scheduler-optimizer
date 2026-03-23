@@ -25,6 +25,7 @@ from src.models import (
     RollingWindowRule,
     ScheduleConfig,
     SoftCohortBalanceRule,
+    SoftFixedWeekPairRule,
     SoftRuleDirection,
     SoftStateAssignmentRule,
     SoftSequenceRule,
@@ -1015,6 +1016,25 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
                 title=f"{year.value} Targeted State Bonuses",
                 caption=(
                     f"Reward {year.value} assignments to selected states in selected week windows."
+                ),
+                fixed_years=[year],
+            ),
+            predicate=lambda rule: _is_exact_year_rule(rule.applicable_years, year),
+        )
+        fixed_week_pair_rules = [
+            rule
+            for rule in config.soft_fixed_week_pair_rules
+            if _is_exact_year_rule(rule.applicable_years, year)
+        ]
+        config.soft_fixed_week_pair_rules = _merge_year_rules(
+            config.soft_fixed_week_pair_rules,
+            _render_soft_fixed_week_pair_rules_editor(
+                fixed_week_pair_rules,
+                key_prefix=f"{year.value}_fixed_week_soft",
+                title=f"{year.value} Holiday Week Pair Bonuses",
+                caption=(
+                    f"Reward {year.value} fellows who pair a heavier holiday-service "
+                    "week with a lighter holiday week."
                 ),
                 fixed_years=[year],
             ),
@@ -2319,6 +2339,86 @@ def _render_soft_state_assignment_rules_editor(
                 weight=_to_int(row.get("Weight"), default=0),
                 start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),
                 end_week=_to_optional_zero_based_week_index(row.get("End Week")),
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+    return updated_rules
+
+
+def _render_soft_fixed_week_pair_rules_editor(
+    rules: list[SoftFixedWeekPairRule],
+    *,
+    key_prefix: str,
+    title: str = "Holiday Week Pair Bonuses",
+    caption: str = (
+        "If a fellow is on a trigger rotation in one holiday week and a paired "
+        "rotation in the other, add the configured weight."
+    ),
+    fixed_years: list[TrainingYear] | None = None,
+) -> list[SoftFixedWeekPairRule]:
+    """Render weighted bonuses for fixed week-pair rotation preferences."""
+
+    show_years = fixed_years is None
+
+    st.markdown(f"**{title}**")
+    st.caption(caption)
+    st.caption("Week columns in this table use human-readable week numbers starting at 1.")
+    columns = [
+        "Name",
+        "Trigger States",
+        "Paired States",
+        "First Week",
+        "Second Week",
+        "Weight",
+        "Active",
+    ]
+    if show_years:
+        columns.insert(1, "Years")
+    rows = [
+        {
+            "Name": rule.name,
+            "Trigger States": _list_to_text(rule.trigger_states),
+            "Paired States": _list_to_text(rule.paired_states),
+            "First Week": _display_week_index(rule.first_week),
+            "Second Week": _display_week_index(rule.second_week),
+            "Weight": rule.weight,
+            "Active": rule.is_active,
+            **(
+                {"Years": _years_to_text(rule.applicable_years)}
+                if show_years
+                else {}
+            ),
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(
+            rows,
+            columns,
+            nullable_int_columns=["First Week", "Second Week", "Weight"],
+        ),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+    )
+    updated_rules: list[SoftFixedWeekPairRule] = []
+    for row in edited.to_dict("records"):
+        if not row.get("Name"):
+            continue
+        updated_rules.append(
+            SoftFixedWeekPairRule(
+                name=str(row["Name"]).strip(),
+                applicable_years=(
+                    fixed_years.copy()
+                    if fixed_years is not None
+                    else _parse_years(row.get("Years"))
+                ),
+                trigger_states=_parse_list(row.get("Trigger States")),
+                paired_states=_parse_list(row.get("Paired States")),
+                first_week=_to_zero_based_week_index(row.get("First Week"), default=0),
+                second_week=_to_zero_based_week_index(row.get("Second Week"), default=0),
+                weight=_to_int(row.get("Weight"), default=0),
                 is_active=bool(row.get("Active", True)),
             )
         )
