@@ -1849,9 +1849,17 @@ class TestBuiltInDefaults:
         consecutive_limits = {
             rule.name: rule for rule in config.consecutive_state_limit_rules
         }
-        assert len(consecutive_limits) == 4
+        assert len(consecutive_limits) == 15
         assert (
             consecutive_limits["F1 Night Float max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["F1 Goodyer Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["F1 EP max 2 consecutive weeks"].max_consecutive_weeks
             == 2
         )
         assert (
@@ -1861,7 +1869,43 @@ class TestBuiltInDefaults:
             == 2
         )
         assert (
+            consecutive_limits["F1 SRC Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["F1 VA Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
             consecutive_limits["F1 CCU max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 Night Float max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 Goodyer Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 EP max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 White Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 SRC Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 VA Consults max 2 consecutive weeks"].max_consecutive_weeks
+            == 2
+        )
+        assert (
+            consecutive_limits["S2 CCU max 2 consecutive weeks"].max_consecutive_weeks
             == 2
         )
         assert (
@@ -1970,6 +2014,27 @@ class TestBuiltInDefaults:
             and rule.weight == 1
             and rule.start_week == 8
             and rule.excluded_states == ["Night Float"]
+            and rule.included_states == []
+            and rule.is_active
+            for rule in config.soft_single_week_block_rules
+        )
+        assert any(
+            rule.name
+            == "Bonus: S2 two-week Goodyer, consult, EP, CHF, Yale Nuclear, Yale Echo, and Yale Cath runs"
+            and rule.weight == 1
+            and rule.start_week == 0
+            and rule.included_states
+            == [
+                "Goodyer Consults",
+                "VA Consults",
+                "SRC Consults",
+                "EP",
+                "CHF",
+                "Yale Nuclear",
+                "Yale Echo",
+                "Yale Cath",
+            ]
+            and rule.excluded_states == []
             and rule.is_active
             for rule in config.soft_single_week_block_rules
         )

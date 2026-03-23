@@ -31,6 +31,7 @@ from src.config import (
     get_default_pto_preference_weight_overrides,
     get_default_soft_cohort_balance_rules,
     get_default_soft_sequence_rules,
+    get_default_soft_single_week_block_rules,
     get_default_soft_state_assignment_rules,
     get_default_week_count_rules,
 )
@@ -1284,6 +1285,17 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
             matching_ccu_cap.is_active = True
             changed = True
 
+    f1_default_consecutive_rules = [
+        rule
+        for rule in get_default_consecutive_state_limit_rules()
+        if rule.applicable_years == [TrainingYear.F1]
+    ]
+    if _upsert_named_rules(
+        config.consecutive_state_limit_rules,
+        f1_default_consecutive_rules,
+    ):
+        changed = True
+
     matching_first_nf_run = next(
         (
             rule
@@ -1368,6 +1380,13 @@ def _upgrade_source_backed_rule_defaults(config: ScheduleConfig) -> bool:
         if not matching_single_week_bonus.is_active:
             matching_single_week_bonus.is_active = True
             changed = True
+
+    default_single_week_rules = get_default_soft_single_week_block_rules()
+    if _upsert_named_rules(
+        config.soft_single_week_block_rules,
+        default_single_week_rules,
+    ):
+        changed = True
 
     s2_default_week_rules = [
         rule

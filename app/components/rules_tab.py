@@ -2190,6 +2190,7 @@ def _render_soft_single_week_block_rules_editor(
     st.caption("Week windows in this table use human-readable week numbers starting at 1.")
     columns = [
         "Name",
+        "Included States",
         "Excluded States",
         "Weight",
         "Start Week",
@@ -2201,6 +2202,7 @@ def _render_soft_single_week_block_rules_editor(
     rows = [
         {
             "Name": rule.name,
+            "Included States": _list_to_text(rule.included_states),
             "Excluded States": _list_to_text(rule.excluded_states),
             "Weight": rule.weight,
             "Start Week": _display_week_index(rule.start_week),
@@ -2237,6 +2239,7 @@ def _render_soft_single_week_block_rules_editor(
                     if fixed_years is not None
                     else _parse_years(row.get("Years"))
                 ),
+                included_states=_parse_list(row.get("Included States")),
                 excluded_states=_parse_list(row.get("Excluded States")),
                 weight=_to_int(row.get("Weight"), default=0),
                 start_week=_to_zero_based_week_index(row.get("Start Week"), default=0),

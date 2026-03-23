@@ -1136,14 +1136,80 @@ def get_default_consecutive_state_limit_rules() -> list[ConsecutiveStateLimitRul
             max_consecutive_weeks=2,
         ),
         ConsecutiveStateLimitRule(
+            name="F1 Goodyer Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["Goodyer Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="F1 EP max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["EP"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
             name="F1 White Consults max 2 consecutive weeks",
             applicable_years=[TrainingYear.F1],
             state_names=["White Consults"],
             max_consecutive_weeks=2,
         ),
         ConsecutiveStateLimitRule(
+            name="F1 SRC Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["SRC Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="F1 VA Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.F1],
+            state_names=["VA Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
             name="F1 CCU max 2 consecutive weeks",
             applicable_years=[TrainingYear.F1],
+            state_names=["CCU"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 Night Float max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["Night Float"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 Goodyer Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["Goodyer Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 EP max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["EP"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 White Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["White Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 SRC Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["SRC Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 VA Consults max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
+            state_names=["VA Consults"],
+            max_consecutive_weeks=2,
+        ),
+        ConsecutiveStateLimitRule(
+            name="S2 CCU max 2 consecutive weeks",
+            applicable_years=[TrainingYear.S2],
             state_names=["CCU"],
             max_consecutive_weeks=2,
         ),
@@ -1280,7 +1346,27 @@ def get_default_soft_single_week_block_rules() -> list[SoftSingleWeekBlockRule]:
             weight=1,
             start_week=8,
             adjacent_to_first_state_exemption=None,
-        )
+        ),
+        SoftSingleWeekBlockRule(
+            name=(
+                "Bonus: S2 two-week Goodyer, consult, EP, CHF, Yale Nuclear, "
+                "Yale Echo, and Yale Cath runs"
+            ),
+            applicable_years=[TrainingYear.S2],
+            excluded_states=[],
+            included_states=[
+                "Goodyer Consults",
+                "VA Consults",
+                "SRC Consults",
+                "EP",
+                "CHF",
+                "Yale Nuclear",
+                "Yale Echo",
+                "Yale Cath",
+            ],
+            weight=1,
+            adjacent_to_first_state_exemption=None,
+        ),
     ]
 
 

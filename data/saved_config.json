@@ -2475,12 +2475,155 @@
       "is_active": true
     },
     {
+      "name": "F1 Goodyer Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "Goodyer Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "F1 EP max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "EP"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "F1 SRC Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "SRC Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "F1 VA Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "F1"
+      ],
+      "state_names": [
+        "VA Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
       "name": "S2 Research max 2 consecutive weeks",
       "applicable_years": [
         "S2"
       ],
       "state_names": [
         "Research"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 Night Float max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "Night Float"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 Goodyer Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "Goodyer Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 EP max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "EP"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 White Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "White Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 SRC Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "SRC Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 VA Consults max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "VA Consults"
+      ],
+      "max_consecutive_weeks": 2,
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "S2 CCU max 2 consecutive weeks",
+      "applicable_years": [
+        "S2"
+      ],
+      "state_names": [
+        "CCU"
       ],
       "max_consecutive_weeks": 2,
       "start_week": 0,
@@ -2730,11 +2873,34 @@
       "applicable_years": [
         "F1"
       ],
+      "included_states": [],
       "excluded_states": [
         "Night Float"
       ],
       "weight": 1,
       "start_week": 8,
+      "end_week": null,
+      "adjacent_to_first_state_exemption": null,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: S2 two-week Goodyer, consult, EP, CHF, Yale Nuclear, Yale Echo, and Yale Cath runs",
+      "applicable_years": [
+        "S2"
+      ],
+      "included_states": [
+        "Goodyer Consults",
+        "VA Consults",
+        "SRC Consults",
+        "EP",
+        "CHF",
+        "Yale Nuclear",
+        "Yale Echo",
+        "Yale Cath"
+      ],
+      "excluded_states": [],
+      "weight": 1,
+      "start_week": 0,
       "end_week": null,
       "adjacent_to_first_state_exemption": null,
       "is_active": true

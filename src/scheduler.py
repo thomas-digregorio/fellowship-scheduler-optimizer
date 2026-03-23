@@ -1748,12 +1748,14 @@ def _single_week_rule_block_indices(
 ) -> list[int]:
     """Return active block indices targeted by a same-rotation bonus rule."""
 
+    included_states = set(rule.included_states)
     excluded_states = set(rule.excluded_states)
     return [
         block_name_to_idx[block.name]
         for block in config.blocks
         if block.is_active
         and block.name in block_name_to_idx
+        and (not included_states or block.name in included_states)
         and block.name not in excluded_states
     ]
 
@@ -2105,10 +2107,14 @@ def _build_soft_single_week_block_breakdown_rows(
             continue
 
         row = _empty_cohort_score_row(rule.name)
+        included_states = set(rule.included_states)
+        excluded_states = set(rule.excluded_states)
         candidate_states = {
             block.name
             for block in config.blocks
-            if block.is_active and block.name not in set(rule.excluded_states)
+            if block.is_active
+            and (not included_states or block.name in included_states)
+            and block.name not in excluded_states
         }
         if not candidate_states:
             rows.append(row)

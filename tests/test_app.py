@@ -537,10 +537,65 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.consecutive_state_limit_rules
         if rule.name == "F1 White Consults max 2 consecutive weeks"
     )
+    f1_src_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 SRC Consults max 2 consecutive weeks"
+    )
+    f1_va_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 VA Consults max 2 consecutive weeks"
+    )
     ccu_consecutive_limit = next(
         rule
         for rule in migrated.consecutive_state_limit_rules
         if rule.name == "F1 CCU max 2 consecutive weeks"
+    )
+    f1_ep_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 EP max 2 consecutive weeks"
+    )
+    f1_goodyer_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "F1 Goodyer Consults max 2 consecutive weeks"
+    )
+    s2_nf_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 Night Float max 2 consecutive weeks"
+    )
+    s2_goodyer_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 Goodyer Consults max 2 consecutive weeks"
+    )
+    s2_ep_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 EP max 2 consecutive weeks"
+    )
+    s2_white_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 White Consults max 2 consecutive weeks"
+    )
+    s2_src_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 SRC Consults max 2 consecutive weeks"
+    )
+    s2_va_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 VA Consults max 2 consecutive weeks"
+    )
+    s2_ccu_consecutive_limit = next(
+        rule
+        for rule in migrated.consecutive_state_limit_rules
+        if rule.name == "S2 CCU max 2 consecutive weeks"
     )
     s2_research_consecutive_limit = next(
         rule
@@ -623,6 +678,12 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
         for rule in migrated.soft_single_week_block_rules
         if rule.name
         == "Bonus: F1 consecutive non-Night-Float rotation weeks after first 8 weeks"
+    )
+    s2_single_week_bonus = next(
+        rule
+        for rule in migrated.soft_single_week_block_rules
+        if rule.name
+        == "Bonus: S2 two-week Goodyer, consult, EP, CHF, Yale Nuclear, Yale Echo, and Yale Cath runs"
     )
 
     assert f1_no_pto.end_week == 3
@@ -707,9 +768,42 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert white_consecutive_limit.state_names == ["White Consults"]
     assert white_consecutive_limit.max_consecutive_weeks == 2
     assert white_consecutive_limit.is_active
+    assert f1_src_consecutive_limit.state_names == ["SRC Consults"]
+    assert f1_src_consecutive_limit.max_consecutive_weeks == 2
+    assert f1_src_consecutive_limit.is_active
+    assert f1_va_consecutive_limit.state_names == ["VA Consults"]
+    assert f1_va_consecutive_limit.max_consecutive_weeks == 2
+    assert f1_va_consecutive_limit.is_active
     assert ccu_consecutive_limit.state_names == ["CCU"]
     assert ccu_consecutive_limit.max_consecutive_weeks == 2
     assert ccu_consecutive_limit.is_active
+    assert f1_ep_consecutive_limit.state_names == ["EP"]
+    assert f1_ep_consecutive_limit.max_consecutive_weeks == 2
+    assert f1_ep_consecutive_limit.is_active
+    assert f1_goodyer_consecutive_limit.state_names == ["Goodyer Consults"]
+    assert f1_goodyer_consecutive_limit.max_consecutive_weeks == 2
+    assert f1_goodyer_consecutive_limit.is_active
+    assert s2_nf_consecutive_limit.state_names == ["Night Float"]
+    assert s2_nf_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_nf_consecutive_limit.is_active
+    assert s2_goodyer_consecutive_limit.state_names == ["Goodyer Consults"]
+    assert s2_goodyer_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_goodyer_consecutive_limit.is_active
+    assert s2_ep_consecutive_limit.state_names == ["EP"]
+    assert s2_ep_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_ep_consecutive_limit.is_active
+    assert s2_white_consecutive_limit.state_names == ["White Consults"]
+    assert s2_white_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_white_consecutive_limit.is_active
+    assert s2_src_consecutive_limit.state_names == ["SRC Consults"]
+    assert s2_src_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_src_consecutive_limit.is_active
+    assert s2_va_consecutive_limit.state_names == ["VA Consults"]
+    assert s2_va_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_va_consecutive_limit.is_active
+    assert s2_ccu_consecutive_limit.state_names == ["CCU"]
+    assert s2_ccu_consecutive_limit.max_consecutive_weeks == 2
+    assert s2_ccu_consecutive_limit.is_active
     assert s2_research_consecutive_limit.state_names == ["Research"]
     assert s2_research_consecutive_limit.max_consecutive_weeks == 2
     assert s2_research_consecutive_limit.is_active
@@ -768,10 +862,26 @@ def test_saved_defaults_upgrade_to_latest_defaults() -> None:
     assert s2_ccu_balance.state_names == ["CCU"]
     assert s2_ccu_balance.weight == 4
     assert single_week_bonus.excluded_states == ["Night Float"]
+    assert single_week_bonus.included_states == []
     assert single_week_bonus.weight == 1
     assert single_week_bonus.start_week == 8
     assert single_week_bonus.adjacent_to_first_state_exemption is None
     assert single_week_bonus.is_active
+    assert s2_single_week_bonus.included_states == [
+        "Goodyer Consults",
+        "VA Consults",
+        "SRC Consults",
+        "EP",
+        "CHF",
+        "Yale Nuclear",
+        "Yale Echo",
+        "Yale Cath",
+    ]
+    assert s2_single_week_bonus.excluded_states == []
+    assert s2_single_week_bonus.weight == 1
+    assert s2_single_week_bonus.start_week == 0
+    assert s2_single_week_bonus.adjacent_to_first_state_exemption is None
+    assert s2_single_week_bonus.is_active
 
 
 def test_current_built_in_defaults_do_not_trigger_upgrade_notice() -> None:

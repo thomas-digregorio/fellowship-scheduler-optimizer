@@ -682,6 +682,7 @@ class SoftSingleWeekBlockRule:
     applicable_years: list[TrainingYear]
     excluded_states: list[str]
     weight: int
+    included_states: list[str] = field(default_factory=list)
     start_week: int = 0
     end_week: int | None = None
     adjacent_to_first_state_exemption: str | None = None
@@ -692,6 +693,7 @@ class SoftSingleWeekBlockRule:
         return {
             "name": self.name,
             "applicable_years": _serialize_years(self.applicable_years),
+            "included_states": self.included_states,
             "excluded_states": self.excluded_states,
             "weight": self.weight,
             "start_week": self.start_week,
