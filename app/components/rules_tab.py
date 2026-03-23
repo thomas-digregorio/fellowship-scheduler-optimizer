@@ -20,6 +20,7 @@ from src.models import (
     FirstAssignmentRunLimitRule,
     ForbiddenTransitionRule,
     IndividualFellowRequirementRule,
+    LinkedFellowStateRule,
     PrerequisiteRule,
     RollingWindowRule,
     ScheduleConfig,
@@ -504,6 +505,23 @@ def _render_cohort_setup(config: ScheduleConfig, year: TrainingYear) -> None:
         )
 
     with st.container(border=True):
+        linked_state_rules = [
+            rule
+            for rule in config.linked_fellow_state_rules
+            if rule.training_year == year
+        ]
+        config.linked_fellow_state_rules = _merge_year_rules(
+            config.linked_fellow_state_rules,
+            _render_linked_fellow_state_rules_editor(
+                config,
+                year,
+                linked_state_rules,
+                key_prefix=f"{year.value}_linked_fellow_states",
+            ),
+            predicate=lambda rule: rule.training_year == year,
+        )
+
+    with st.container(border=True):
         cohort_soft_rules = [
             rule
             for rule in config.soft_sequence_rules
@@ -820,6 +838,104 @@ def _render_individual_fellow_requirement_rules_editor(
         st.error(
             "Skipped invalid individual-fellow rows because the fellow or rotation "
             f"no longer exists in the live roster/catalog: {', '.join(invalid_rows)}"
+        )
+
+    return updated_rules
+
+
+def _render_linked_fellow_state_rules_editor(
+    config: ScheduleConfig,
+    year: TrainingYear,
+    rules: list[LinkedFellowStateRule],
+    *,
+    key_prefix: str,
+) -> list[LinkedFellowStateRule]:
+    """Render named-fellow hard rules that lock two fellows to the same state."""
+
+    st.markdown("**Linked Fellow Same-State Rules**")
+    st.caption(
+        "Use this for hard rules such as two named fellows needing PTO in the "
+        "same schedule weeks."
+    )
+
+    fellow_names = [
+        fellow.name
+        for fellow in config.fellows
+        if fellow.training_year == year
+    ]
+    state_names = config.all_states
+    if len(fellow_names) < 2:
+        st.info(f"At least two {year.value} fellows are required for linked-fellow rules.")
+        return []
+
+    columns = ["Fellow A", "Fellow B", "State", "Active"]
+    rows = [
+        {
+            "Fellow A": rule.first_fellow_name,
+            "Fellow B": rule.second_fellow_name,
+            "State": rule.state_name,
+            "Active": rule.is_active,
+        }
+        for rule in rules
+    ]
+    edited = st.data_editor(
+        _build_dataframe(rows, columns),
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"{key_prefix}_editor",
+        column_config={
+            "Fellow A": st.column_config.SelectboxColumn(
+                "Fellow A",
+                options=fellow_names,
+                required=True,
+            ),
+            "Fellow B": st.column_config.SelectboxColumn(
+                "Fellow B",
+                options=fellow_names,
+                required=True,
+            ),
+            "State": st.column_config.SelectboxColumn(
+                "State",
+                options=state_names,
+                required=True,
+            ),
+        },
+    )
+
+    invalid_rows: list[str] = []
+    updated_rules: list[LinkedFellowStateRule] = []
+    for row in edited.to_dict("records"):
+        first_name = str(row.get("Fellow A") or "").strip()
+        second_name = str(row.get("Fellow B") or "").strip()
+        state_name = str(row.get("State") or "").strip()
+        if not first_name or not second_name or not state_name:
+            continue
+        if (
+            first_name not in fellow_names
+            or second_name not in fellow_names
+            or state_name not in state_names
+            or first_name == second_name
+        ):
+            invalid_rows.append(
+                f"{first_name or '<blank>'} / {second_name or '<blank>'} / "
+                f"{state_name or '<blank>'}"
+            )
+            continue
+        updated_rules.append(
+            LinkedFellowStateRule(
+                training_year=year,
+                first_fellow_name=first_name,
+                second_fellow_name=second_name,
+                state_name=state_name,
+                is_active=bool(row.get("Active", True)),
+            )
+        )
+
+    if invalid_rows:
+        st.error(
+            "Skipped invalid linked-fellow rows because the fellows/state no longer "
+            f"exist or the same fellow was selected twice: {', '.join(invalid_rows)}"
         )
 
     return updated_rules

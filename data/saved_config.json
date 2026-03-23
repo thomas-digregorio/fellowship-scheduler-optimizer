@@ -406,9 +406,9 @@
       "name": "Fishman",
       "training_year": "S2",
       "pto_rankings": [
-        27,
-        49,
-        39
+        12,
+        4,
+        32
       ],
       "unavailable_weeks": []
     },
@@ -2424,6 +2424,15 @@
     }
   ],
   "individual_fellow_requirement_rules": [],
+  "linked_fellow_state_rules": [
+    {
+      "training_year": "S2",
+      "first_fellow_name": "Ambrosini",
+      "second_fellow_name": "Fishman",
+      "state_name": "PTO",
+      "is_active": true
+    }
+  ],
   "prerequisite_rules": [
     {
       "name": "F1 before Night Float needs core exposure",

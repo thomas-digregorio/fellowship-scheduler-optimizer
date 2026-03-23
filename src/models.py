@@ -538,6 +538,38 @@ class IndividualFellowRequirementRule:
 
 
 @dataclass
+class LinkedFellowStateRule:
+    """Require two named fellows in one cohort to share the same state each week."""
+
+    training_year: TrainingYear
+    first_fellow_name: str
+    second_fellow_name: str
+    state_name: str
+    is_active: bool = True
+
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-friendly dictionary."""
+        return {
+            "training_year": self.training_year.value,
+            "first_fellow_name": self.first_fellow_name,
+            "second_fellow_name": self.second_fellow_name,
+            "state_name": self.state_name,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> LinkedFellowStateRule:
+        """Deserialize from a JSON dictionary."""
+        payload = data.copy()
+        payload["training_year"] = TrainingYear(
+            _normalize_legacy_year_aliases(
+                payload.get("training_year", TrainingYear.F1.value)
+            )
+        )
+        return cls(**payload)
+
+
+@dataclass
 class PrerequisiteRule:
     """Require certain prior experience before a target rotation."""
 
@@ -791,6 +823,7 @@ class ScheduleConfig:
     individual_fellow_requirement_rules: list[IndividualFellowRequirementRule] = field(
         default_factory=list
     )
+    linked_fellow_state_rules: list[LinkedFellowStateRule] = field(default_factory=list)
     prerequisite_rules: list[PrerequisiteRule] = field(default_factory=list)
     forbidden_transition_rules: list[ForbiddenTransitionRule] = field(
         default_factory=list
@@ -846,6 +879,7 @@ class ScheduleConfig:
                 self.contiguous_block_rules,
                 self.first_assignment_pairing_rules,
                 self.individual_fellow_requirement_rules,
+                self.linked_fellow_state_rules,
                 self.prerequisite_rules,
                 self.forbidden_transition_rules,
                 self.soft_sequence_rules,
@@ -968,6 +1002,9 @@ class ScheduleConfig:
             "individual_fellow_requirement_rules": [
                 rule.to_dict() for rule in self.individual_fellow_requirement_rules
             ],
+            "linked_fellow_state_rules": [
+                rule.to_dict() for rule in self.linked_fellow_state_rules
+            ],
             "prerequisite_rules": [
                 rule.to_dict() for rule in self.prerequisite_rules
             ],
@@ -1045,6 +1082,10 @@ class ScheduleConfig:
         payload["individual_fellow_requirement_rules"] = [
             IndividualFellowRequirementRule.from_dict(rule)
             for rule in payload.get("individual_fellow_requirement_rules", [])
+        ]
+        payload["linked_fellow_state_rules"] = [
+            LinkedFellowStateRule.from_dict(rule)
+            for rule in payload.get("linked_fellow_state_rules", [])
         ]
         payload["prerequisite_rules"] = [
             PrerequisiteRule.from_dict(rule)

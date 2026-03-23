@@ -535,6 +535,33 @@ def add_individual_fellow_requirement_rules(
         model.Add(total <= rule.max_weeks)
 
 
+def add_linked_fellow_state_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Require two named fellows in one cohort to share a state each week."""
+
+    for rule in config.linked_fellow_state_rules:
+        if not rule.is_active or rule.state_name not in block_name_to_idx:
+            continue
+        first_idx = config.fellow_index_for_year_and_name(
+            rule.training_year,
+            rule.first_fellow_name,
+        )
+        second_idx = config.fellow_index_for_year_and_name(
+            rule.training_year,
+            rule.second_fellow_name,
+        )
+        if first_idx is None or second_idx is None or first_idx == second_idx:
+            continue
+
+        state_idx = block_name_to_idx[rule.state_name]
+        for week in range(config.num_weeks):
+            model.Add(assign[first_idx, week, state_idx] == assign[second_idx, week, state_idx])
+
+
 def add_prerequisite_rules(
     model: cp_model.CpModel,
     assign: dict[tuple[int, int, int], cp_model.IntVar],

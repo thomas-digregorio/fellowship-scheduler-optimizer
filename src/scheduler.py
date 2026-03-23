@@ -19,6 +19,7 @@ from src.constraints import (
     add_first_assignment_pairing_rules,
     add_forbidden_transition_rules,
     add_individual_fellow_requirement_rules,
+    add_linked_fellow_state_rules,
     add_max_concurrent_pto,
     add_min_max_weeks_per_block,
     add_night_float_consecutive_limit,
@@ -341,6 +342,53 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
                 f"because cohort {rule.training_year.value} has duplicate names."
             )
 
+    for rule in config.linked_fellow_state_rules:
+        if not rule.is_active:
+            continue
+        if rule.state_name != "PTO" and rule.state_name not in block_names:
+            issues.append(
+                f"⚠️ Linked fellow state rule '{rule.first_fellow_name} / "
+                f"{rule.second_fellow_name}' references unknown state "
+                f"'{rule.state_name}'."
+            )
+        first_matches = [
+            fellow
+            for fellow in config.fellows
+            if fellow.training_year == rule.training_year
+            and fellow.name == rule.first_fellow_name
+        ]
+        second_matches = [
+            fellow
+            for fellow in config.fellows
+            if fellow.training_year == rule.training_year
+            and fellow.name == rule.second_fellow_name
+        ]
+        if not first_matches:
+            issues.append(
+                f"⚠️ Linked fellow state rule references missing fellow "
+                f"'{rule.first_fellow_name}' in cohort {rule.training_year.value}."
+            )
+        elif len(first_matches) > 1:
+            issues.append(
+                f"⚠️ Linked fellow state rule for '{rule.first_fellow_name}' is "
+                f"ambiguous because cohort {rule.training_year.value} has duplicate names."
+            )
+        if not second_matches:
+            issues.append(
+                f"⚠️ Linked fellow state rule references missing fellow "
+                f"'{rule.second_fellow_name}' in cohort {rule.training_year.value}."
+            )
+        elif len(second_matches) > 1:
+            issues.append(
+                f"⚠️ Linked fellow state rule for '{rule.second_fellow_name}' is "
+                f"ambiguous because cohort {rule.training_year.value} has duplicate names."
+            )
+        if rule.first_fellow_name == rule.second_fellow_name:
+            issues.append(
+                f"⚠️ Linked fellow state rule '{rule.first_fellow_name}' must reference "
+                "two distinct fellows."
+            )
+
     for rule in config.prerequisite_rules:
         if not rule.is_active:
             continue
@@ -490,6 +538,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         or config.contiguous_block_rules
         or config.first_assignment_pairing_rules
         or config.individual_fellow_requirement_rules
+        or config.linked_fellow_state_rules
         or config.prerequisite_rules
         or config.forbidden_transition_rules
     ):
@@ -503,6 +552,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         add_contiguous_block_rules(model, assign, config, block_name_to_idx)
         add_first_assignment_pairing_rules(model, assign, config, block_name_to_idx)
         add_individual_fellow_requirement_rules(model, assign, config, block_name_to_idx)
+        add_linked_fellow_state_rules(model, assign, config, block_name_to_idx)
         add_prerequisite_rules(model, assign, config, block_name_to_idx)
         add_forbidden_transition_rules(model, assign, config, block_name_to_idx)
     else:

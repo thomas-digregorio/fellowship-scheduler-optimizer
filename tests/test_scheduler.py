@@ -23,6 +23,7 @@ from src.models import (
     FirstAssignmentRunLimitRule,
     FirstAssignmentPairingRule,
     IndividualFellowRequirementRule,
+    LinkedFellowStateRule,
     RollingWindowRule,
     ScheduleConfig,
     ScheduleResult,
@@ -979,6 +980,57 @@ class TestStructuredRules:
         issues = check_feasibility(config)
 
         assert any("Emily" in issue and "matching fellow" in issue for issue in issues)
+
+    def test_linked_fellow_state_rule_keeps_two_s2_fellows_on_same_pto_weeks(self) -> None:
+        """A linked-fellow state rule should synchronize PTO weeks."""
+
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=1,
+            pto_weeks_to_rank=1,
+            max_concurrent_pto=2,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            hours_cap=80.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(name="Research", hours_per_week=40.0),
+                BlockConfig(name="Elective", hours_per_week=40.0),
+            ],
+            fellows=[
+                FellowConfig(
+                    name="Ambrosini",
+                    training_year=TrainingYear.S2,
+                    pto_rankings=[1],
+                ),
+                FellowConfig(
+                    name="Fishman",
+                    training_year=TrainingYear.S2,
+                    pto_rankings=[1],
+                ),
+            ],
+            linked_fellow_state_rules=[
+                LinkedFellowStateRule(
+                    training_year=TrainingYear.S2,
+                    first_fellow_name="Ambrosini",
+                    second_fellow_name="Fishman",
+                    state_name="PTO",
+                )
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        for week in range(config.num_weeks):
+            assert (result.assignments[0][week] == "PTO") == (
+                result.assignments[1][week] == "PTO"
+            )
 
     def test_rolling_window_rule_enforces_multi_state_cap(self) -> None:
         """Rolling-window rules should cap per-fellow state clustering."""
