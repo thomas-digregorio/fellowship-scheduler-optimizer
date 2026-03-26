@@ -87,7 +87,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             "Solver timeout (seconds)",
             min_value=5.0,
             max_value=600.0,
-            value=config.solver_timeout_seconds,
+            value=float(config.solver_timeout_seconds),
             step=5.0,
             key="program_timeout",
         )
@@ -131,7 +131,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             "Hours cap",
             min_value=40.0,
             max_value=120.0,
-            value=config.hours_cap,
+            value=float(config.hours_cap),
             step=1.0,
             key="program_hours_cap",
         )
@@ -154,7 +154,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             "Call hours",
             min_value=0.0,
             max_value=48.0,
-            value=config.call_hours,
+            value=float(config.call_hours),
             step=1.0,
             key="program_call_hours",
         )

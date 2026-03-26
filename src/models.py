@@ -113,6 +113,7 @@ class BlockConfig:
         """Deserialize from a JSON dictionary."""
         payload = data.copy()
         payload["block_type"] = BlockType(payload["block_type"])
+        payload["hours_per_week"] = float(payload.get("hours_per_week", 60.0))
         return cls(**payload)
 
 
@@ -882,7 +883,7 @@ class ScheduleConfig:
     srcva_weekday_same_week_as_24hr_weight: int = 0
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
-    solver_timeout_seconds: float = 60.0
+    solver_timeout_seconds: float = 600.0
     pto_preference_weight_overrides: dict[str, list[int]] = field(default_factory=dict)
     blocks: list[BlockConfig] = field(default_factory=list)
     fellows: list[FellowConfig] = field(default_factory=list)
@@ -1164,6 +1165,11 @@ class ScheduleConfig:
         # Older saved configs may still carry the retired global PTO restriction key.
         payload.pop("pto_blackout_weeks", None)
         payload["start_date"] = date.fromisoformat(payload["start_date"])
+        payload["call_hours"] = float(payload.get("call_hours", 24.0))
+        payload["hours_cap"] = float(payload.get("hours_cap", 80.0))
+        payload["solver_timeout_seconds"] = float(
+            payload.get("solver_timeout_seconds", 600.0)
+        )
         payload["pto_preference_weight_overrides"] = _normalize_pto_preference_weight_overrides(
             payload.get("pto_preference_weight_overrides")
         )

@@ -1598,7 +1598,7 @@ def get_default_config() -> ScheduleConfig:
         srcva_weekday_same_week_as_24hr_weight=-4,
         hours_cap=80.0,
         trailing_avg_weeks=4,
-        solver_timeout_seconds=60.0,
+        solver_timeout_seconds=600.0,
         pto_preference_weight_overrides=get_default_pto_preference_weight_overrides(),
         blocks=get_default_blocks(),
         fellows=fellows,

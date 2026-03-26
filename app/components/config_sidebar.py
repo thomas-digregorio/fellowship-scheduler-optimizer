@@ -70,7 +70,7 @@ def render_config_sidebar() -> None:
             "Solver timeout (seconds)",
             min_value=10.0,
             max_value=600.0,
-            value=config.solver_timeout_seconds,
+            value=float(config.solver_timeout_seconds),
             step=10.0,
             key="cfg_timeout",
         )
@@ -93,7 +93,7 @@ def render_config_sidebar() -> None:
                 "Hours/week",
                 min_value=0.0,
                 max_value=100.0,
-                value=block.hours_per_week,
+                value=float(block.hours_per_week),
                 step=5.0,
                 key=f"blk_hours_{block_idx}",
             )
@@ -120,7 +120,7 @@ def render_config_sidebar() -> None:
             "Call hours",
             min_value=0.0,
             max_value=48.0,
-            value=config.call_hours,
+            value=float(config.call_hours),
             step=1.0,
             key="cfg_call_hours",
         )

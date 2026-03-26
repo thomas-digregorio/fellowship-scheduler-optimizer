@@ -125,29 +125,29 @@
   "srcva_weekday_same_week_as_24hr_weight": -4,
   "hours_cap": 80.0,
   "trailing_avg_weeks": 4,
-  "solver_timeout_seconds": 60.0,
+  "solver_timeout_seconds": 600.0,
   "pto_preference_weight_overrides": {
     "F1": [
-      120,
-      80,
-      20,
+      500,
+      250,
+      100,
       4,
-      1,
+      0,
       0
     ],
     "S2": [
-      120,
-      80,
-      12,
-      4,
-      1,
+      500,
+      250,
+      100,
+      20,
+      10,
       0
     ],
     "T3": [
-      120,
-      80,
-      12,
-      4,
+      500,
+      200,
+      100,
+      10,
       1,
       0
     ]
@@ -390,12 +390,10 @@
       "name": "Eisman",
       "training_year": "F1",
       "pto_rankings": [
-        44,
-        38,
-        6,
-        25,
-        30,
-        3
+        23,
+        5,
+        49,
+        39
       ],
       "unavailable_weeks": []
     },
@@ -403,12 +401,10 @@
       "name": "Flores",
       "training_year": "F1",
       "pto_rankings": [
-        22,
-        47,
-        27,
-        16,
-        45,
-        25
+        43,
+        44,
+        9,
+        23
       ],
       "unavailable_weeks": []
     },
@@ -416,12 +412,10 @@
       "name": "Kayani",
       "training_year": "F1",
       "pto_rankings": [
-        15,
-        12,
-        4,
-        32,
-        45,
-        48
+        36,
+        37,
+        23,
+        6
       ],
       "unavailable_weeks": []
     },
@@ -430,11 +424,9 @@
       "training_year": "F1",
       "pto_rankings": [
         7,
-        15,
-        2,
-        31,
-        6,
-        13
+        8,
+        23,
+        41
       ],
       "unavailable_weeks": []
     },
@@ -442,11 +434,9 @@
       "name": "Mekhael",
       "training_year": "F1",
       "pto_rankings": [
-        30,
-        32,
-        50,
-        21,
-        28,
+        47,
+        48,
+        23,
         14
       ],
       "unavailable_weeks": []
@@ -455,12 +445,10 @@
       "name": "Nazari",
       "training_year": "F1",
       "pto_rankings": [
-        22,
-        50,
-        15,
-        38,
-        44,
-        32
+        23,
+        12,
+        41,
+        40
       ],
       "unavailable_weeks": []
     },
@@ -468,12 +456,10 @@
       "name": "Osorio",
       "training_year": "F1",
       "pto_rankings": [
-        18,
-        33,
         11,
-        8,
-        3,
-        36
+        25,
+        37,
+        49
       ],
       "unavailable_weeks": []
     },
@@ -481,12 +467,10 @@
       "name": "Safiullah",
       "training_year": "F1",
       "pto_rankings": [
-        21,
-        6,
+        19,
         34,
-        37,
-        3,
-        42
+        48,
+        30
       ],
       "unavailable_weeks": []
     },
@@ -494,12 +478,10 @@
       "name": "Zhang",
       "training_year": "F1",
       "pto_rankings": [
-        49,
-        2,
         24,
-        38,
-        43,
-        16
+        44,
+        45,
+        8
       ],
       "unavailable_weeks": []
     },
@@ -507,9 +489,10 @@
       "name": "Ambrosini",
       "training_year": "S2",
       "pto_rankings": [
-        12,
         4,
-        32
+        23,
+        41,
+        42
       ],
       "unavailable_weeks": []
     },
@@ -517,9 +500,10 @@
       "name": "Fishman",
       "training_year": "S2",
       "pto_rankings": [
-        12,
         4,
-        32
+        23,
+        41,
+        42
       ],
       "unavailable_weeks": []
     },
@@ -527,9 +511,10 @@
       "name": "DiGregorio",
       "training_year": "S2",
       "pto_rankings": [
-        2,
-        38,
-        21
+        17,
+        8,
+        37,
+        1
       ],
       "unavailable_weeks": []
     },
@@ -537,9 +522,10 @@
       "name": "Chitsazan",
       "training_year": "S2",
       "pto_rankings": [
-        19,
-        15,
-        17
+        5,
+        6,
+        25,
+        36
       ],
       "unavailable_weeks": []
     },
@@ -547,9 +533,10 @@
       "name": "Grant",
       "training_year": "S2",
       "pto_rankings": [
-        17,
-        13,
-        2
+        1,
+        2,
+        23,
+        35
       ],
       "unavailable_weeks": []
     },
@@ -557,9 +544,10 @@
       "name": "Jang",
       "training_year": "S2",
       "pto_rankings": [
-        36,
-        49,
-        25
+        3,
+        4,
+        19,
+        31
       ],
       "unavailable_weeks": []
     },
@@ -567,9 +555,10 @@
       "name": "Vicente",
       "training_year": "S2",
       "pto_rankings": [
-        16,
-        12,
-        7
+        23,
+        1,
+        39,
+        40
       ],
       "unavailable_weeks": []
     },
@@ -577,9 +566,10 @@
       "name": "Thangaraj",
       "training_year": "S2",
       "pto_rankings": [
-        50,
-        39,
-        28
+        23,
+        36,
+        37,
+        11
       ],
       "unavailable_weeks": []
     },
@@ -587,64 +577,101 @@
       "name": "Varrias",
       "training_year": "S2",
       "pto_rankings": [
-        1,
-        3,
-        21
+        6,
+        7,
+        41,
+        42
       ],
       "unavailable_weeks": []
     },
     {
       "name": "Alashi",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        7,
+        8,
+        38,
+        39
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Mahajan",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        13,
+        14,
+        48,
+        49,
+        44,
+        45
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Park",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        48,
+        49,
+        34,
+        47
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Luna",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        8,
+        9,
+        23,
+        14
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Schwann",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        2,
+        36,
+        37,
+        29,
+        30
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Hansen",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        44,
+        45,
+        19,
+        9
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "Amutuhaire",
       "training_year": "T3",
-      "pto_rankings": [],
+      "pto_rankings": [
+        46,
+        47,
+        48,
+        49,
+        50
+      ],
       "unavailable_weeks": []
     },
     {
       "name": "El_Charif",
       "training_year": "T3",
       "pto_rankings": [
-        27,
-        15,
-        17,
-        30,
-        16,
-        1
+        42,
+        43,
+        19
       ],
       "unavailable_weeks": []
     },
@@ -652,12 +679,10 @@
       "name": "Nurula",
       "training_year": "T3",
       "pto_rankings": [
-        40,
-        19,
         6,
-        25,
-        10,
-        7
+        7,
+        30,
+        49
       ],
       "unavailable_weeks": []
     }
@@ -2677,7 +2702,72 @@
       "is_active": true
     }
   ],
-  "individual_fellow_requirement_rules": [],
+  "individual_fellow_requirement_rules": [
+    {
+      "training_year": "S2",
+      "fellow_name": "Jang",
+      "block_name": "Night Float",
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Chitsazan",
+      "block_name": "Night Float",
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Varrias",
+      "block_name": "Night Float",
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Fishman",
+      "block_name": "EP",
+      "min_weeks": 5,
+      "max_weeks": 5,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Chitsazan",
+      "block_name": "EP",
+      "min_weeks": 5,
+      "max_weeks": 5,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Ambrosini",
+      "block_name": "CCU",
+      "min_weeks": 2,
+      "max_weeks": 2,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Thangaraj",
+      "block_name": "CCU",
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "is_active": true
+    },
+    {
+      "training_year": "S2",
+      "fellow_name": "Chitsazan",
+      "block_name": "CCU",
+      "min_weeks": 0,
+      "max_weeks": 0,
+      "is_active": true
+    }
+  ],
   "linked_fellow_state_rules": [
     {
       "training_year": "S2",
@@ -2844,6 +2934,23 @@
         "PTO"
       ],
       "weight": 8,
+      "direction": "forward",
+      "start_week": 0,
+      "end_week": null,
+      "is_active": true
+    },
+    {
+      "name": "Bonus: goodyer two-week block",
+      "applicable_years": [
+        "S2"
+      ],
+      "left_states": [
+        "Goodyer Consults"
+      ],
+      "right_states": [
+        "Goodyer Consults"
+      ],
+      "weight": 20,
       "direction": "forward",
       "start_week": 0,
       "end_week": null,
