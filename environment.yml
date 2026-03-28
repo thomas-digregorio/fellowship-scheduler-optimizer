@@ -13,3 +13,4 @@ dependencies:
       - wandb==0.19.6
       - pytest==8.3.4
       - python-dotenv==1.0.1
+      - supabase==2.28.3

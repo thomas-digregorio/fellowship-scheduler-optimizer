@@ -60,7 +60,7 @@ create index if not exists idx_config_history_config_id_saved_at
 on config_history(config_id, saved_at desc);
 ```
 
-The same SQL is also committed in [supabase/config_persistence.sql](supabase/config_persistence.sql).
+The same SQL is also committed in [sql/supabase_config_persistence.sql](sql/supabase_config_persistence.sql).
 
 2. Configure Streamlit secrets with:
 

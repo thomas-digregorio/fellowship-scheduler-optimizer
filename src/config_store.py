@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import streamlit as st
-from supabase import Client, create_client
+from supabase import create_client
 
 CONFIG_ID = "default"
 DEFAULT_SAVED_BY = "public_user"
@@ -60,7 +60,7 @@ def _require_supabase_settings() -> tuple[str, str]:
 
 
 @st.cache_resource(show_spinner=False)
-def get_supabase_client() -> Client:
+def get_supabase_client() -> Any:
     """Return a cached Supabase client."""
 
     url, key = _require_supabase_settings()
