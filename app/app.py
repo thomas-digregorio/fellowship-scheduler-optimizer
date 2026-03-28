@@ -240,19 +240,26 @@ def _render_action_bar() -> None:
                     "Cannot generate until the blocking validation issues are resolved.",
                 )
             else:
-                with st.spinner("Solving... this may take up to 10 minutes."):
-                    result = solve_schedule(config)
-                    set_result(result)
-                if result.solver_status.value in ("optimal", "feasible"):
-                    action_feedback = (
-                        "success",
-                        f"Schedule generated successfully in {result.solve_time_seconds:.1f}s.",
-                    )
-                else:
+                try:
+                    with st.spinner("Solving... this may take up to 10 minutes."):
+                        result = solve_schedule(config)
+                        set_result(result)
+                except Exception as exc:
                     action_feedback = (
                         "error",
-                        f"Solver returned {result.solver_status.value}. Relax constraints and try again.",
+                        f"Schedule generation failed: {exc}",
                     )
+                else:
+                    if result.solver_status.value in ("optimal", "feasible"):
+                        action_feedback = (
+                            "success",
+                            f"Schedule generated successfully in {result.solve_time_seconds:.1f}s.",
+                        )
+                    else:
+                        action_feedback = (
+                            "error",
+                            f"Solver returned {result.solver_status.value}. Relax constraints and try again.",
+                        )
 
     with save_col:
         if st.button(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 from ortools.sat.python import cp_model
@@ -40,6 +41,13 @@ from src.models import (
     SolverStatus,
     TrainingYear,
 )
+
+
+def _recommended_solver_worker_count() -> int:
+    """Return a conservative CP-SAT worker count for shared deployments."""
+
+    cpu_count = os.cpu_count() or 1
+    return max(1, min(2, cpu_count))
 
 
 def _sync_num_fellows(config: ScheduleConfig) -> None:
@@ -889,7 +897,7 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = config.solver_timeout_seconds
-    solver.parameters.num_workers = 8
+    solver.parameters.num_workers = _recommended_solver_worker_count()
 
     start_time = time.time()
     status_code = solver.Solve(model)
