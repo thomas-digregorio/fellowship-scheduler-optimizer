@@ -9,7 +9,7 @@ from pathlib import Path
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.export import export_pdf
+from src.export import export_csv_bytes, export_pdf, export_pdf_bytes
 from src.models import BlockConfig, BlockType, FellowConfig, ScheduleConfig
 from src.scheduler import check_feasibility, solve_schedule
 
@@ -142,3 +142,15 @@ def test_export_pdf_writes_ascii_safe_output(tmp_path: Path) -> None:
     pdf_path = export_pdf(result, config, tmp_path / "schedule.pdf")
 
     assert pdf_path.exists()
+
+
+def test_export_download_helpers_return_bytes() -> None:
+    """Browser-download helpers should produce non-empty payloads."""
+    config = make_small_config()
+    result = solve_schedule(config)
+
+    csv_bytes = export_csv_bytes(result, config)
+    pdf_bytes = export_pdf_bytes(result, config)
+
+    assert csv_bytes.startswith(b"Week,")
+    assert pdf_bytes.startswith(b"%PDF")

@@ -1,12 +1,9 @@
-"""Export schedule to PDF and CSV formats.
-
-Uses ``fpdf2`` for PDF generation and ``pandas`` for CSV. Both exporters
-take a ``ScheduleResult`` + ``ScheduleConfig`` and write to disk.
-"""
+"""Export schedule to PDF and CSV formats."""
 
 from __future__ import annotations
 
 from datetime import timedelta
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -21,31 +18,11 @@ from src.models import ScheduleConfig, ScheduleResult
 # CSV Export
 # ---------------------------------------------------------------------------
 
-def export_csv(
+def _build_schedule_export_dataframe(
     result: ScheduleResult,
     config: ScheduleConfig,
-    path: Path,
-) -> Path:
-    """Export the master schedule grid as a CSV file.
-
-    Rows = weeks, columns = fellows. Each cell contains the block name.
-    A second CSV with call assignments is also created alongside.
-
-    Parameters
-    ----------
-    result : ScheduleResult
-        The solved schedule.
-    config : ScheduleConfig
-        Configuration (for fellow names and dates).
-    path : Path
-        Output CSV file path.
-
-    Returns
-    -------
-    Path
-        The path to the created CSV file.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
+) -> pd.DataFrame:
+    """Build the exported master-schedule dataframe."""
 
     # Build week labels (start date of each week)
     week_labels: list[str] = []
@@ -68,8 +45,30 @@ def export_csv(
             blocks.append(block_name)
         data[fname] = blocks
 
-    df = pd.DataFrame(data)
-    df.to_csv(path, index=False, encoding="utf-8")
+    return pd.DataFrame(data)
+
+
+def export_csv_bytes(
+    result: ScheduleResult,
+    config: ScheduleConfig,
+) -> bytes:
+    """Return the master schedule grid as CSV bytes for browser download."""
+
+    df = _build_schedule_export_dataframe(result, config)
+    buffer = StringIO()
+    df.to_csv(buffer, index=False, encoding="utf-8")
+    return buffer.getvalue().encode("utf-8")
+
+
+def export_csv(
+    result: ScheduleResult,
+    config: ScheduleConfig,
+    path: Path,
+) -> Path:
+    """Export the master schedule grid as a CSV file on disk."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(export_csv_bytes(result, config))
     return path
 
 
@@ -77,33 +76,12 @@ def export_csv(
 # PDF Export
 # ---------------------------------------------------------------------------
 
-def export_pdf(
+def _build_schedule_pdf(
     result: ScheduleResult,
     config: ScheduleConfig,
-    path: Path,
-) -> Path:
-    """Export the master schedule as a formatted PDF.
+) -> FPDF:
+    """Build the PDF document for export."""
 
-    Creates a landscape PDF with a color-coded grid showing all 52 weeks
-    for all 9 fellows. Uses small fonts to fit the full year on a few pages.
-
-    Parameters
-    ----------
-    result : ScheduleResult
-        The solved schedule.
-    config : ScheduleConfig
-        Configuration (for fellow names and dates).
-    path : Path
-        Output PDF file path.
-
-    Returns
-    -------
-    Path
-        The path to the created PDF.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Create landscape PDF
     pdf = FPDF(orientation="L", unit="mm", format="A3")
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.add_page()
@@ -211,7 +189,28 @@ def export_pdf(
             pdf.ln()
             pdf.set_x(x_start)
 
-    pdf.output(str(path))
+    return pdf
+
+
+def export_pdf_bytes(
+    result: ScheduleResult,
+    config: ScheduleConfig,
+) -> bytes:
+    """Return the schedule PDF as bytes for browser download."""
+
+    pdf = _build_schedule_pdf(result, config)
+    return bytes(pdf.output())
+
+
+def export_pdf(
+    result: ScheduleResult,
+    config: ScheduleConfig,
+    path: Path,
+) -> Path:
+    """Export the master schedule as a formatted PDF on disk."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(export_pdf_bytes(result, config))
     return path
 
 

@@ -31,7 +31,7 @@ from app.state import (
     set_issues,
     set_result,
 )
-from src.export import export_csv, export_pdf
+from src.export import export_csv_bytes, export_pdf_bytes
 from src.models import TrainingYear
 from src.scheduler import check_feasibility, solve_schedule
 
@@ -225,6 +225,8 @@ def _render_action_bar() -> None:
     result = get_result()
     issues = get_issues()
     dirty = is_dirty()
+    csv_bytes = export_csv_bytes(result, config) if result is not None else b""
+    pdf_bytes = export_pdf_bytes(result, config) if result is not None else b""
 
     action_feedback: tuple[str, str] | None = None
     generate_col, save_col, reset_col, csv_col, pdf_col = st.columns(5)
@@ -270,24 +272,24 @@ def _render_action_bar() -> None:
             action_feedback = ("success" if reset_ok else "warning", reset_message)
 
     with csv_col:
-        if st.button(
+        st.download_button(
             "📄 Export CSV",
+            data=csv_bytes,
+            file_name="schedule.csv",
+            mime="text/csv",
             use_container_width=True,
             disabled=result is None,
-        ):
-            export_path = PROJECT_ROOT / "exports" / "schedule.csv"
-            export_csv(result, config, export_path)
-            action_feedback = ("success", f"CSV exported to {export_path}.")
+        )
 
     with pdf_col:
-        if st.button(
+        st.download_button(
             "📑 Export PDF",
+            data=pdf_bytes,
+            file_name="schedule.pdf",
+            mime="application/pdf",
             use_container_width=True,
             disabled=result is None,
-        ):
-            export_path = PROJECT_ROOT / "exports" / "schedule.pdf"
-            export_pdf(result, config, export_path)
-            action_feedback = ("success", f"PDF exported to {export_path}.")
+        )
 
     if action_feedback is not None:
         getattr(st, action_feedback[0])(action_feedback[1])
