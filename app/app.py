@@ -225,8 +225,6 @@ def _render_action_bar() -> None:
     result = get_result()
     issues = get_issues()
     dirty = is_dirty()
-    csv_bytes = export_csv_bytes(result, config) if result is not None else b""
-    pdf_bytes = export_pdf_bytes(result, config) if result is not None else b""
 
     action_feedback: tuple[str, str] | None = None
     generate_col, save_col, reset_col, csv_col, pdf_col = st.columns(5)
@@ -260,6 +258,11 @@ def _render_action_bar() -> None:
                             "error",
                             f"Solver returned {result.solver_status.value}. Relax constraints and try again.",
                         )
+
+    config = get_config()
+    result = get_result()
+    csv_bytes = export_csv_bytes(result, config) if result is not None else b""
+    pdf_bytes = export_pdf_bytes(result, config) if result is not None else b""
 
     with save_col:
         if st.button(
