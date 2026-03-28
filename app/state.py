@@ -10,6 +10,8 @@ Session state keys:
     "issues"   → list[str]        (feasibility warnings)
     "dirty"    → bool             (True if config changed since last solve)
     "notice"   → str | None       (one-time migration / validation notice)
+    "published_config_meta" → dict[str, str | bool | None]
+    "config_history" → list[ConfigHistoryEntry]
 """
 
 from __future__ import annotations
@@ -35,6 +37,16 @@ from src.config import (
     get_default_soft_single_week_block_rules,
     get_default_soft_state_assignment_rules,
     get_default_week_count_rules,
+)
+from src.config_store import (
+    ConfigHistoryEntry,
+    ConfigStoreError,
+    ConfigStoreUnavailableError,
+    PublishedConfigRecord,
+    bootstrap_published_config_if_missing,
+    load_published_config,
+    load_recent_config_history,
+    save_published_config,
 )
 from src.io_utils import load_config, load_schedule, save_config, save_schedule
 from src.models import (
@@ -98,6 +110,85 @@ SOURCE_BACKED_DEFAULT_BLOCK_NAMES = {
     "Peripheral vascular",
     "Congenital",
 }
+
+
+def _published_meta_from_record(
+    record: PublishedConfigRecord | None,
+    *,
+    is_shared_public: bool,
+) -> dict[str, str | bool | None]:
+    """Convert a published-config record into UI metadata."""
+
+    return {
+        "updated_at": None if record is None else record.updated_at,
+        "updated_by": None if record is None else record.updated_by,
+        "is_shared_public": is_shared_public,
+    }
+
+
+def _load_seed_config() -> ScheduleConfig:
+    """Load the local seed config used for first-time Supabase bootstrap."""
+
+    if CONFIG_PATH.exists():
+        try:
+            return load_config(CONFIG_PATH)
+        except Exception:
+            pass
+    return get_default_config()
+
+
+def _load_shared_or_fallback_config() -> tuple[
+    ScheduleConfig,
+    dict[str, str | bool | None],
+    list[ConfigHistoryEntry],
+    str | None,
+]:
+    """Load the published Supabase config, or fall back to local seed data."""
+
+    seed_config = _load_seed_config()
+
+    try:
+        published_record = bootstrap_published_config_if_missing(seed_config.to_dict())
+        published_config = ScheduleConfig.from_dict(published_record.config_json)
+        published_config, loaded_notice = _normalize_loaded_config(published_config)
+        history = load_recent_config_history(limit=10)
+        if published_record.updated_by == "bootstrap":
+            bootstrap_notice = (
+                "Bootstrapped the shared published config from the repo seed config."
+            )
+            loaded_notice = (
+                bootstrap_notice
+                if loaded_notice is None
+                else f"{loaded_notice} {bootstrap_notice}"
+            )
+        return (
+            published_config,
+            _published_meta_from_record(published_record, is_shared_public=True),
+            history,
+            loaded_notice,
+        )
+    except ConfigStoreUnavailableError as exc:
+        fallback_config, loaded_notice = _normalize_loaded_config(seed_config)
+        return (
+            fallback_config,
+            _published_meta_from_record(None, is_shared_public=False),
+            [],
+            loaded_notice,
+        )
+    except ConfigStoreError as exc:
+        fallback_config, loaded_notice = _normalize_loaded_config(seed_config)
+        fallback_notice = f"{exc} Using local fallback config for this session."
+        loaded_notice = (
+            fallback_notice
+            if loaded_notice is None
+            else f"{loaded_notice} {fallback_notice}"
+        )
+        return (
+            fallback_config,
+            _published_meta_from_record(None, is_shared_public=False),
+            [],
+            loaded_notice,
+        )
 
 
 def _looks_like_legacy_saved_config(config: ScheduleConfig) -> bool:
@@ -1529,30 +1620,25 @@ def _result_matches_config(
 def init_state() -> None:
     """Initialize session state on first app load.
 
-    Tries to load a previously saved config/schedule from disk.
-    Falls back to factory defaults if nothing is saved.
+    Tries to load the published config from Supabase.
+    Falls back to local seed config if Supabase is unavailable.
     """
     loaded_notice: str | None = None
 
     if "config" not in st.session_state:
-        if CONFIG_PATH.exists():
-            try:
-                loaded_config = load_config(CONFIG_PATH)
-                loaded_config, loaded_notice = _normalize_loaded_config(loaded_config)
-                st.session_state["config"] = loaded_config
-                if loaded_notice is not None:
-                    save_config(loaded_config, CONFIG_PATH)
-            except Exception:
-                st.session_state["config"] = get_default_config()
-        else:
-            st.session_state["config"] = get_default_config()
-
-    current_config, current_notice = _normalize_loaded_config(st.session_state["config"])
-    st.session_state["config"] = current_config
-    if current_notice is not None:
-        loaded_notice = current_notice
-        if CONFIG_PATH.exists():
-            save_config(current_config, CONFIG_PATH)
+        (
+            st.session_state["config"],
+            st.session_state["published_config_meta"],
+            st.session_state["config_history"],
+            loaded_notice,
+        ) = _load_shared_or_fallback_config()
+    else:
+        current_config, current_notice = _normalize_loaded_config(
+            st.session_state["config"]
+        )
+        st.session_state["config"] = current_config
+        if current_notice is not None:
+            loaded_notice = current_notice
 
     if "result" not in st.session_state:
         if SCHEDULE_PATH.exists():
@@ -1577,6 +1663,12 @@ def init_state() -> None:
 
     if "dirty" not in st.session_state:
         st.session_state["dirty"] = False
+
+    st.session_state.setdefault(
+        "published_config_meta",
+        _published_meta_from_record(None, is_shared_public=False),
+    )
+    st.session_state.setdefault("config_history", [])
 
     if "notice" not in st.session_state:
         st.session_state["notice"] = loaded_notice
@@ -1615,16 +1707,100 @@ def set_issues(issues: list[str]) -> None:
     st.session_state["issues"] = issues
 
 
-def persist_config() -> None:
-    """Save the current config to disk."""
-    save_config(get_config(), CONFIG_PATH)
-    st.session_state["dirty"] = False
+def persist_config(saved_by: str = "public_user") -> tuple[bool, str]:
+    """Persist the current config to the shared published store."""
+
+    validated_config = ScheduleConfig.from_dict(get_config().to_dict())
+    st.session_state["config"] = validated_config
+
+    try:
+        published_record = save_published_config(
+            validated_config.to_dict(),
+            saved_by=saved_by,
+        )
+        st.session_state["published_config_meta"] = _published_meta_from_record(
+            published_record,
+            is_shared_public=True,
+        )
+        st.session_state["config_history"] = load_recent_config_history(limit=10)
+        st.session_state["dirty"] = False
+        return True, "Shared published config saved."
+    except ConfigStoreUnavailableError as exc:
+        save_config(validated_config, CONFIG_PATH)
+        st.session_state["published_config_meta"] = _published_meta_from_record(
+            None,
+            is_shared_public=False,
+        )
+        st.session_state["dirty"] = False
+        return False, f"{exc} Saved locally instead."
+    except ConfigStoreError as exc:
+        return False, str(exc)
 
 
 def is_dirty() -> bool:
     """Return True when the config has changed since the last save/solve."""
 
     return bool(st.session_state.get("dirty", False))
+
+
+def get_published_config_meta() -> dict[str, str | bool | None]:
+    """Return metadata for the currently published shared config."""
+
+    return st.session_state.get(
+        "published_config_meta",
+        _published_meta_from_record(None, is_shared_public=False),
+    )
+
+
+def get_config_history() -> list[ConfigHistoryEntry]:
+    """Return recent published config history entries."""
+
+    return st.session_state.get("config_history", [])
+
+
+def reset_to_published_config() -> tuple[bool, str]:
+    """Reset the current working session config to the latest published config."""
+
+    seed_config = _load_seed_config()
+    try:
+        published_record = load_published_config()
+        if published_record is None:
+            published_record = bootstrap_published_config_if_missing(seed_config.to_dict())
+        published_config = ScheduleConfig.from_dict(published_record.config_json)
+        published_config, loaded_notice = _normalize_loaded_config(published_config)
+        st.session_state["config"] = published_config
+        st.session_state["published_config_meta"] = _published_meta_from_record(
+            published_record,
+            is_shared_public=True,
+        )
+        st.session_state["config_history"] = load_recent_config_history(limit=10)
+        st.session_state["issues"] = []
+        st.session_state["dirty"] = False
+        if not _result_matches_config(st.session_state.get("result"), published_config):
+            st.session_state["result"] = None
+        if loaded_notice is not None:
+            st.session_state["notice"] = loaded_notice
+        return True, "Reset working session to the current published config."
+    except ConfigStoreUnavailableError as exc:
+        fallback_config, loaded_notice = _normalize_loaded_config(seed_config)
+        st.session_state["config"] = fallback_config
+        st.session_state["published_config_meta"] = _published_meta_from_record(
+            None,
+            is_shared_public=False,
+        )
+        st.session_state["config_history"] = []
+        st.session_state["issues"] = []
+        st.session_state["dirty"] = False
+        if not _result_matches_config(st.session_state.get("result"), fallback_config):
+            st.session_state["result"] = None
+        st.session_state["notice"] = (
+            f"{exc} Reset to the local seed config."
+            if loaded_notice is None
+            else f"{loaded_notice} {exc} Reset to the local seed config."
+        )
+        return False, "Supabase unavailable. Reset to local seed config."
+    except ConfigStoreError as exc:
+        return False, str(exc)
 
 
 def get_notice() -> str | None:

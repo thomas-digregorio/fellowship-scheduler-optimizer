@@ -34,6 +34,51 @@ pytest tests/ -v
 streamlit run app/app.py
 ```
 
+### Supabase Shared Config Setup
+
+This app now uses Supabase as the shared published config store for Streamlit Community Cloud deployments.
+
+1. Create the config tables in Supabase by running:
+
+```sql
+create table if not exists app_config (
+  id text primary key,
+  config_json jsonb not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+
+create table if not exists config_history (
+  version_id bigint generated always as identity primary key,
+  config_id text not null,
+  config_json jsonb not null,
+  saved_at timestamptz not null default now(),
+  saved_by text
+);
+
+create index if not exists idx_config_history_config_id_saved_at
+on config_history(config_id, saved_at desc);
+```
+
+The same SQL is also committed in [supabase/config_persistence.sql](supabase/config_persistence.sql).
+
+2. Configure Streamlit secrets with:
+
+```toml
+SUPABASE_URL = "https://bzzkogsksrgvopfywqme.supabase.co"
+SUPABASE_KEY = "your-service-role-key"
+```
+
+For local development, place that content in `.streamlit/secrets.toml`.
+For Streamlit Community Cloud, add the same keys in the app Secrets settings.
+
+3. Shared config flow:
+   - On startup, the app loads the current published config from Supabase.
+   - If no published config exists yet, the app bootstraps Supabase from the repo seed config and writes an initial history row.
+   - The existing `Save Config` action publishes the current config for everyone and appends a new history row.
+   - `Reset to Published` restores the current session back to the latest shared published config.
+   - Streamlit session state is still used for temporary per-user edits before saving.
+
 ## Project Structure
 
 ```
@@ -45,6 +90,7 @@ fellowship-scheduler/
 │   ├── constraints.py       # Constraint builder functions
 │   ├── acgme.py             # ACGME duty-hour enforcement
 │   ├── call_scheduler.py    # 24-hr weekend call overlay
+│   ├── config_store.py      # Supabase shared config persistence
 │   ├── export.py            # PDF and CSV export
 │   └── io_utils.py          # JSON persistence
 ├── app/                     # Streamlit dashboard

@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import streamlit as st
 
-from app.state import get_config, persist_config, set_config
+from app.state import get_config, persist_config, reset_to_published_config, set_config
 from src.config import get_default_fellow_name
 from src.models import FellowConfig, ScheduleConfig, TrainingYear
 
@@ -151,7 +151,11 @@ def render_config_sidebar() -> None:
     set_config(config)
 
     if st.sidebar.button("💾 Save Config", use_container_width=True):
-        persist_config()
+        save_ok, save_message = persist_config()
+        getattr(st.sidebar, "success" if save_ok else "warning")(save_message)
+    if st.sidebar.button("↩️ Reset to Published", use_container_width=True):
+        reset_ok, reset_message = reset_to_published_config()
+        getattr(st.sidebar, "success" if reset_ok else "warning")(reset_message)
         st.sidebar.success("Configuration saved.")
 def _render_fellow_sections(config: ScheduleConfig) -> None:
     """Render fellow PTO editors grouped by cohort."""

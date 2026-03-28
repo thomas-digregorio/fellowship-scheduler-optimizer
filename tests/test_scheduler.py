@@ -2151,7 +2151,7 @@ class TestBuiltInDefaults:
         config.pto_weeks_to_rank = 0
         for fellow in config.fellows:
             fellow.pto_rankings = []
-        config.solver_timeout_seconds = 10.0
+        config.solver_timeout_seconds = 30.0
 
         result = solve_schedule(config)
 

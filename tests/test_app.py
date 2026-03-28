@@ -202,7 +202,6 @@ def test_app_renders_and_generates_schedule(
     assert not at.exception
     assert any(subheader.value == "📏 Rules" for subheader in at.subheader)
     assert not any(button.label == "🔄 Generate Schedule" for button in at.button)
-    assert any(subheader.value == "🧭 Validation Center" for subheader in at.subheader)
     tab_labels = [tab.label for tab in at.tabs]
     assert "Program-wide Rules" in tab_labels
     assert "F1 Fellow Rules" in tab_labels

@@ -18,13 +18,16 @@ from app.components.pto_calendar import render_pto_calendar
 from app.components.rules_tab import render_rules_tab
 from app.state import (
     clear_notice,
+    get_config_history,
     get_config,
     get_issues,
     get_notice,
+    get_published_config_meta,
     get_result,
     init_state,
     is_dirty,
     persist_config,
+    reset_to_published_config,
     set_issues,
     set_result,
 )
@@ -224,7 +227,7 @@ def _render_action_bar() -> None:
     dirty = is_dirty()
 
     action_feedback: tuple[str, str] | None = None
-    generate_col, save_col, csv_col, pdf_col = st.columns(4)
+    generate_col, save_col, reset_col, csv_col, pdf_col = st.columns(5)
     with generate_col:
         if st.button("🔄 Generate Schedule", use_container_width=True, type="primary"):
             issues = check_feasibility(config)
@@ -255,8 +258,16 @@ def _render_action_bar() -> None:
             use_container_width=True,
             disabled=not dirty,
         ):
-            persist_config()
-            action_feedback = ("success", "Configuration saved.")
+            save_ok, save_message = persist_config()
+            action_feedback = ("success" if save_ok else "warning", save_message)
+
+    with reset_col:
+        if st.button(
+            "↩️ Reset to Published",
+            use_container_width=True,
+        ):
+            reset_ok, reset_message = reset_to_published_config()
+            action_feedback = ("success" if reset_ok else "warning", reset_message)
 
     with csv_col:
         if st.button(
@@ -285,12 +296,36 @@ def _render_action_bar() -> None:
 def _render_command_center(page: str) -> None:
     """Render the top-level status area."""
 
+    published_meta = get_published_config_meta()
+    config_history = get_config_history()
+
     with st.container(border=True):
         st.markdown('<div class="app-eyebrow">Schedule Optimization Workspace</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="app-hero"><h1>🏥 Fellowship Schedule Dashboard</h1></div>',
             unsafe_allow_html=True,
         )
+
+        published_updated_at = published_meta.get("updated_at") or "Not yet published"
+        published_updated_by = published_meta.get("updated_by") or "public_user"
+        shared_note = (
+            "This is the shared public published config. Saving here updates the default config for everyone."
+            if published_meta.get("is_shared_public")
+            else "Supabase shared persistence is unavailable right now. This session is using local fallback config."
+        )
+
+        status_left, status_middle = st.columns([1.5, 1.0])
+        with status_left:
+            st.caption(f"Currently published config updated at: {published_updated_at}")
+            st.caption(f"Last saved by: {published_updated_by}")
+            st.caption(shared_note)
+        with status_middle:
+            if config_history:
+                with st.expander("Recent shared config history", expanded=False):
+                    for entry in config_history[:10]:
+                        saved_at = entry.saved_at or "unknown"
+                        saved_by = entry.saved_by or "public_user"
+                        st.markdown(f"- `{saved_at}` by `{saved_by}`")
 
         if page == "Master Schedule":
             _render_action_bar()
