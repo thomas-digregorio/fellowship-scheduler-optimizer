@@ -25,8 +25,7 @@
     "VA Echo",
     "SRC Echo",
     "Yale Cath",
-    "VA Cath",
-    "SRC Cath"
+    "VA Cath"
   ],
   "call_min_per_fellow": 5,
   "call_max_per_fellow": 6,
@@ -70,7 +69,6 @@
     "SRC Echo",
     "Yale Cath",
     "VA Cath",
-    "SRC Cath",
     "CT-MRI"
   ],
   "srcva_weekend_call_f1_start_week": 33,
@@ -92,7 +90,6 @@
     "SRC Echo",
     "Yale Cath",
     "VA Cath",
-    "SRC Cath",
     "CT-MRI"
   ],
   "srcva_weekday_call_f1_start_week": 25,
@@ -113,7 +110,6 @@
     "SRC Echo",
     "Yale Cath",
     "VA Cath",
-    "SRC Cath",
     "CT-MRI",
     "Research",
     "PTO"
@@ -126,6 +122,7 @@
   "hours_cap": 80.0,
   "trailing_avg_weeks": 4,
   "solver_timeout_seconds": 600.0,
+  "skip_default_rule_normalization": true,
   "pto_preference_weight_overrides": {
     "F1": [
       500,
@@ -325,7 +322,7 @@
       "hours_per_week": 60.0,
       "min_weeks": 0,
       "max_weeks": 52,
-      "is_active": true,
+      "is_active": false,
       "has_weekend_off": false,
       "requires_call_coverage": false
     },
@@ -585,7 +582,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "Alashi",
+      "name": "Alaashi",
       "training_year": "T3",
       "pto_rankings": [
         7,
@@ -666,7 +663,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "El_Charif",
+      "name": "El Charif",
       "training_year": "T3",
       "pto_rankings": [
         42,
@@ -676,7 +673,7 @@
       "unavailable_weeks": []
     },
     {
-      "name": "Nurula",
+      "name": "Narula",
       "training_year": "T3",
       "pto_rankings": [
         6,
@@ -740,7 +737,7 @@
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "VA Nuclear staffed by F1, S2, or T3",
@@ -780,7 +777,7 @@
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "SRC Echo staffed",
@@ -808,7 +805,7 @@
       "max_fellows": 2,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "VA Cath staffed by F1 or S2",
@@ -848,7 +845,7 @@
       "max_fellows": 1,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "CT-MRI staffed by S2 or T3",
@@ -1113,16 +1110,14 @@
     },
     {
       "name": "SRC Cath limited to F1 and S2",
-      "block_names": [
-        "SRC Cath"
-      ],
+      "block_names": [],
       "allowed_years": [
         "F1",
         "S2"
       ],
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "Research any year",
@@ -1289,7 +1284,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 SRC Consults",
@@ -1304,7 +1299,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 VA Consults",
@@ -1319,7 +1314,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 Consult total",
@@ -1487,7 +1482,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 SRC Echo",
@@ -1502,7 +1497,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 Echo total",
@@ -1534,7 +1529,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 VA Cath",
@@ -1556,15 +1551,13 @@
       "applicable_years": [
         "F1"
       ],
-      "block_names": [
-        "SRC Cath"
-      ],
+      "block_names": [],
       "min_weeks": 1,
       "max_weeks": 2,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 Cath total",
@@ -1573,15 +1566,14 @@
       ],
       "block_names": [
         "Yale Cath",
-        "VA Cath",
-        "SRC Cath"
+        "VA Cath"
       ],
       "min_weeks": 6,
       "max_weeks": 7,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "F1 Research",
@@ -1732,7 +1724,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 CCU",
@@ -1807,7 +1799,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 VA Nuclear",
@@ -1822,7 +1814,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 Nuclear total",
@@ -1838,7 +1830,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 Yale Echo",
@@ -1915,7 +1907,7 @@
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 VA Cath",
@@ -1937,15 +1929,13 @@
       "applicable_years": [
         "S2"
       ],
-      "block_names": [
-        "SRC Cath"
-      ],
+      "block_names": [],
       "min_weeks": 0,
       "max_weeks": 4,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "S2 Cath total",
@@ -1954,8 +1944,7 @@
       ],
       "block_names": [
         "Yale Cath",
-        "VA Cath",
-        "SRC Cath"
+        "VA Cath"
       ],
       "min_weeks": 6,
       "max_weeks": 8,
@@ -2302,15 +2291,13 @@
       "applicable_years": [
         "T3"
       ],
-      "block_names": [
-        "SRC Cath"
-      ],
+      "block_names": [],
       "min_weeks": 0,
       "max_weeks": 0,
       "start_week": 0,
       "end_week": null,
       "applies_to_each_fellow": true,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "T3 Research",
@@ -2426,7 +2413,7 @@
       "max_fellows": 4,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     },
     {
       "name": "T3 PTO cap",
@@ -2456,7 +2443,7 @@
       "max_weeks_in_window": 3,
       "start_week": 0,
       "end_week": null,
-      "is_active": true
+      "is_active": false
     }
   ],
   "consecutive_state_limit_rules": [
@@ -2664,7 +2651,7 @@
       ],
       "block_name": "Night Float",
       "max_run_length_weeks": 1,
-      "is_active": true
+      "is_active": false
     }
   ],
   "contiguous_block_rules": [
@@ -2699,7 +2686,7 @@
         "F1"
       ],
       "required_prior_weeks": 1,
-      "is_active": true
+      "is_active": false
     }
   ],
   "individual_fellow_requirement_rules": [
@@ -2733,7 +2720,7 @@
       "block_name": "EP",
       "min_weeks": 5,
       "max_weeks": 5,
-      "is_active": true
+      "is_active": false
     },
     {
       "training_year": "S2",
@@ -2749,7 +2736,7 @@
       "block_name": "CCU",
       "min_weeks": 2,
       "max_weeks": 2,
-      "is_active": true
+      "is_active": false
     },
     {
       "training_year": "S2",
@@ -2793,8 +2780,7 @@
       ],
       "prerequisite_block_groups": [
         [
-          "Yale Cath",
-          "SRC Cath"
+          "Yale Cath"
         ]
       ],
       "prerequisite_min_weeks": 1,
@@ -2812,7 +2798,7 @@
       "forbidden_previous_blocks": [
         "CCU"
       ],
-      "is_active": true
+      "is_active": false
     }
   ],
   "soft_sequence_rules": [
@@ -3067,7 +3053,6 @@
         "SRC Echo",
         "Yale Cath",
         "VA Cath",
-        "SRC Cath",
         "CT-MRI",
         "Peripheral vascular",
         "Elective"
@@ -3102,7 +3087,6 @@
         "SRC Echo",
         "Yale Cath",
         "VA Cath",
-        "SRC Cath",
         "CT-MRI",
         "Peripheral vascular",
         "Elective"

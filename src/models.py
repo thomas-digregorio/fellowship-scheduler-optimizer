@@ -884,6 +884,7 @@ class ScheduleConfig:
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
     solver_timeout_seconds: float = 600.0
+    skip_default_rule_normalization: bool = False
     pto_preference_weight_overrides: dict[str, list[int]] = field(default_factory=dict)
     blocks: list[BlockConfig] = field(default_factory=list)
     fellows: list[FellowConfig] = field(default_factory=list)
@@ -1100,6 +1101,7 @@ class ScheduleConfig:
             "hours_cap": self.hours_cap,
             "trailing_avg_weeks": self.trailing_avg_weeks,
             "solver_timeout_seconds": self.solver_timeout_seconds,
+            "skip_default_rule_normalization": self.skip_default_rule_normalization,
             "pto_preference_weight_overrides": self.pto_preference_weight_overrides,
             "blocks": [block.to_dict() for block in self.blocks],
             "fellows": [fellow.to_dict() for fellow in self.fellows],
@@ -1169,6 +1171,9 @@ class ScheduleConfig:
         payload["hours_cap"] = float(payload.get("hours_cap", 80.0))
         payload["solver_timeout_seconds"] = float(
             payload.get("solver_timeout_seconds", 600.0)
+        )
+        payload["skip_default_rule_normalization"] = bool(
+            payload.get("skip_default_rule_normalization", False)
         )
         payload["pto_preference_weight_overrides"] = _normalize_pto_preference_weight_overrides(
             payload.get("pto_preference_weight_overrides")

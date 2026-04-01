@@ -251,6 +251,9 @@ def _normalize_loaded_config(
             ),
         )
 
+    if config.skip_default_rule_normalization:
+        return config, None
+
     updated_messages: list[str] = []
     if _upgrade_source_backed_rule_defaults(config):
         updated_messages.append(
