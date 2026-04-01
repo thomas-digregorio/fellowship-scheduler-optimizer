@@ -62,6 +62,31 @@ def _resolve_rule_end_week(end_week: int | None, num_weeks: int) -> int:
     return num_weeks - 1 if end_week is None else min(end_week, num_weeks - 1)
 
 
+def _add_fixed_assignments(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    fixed_assignments: list[list[str]],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> None:
+    """Pin the master schedule to a provided assignment matrix."""
+
+    if len(fixed_assignments) != config.num_fellows:
+        raise ValueError("Fixed assignments must include one row per fellow.")
+
+    for fellow_idx, fellow_assignments in enumerate(fixed_assignments):
+        if len(fellow_assignments) != config.num_weeks:
+            raise ValueError(
+                f"Fixed assignments for fellow index {fellow_idx} must include one entry per week."
+            )
+        for week, state_name in enumerate(fellow_assignments):
+            if state_name not in block_name_to_idx:
+                raise ValueError(
+                    f"Fixed assignments reference unknown state '{state_name}' at fellow {fellow_idx}, week {week}."
+                )
+            model.Add(assign[fellow_idx, week, block_name_to_idx[state_name]] == 1)
+
+
 def check_feasibility(config: ScheduleConfig) -> list[str]:
     """Run quick sanity checks on the config before invoking the solver."""
 
@@ -779,7 +804,10 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
     return issues
 
 
-def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
+def solve_schedule(
+    config: ScheduleConfig,
+    fixed_assignments: list[list[str]] | None = None,
+) -> ScheduleResult:
     """Build and solve the CP-SAT model for the fellowship schedule."""
 
     _sync_num_fellows(config)
@@ -827,6 +855,15 @@ def solve_schedule(config: ScheduleConfig) -> ScheduleResult:
         for fellow_idx in range(config.num_fellows):
             for week in range(config.num_weeks):
                 model.Add(assign[fellow_idx, week, block_idx] == 0)
+
+    if fixed_assignments is not None:
+        _add_fixed_assignments(
+            model,
+            assign,
+            fixed_assignments,
+            config,
+            block_name_to_idx,
+        )
 
     add_one_assignment_per_week(model, assign, config, num_blocks, pto_idx)
     add_unavailable_weeks(model, assign, config, pto_idx)
@@ -1339,6 +1376,24 @@ def _build_structured_call_objective_terms(
             block_name_to_idx,
         )
     )
+    objective_terms.extend(
+        _build_call_next_week_block_terms(
+            model,
+            assign,
+            call,
+            config,
+            block_name_to_idx,
+        )
+    )
+    objective_terms.extend(
+        _build_call_current_block_terms(
+            model,
+            assign,
+            call,
+            config,
+            block_name_to_idx,
+        )
+    )
     return objective_terms
 
 
@@ -1396,6 +1451,15 @@ def _build_srcva_call_objective_terms(
             weekday_call,
             call,
             config,
+        )
+    )
+    objective_terms.extend(
+        _build_srcva_weekend_next_week_block_terms(
+            model,
+            assign,
+            weekend_call,
+            config,
+            block_name_to_idx,
         )
     )
     return objective_terms
@@ -1803,6 +1867,119 @@ def _build_holiday_call_avoidance_terms(
     return objective_terms
 
 
+def _build_call_next_week_block_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Penalize 24-hour call immediately before selected next-week blocks."""
+
+    if (
+        not config.call_soft_forbidden_next_week_blocks
+        or config.call_soft_forbidden_next_week_weight == 0
+    ):
+        return []
+
+    target_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_soft_forbidden_next_week_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not target_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        for week in range(config.num_weeks - 1):
+            next_week_match = sum(
+                assign[fellow_idx, week + 1, block_idx] for block_idx in target_indices
+            )
+            match_var = model.NewBoolVar(f"call_next_week_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= call[fellow_idx, week])
+            model.Add(match_var <= next_week_match)
+            model.Add(match_var >= call[fellow_idx, week] + next_week_match - 1)
+            objective_terms.append(match_var * config.call_soft_forbidden_next_week_weight)
+    return objective_terms
+
+
+def _build_call_current_block_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Penalize 24-hour call on selected current-week rotations."""
+
+    if (
+        not config.call_soft_disfavored_current_blocks
+        or config.call_soft_disfavored_current_weight == 0
+    ):
+        return []
+
+    target_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.call_soft_disfavored_current_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not target_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        for week in range(config.num_weeks):
+            current_week_match = sum(
+                assign[fellow_idx, week, block_idx] for block_idx in target_indices
+            )
+            match_var = model.NewBoolVar(f"call_current_block_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= call[fellow_idx, week])
+            model.Add(match_var <= current_week_match)
+            model.Add(match_var >= call[fellow_idx, week] + current_week_match - 1)
+            objective_terms.append(match_var * config.call_soft_disfavored_current_weight)
+    return objective_terms
+
+
+def _build_srcva_weekend_next_week_block_terms(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    block_name_to_idx: dict[str, int],
+) -> list[cp_model.LinearExpr]:
+    """Penalize weekend SRC/VA call immediately before selected next-week blocks."""
+
+    if (
+        not config.srcva_weekend_soft_forbidden_next_week_blocks
+        or config.srcva_weekend_soft_forbidden_next_week_weight == 0
+    ):
+        return []
+
+    target_indices = [
+        block_name_to_idx[block_name]
+        for block_name in config.srcva_weekend_soft_forbidden_next_week_blocks
+        if block_name in block_name_to_idx
+    ]
+    if not target_indices:
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years):
+        for week in range(config.num_weeks - 1):
+            next_week_match = sum(
+                assign[fellow_idx, week + 1, block_idx] for block_idx in target_indices
+            )
+            match_var = model.NewBoolVar(f"srcva_weekend_next_week_match_f{fellow_idx}_w{week}")
+            model.Add(match_var <= weekend_call[fellow_idx, week])
+            model.Add(match_var <= next_week_match)
+            model.Add(match_var >= weekend_call[fellow_idx, week] + next_week_match - 1)
+            objective_terms.append(
+                match_var * config.srcva_weekend_soft_forbidden_next_week_weight
+            )
+    return objective_terms
+
+
 def _first_call_week_var(
     model: cp_model.CpModel,
     call: dict[tuple[int, int], cp_model.IntVar],
@@ -2031,6 +2208,18 @@ def _empty_cohort_score_row(category: str) -> dict[str, int | str]:
     return row
 
 
+def _block_list_label(block_names: list[str]) -> str:
+    """Return a compact human-readable label for one or more block names."""
+
+    if not block_names:
+        return "selected blocks"
+    if len(block_names) == 1:
+        return block_names[0]
+    if len(block_names) == 2:
+        return f"{block_names[0]} or {block_names[1]}"
+    return ", ".join(block_names[:-1]) + f", or {block_names[-1]}"
+
+
 def _add_points_to_row(
     row: dict[str, int | str],
     year: TrainingYear,
@@ -2125,6 +2314,13 @@ def _build_srcva_call_breakdown_rows(
             weekday_call_assignments,
         )
     )
+    rows.append(
+        _build_srcva_weekend_next_week_block_breakdown_row(
+            config,
+            assignments,
+            weekend_call_assignments,
+        )
+    )
     return rows
 
 
@@ -2142,6 +2338,8 @@ def _build_structured_call_breakdown_rows(
     rows.append(_build_first_call_preferred_block_breakdown_row(config, assignments, call_assignments))
     rows.append(_build_first_call_prerequisite_breakdown_row(config, assignments, call_assignments))
     rows.append(_build_holiday_call_avoidance_breakdown_row(config, assignments, call_assignments))
+    rows.append(_build_call_next_week_block_breakdown_row(config, assignments, call_assignments))
+    rows.append(_build_call_current_block_breakdown_row(config, assignments, call_assignments))
     return rows
 
 
@@ -2450,6 +2648,56 @@ def _build_holiday_call_avoidance_breakdown_row(
     return row
 
 
+def _build_call_next_week_block_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the next-week 24-hour call penalty by cohort."""
+
+    row = _empty_cohort_score_row(
+        f"Penalty: 24-hr call before {_block_list_label(config.call_soft_forbidden_next_week_blocks)}"
+    )
+    if (
+        not config.call_soft_forbidden_next_week_blocks
+        or config.call_soft_forbidden_next_week_weight == 0
+    ):
+        return row
+
+    target_blocks = set(config.call_soft_forbidden_next_week_blocks)
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks - 1):
+            if call_assignments[fellow_idx][week] and assignments[fellow_idx][week + 1] in target_blocks:
+                _add_points_to_row(row, year, config.call_soft_forbidden_next_week_weight)
+    return row
+
+
+def _build_call_current_block_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the current-rotation 24-hour call penalty by cohort."""
+
+    row = _empty_cohort_score_row(
+        f"Penalty: 24-hr call on {_block_list_label(config.call_soft_disfavored_current_blocks)}"
+    )
+    if (
+        not config.call_soft_disfavored_current_blocks
+        or config.call_soft_disfavored_current_weight == 0
+    ):
+        return row
+
+    target_blocks = set(config.call_soft_disfavored_current_blocks)
+    for fellow_idx in config.fellow_indices_for_years(config.call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks):
+            if call_assignments[fellow_idx][week] and assignments[fellow_idx][week] in target_blocks:
+                _add_points_to_row(row, year, config.call_soft_disfavored_current_weight)
+    return row
+
+
 def _build_srcva_holiday_preference_breakdown_row(
     config: ScheduleConfig,
     assignments: list[list[str]],
@@ -2591,6 +2839,35 @@ def _build_srcva_weekday_same_week_as_24hr_breakdown_row(
                 weekday_call_assignments[fellow_idx][week]
             ):
                 _add_points_to_row(row, year, config.srcva_weekday_same_week_as_24hr_weight)
+    return row
+
+
+def _build_srcva_weekend_next_week_block_breakdown_row(
+    config: ScheduleConfig,
+    assignments: list[list[str]],
+    weekend_call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the next-week weekend SRC/VA call penalty by cohort."""
+
+    row = _empty_cohort_score_row(
+        "Penalty: SRC/VA weekend call before "
+        f"{_block_list_label(config.srcva_weekend_soft_forbidden_next_week_blocks)}"
+    )
+    if (
+        not config.srcva_weekend_soft_forbidden_next_week_blocks
+        or config.srcva_weekend_soft_forbidden_next_week_weight == 0
+    ):
+        return row
+
+    target_blocks = set(config.srcva_weekend_soft_forbidden_next_week_blocks)
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks - 1):
+            if (
+                weekend_call_assignments[fellow_idx][week]
+                and assignments[fellow_idx][week + 1] in target_blocks
+            ):
+                _add_points_to_row(row, year, config.srcva_weekend_soft_forbidden_next_week_weight)
     return row
 
 

@@ -853,6 +853,12 @@ class ScheduleConfig:
     call_holiday_sensitive_blocks: list[str] = field(default_factory=list)
     call_holiday_target_weeks: list[int] = field(default_factory=list)
     call_holiday_conflict_weight: int = 0
+    call_max_calls_in_window_weeks: int = 0
+    call_max_calls_in_window_count: int = 0
+    call_soft_forbidden_next_week_blocks: list[str] = field(default_factory=list)
+    call_soft_forbidden_next_week_weight: int = 0
+    call_soft_disfavored_current_blocks: list[str] = field(default_factory=list)
+    call_soft_disfavored_current_weight: int = 0
     srcva_weekend_call_enabled: bool = False
     srcva_weekend_call_eligible_years: list[TrainingYear] = field(default_factory=list)
     srcva_weekend_call_allowed_block_names: list[str] = field(default_factory=list)
@@ -861,6 +867,9 @@ class ScheduleConfig:
     srcva_weekend_call_f1_max: int = 0
     srcva_weekend_call_s2_min: int = 0
     srcva_weekend_call_s2_max: int = 0
+    srcva_weekend_exclude_adjacent_24hr_weeks: bool = False
+    srcva_weekend_soft_forbidden_next_week_blocks: list[str] = field(default_factory=list)
+    srcva_weekend_soft_forbidden_next_week_weight: int = 0
     srcva_total_call_f1_min: int = 0
     srcva_total_call_f1_max: int = 52
     srcva_weekday_call_enabled: bool = False
@@ -881,6 +890,8 @@ class ScheduleConfig:
     srcva_weekday_max_one_per_week_weight: int = 0
     srcva_weekday_same_week_as_weekend_weight: int = 0
     srcva_weekday_same_week_as_24hr_weight: int = 0
+    srcva_combined_call_window_weeks: int = 0
+    srcva_combined_call_window_max: int = 0
     hours_cap: float = 80.0
     trailing_avg_weeks: int = 4
     solver_timeout_seconds: float = 600.0
@@ -1070,6 +1081,12 @@ class ScheduleConfig:
             "call_holiday_sensitive_blocks": self.call_holiday_sensitive_blocks,
             "call_holiday_target_weeks": self.call_holiday_target_weeks,
             "call_holiday_conflict_weight": self.call_holiday_conflict_weight,
+            "call_max_calls_in_window_weeks": self.call_max_calls_in_window_weeks,
+            "call_max_calls_in_window_count": self.call_max_calls_in_window_count,
+            "call_soft_forbidden_next_week_blocks": self.call_soft_forbidden_next_week_blocks,
+            "call_soft_forbidden_next_week_weight": self.call_soft_forbidden_next_week_weight,
+            "call_soft_disfavored_current_blocks": self.call_soft_disfavored_current_blocks,
+            "call_soft_disfavored_current_weight": self.call_soft_disfavored_current_weight,
             "srcva_weekend_call_enabled": self.srcva_weekend_call_enabled,
             "srcva_weekend_call_eligible_years": _serialize_years(self.srcva_weekend_call_eligible_years),
             "srcva_weekend_call_allowed_block_names": self.srcva_weekend_call_allowed_block_names,
@@ -1078,6 +1095,9 @@ class ScheduleConfig:
             "srcva_weekend_call_f1_max": self.srcva_weekend_call_f1_max,
             "srcva_weekend_call_s2_min": self.srcva_weekend_call_s2_min,
             "srcva_weekend_call_s2_max": self.srcva_weekend_call_s2_max,
+            "srcva_weekend_exclude_adjacent_24hr_weeks": self.srcva_weekend_exclude_adjacent_24hr_weeks,
+            "srcva_weekend_soft_forbidden_next_week_blocks": self.srcva_weekend_soft_forbidden_next_week_blocks,
+            "srcva_weekend_soft_forbidden_next_week_weight": self.srcva_weekend_soft_forbidden_next_week_weight,
             "srcva_total_call_f1_min": self.srcva_total_call_f1_min,
             "srcva_total_call_f1_max": self.srcva_total_call_f1_max,
             "srcva_weekday_call_enabled": self.srcva_weekday_call_enabled,
@@ -1098,6 +1118,8 @@ class ScheduleConfig:
             "srcva_weekday_max_one_per_week_weight": self.srcva_weekday_max_one_per_week_weight,
             "srcva_weekday_same_week_as_weekend_weight": self.srcva_weekday_same_week_as_weekend_weight,
             "srcva_weekday_same_week_as_24hr_weight": self.srcva_weekday_same_week_as_24hr_weight,
+            "srcva_combined_call_window_weeks": self.srcva_combined_call_window_weeks,
+            "srcva_combined_call_window_max": self.srcva_combined_call_window_max,
             "hours_cap": self.hours_cap,
             "trailing_avg_weeks": self.trailing_avg_weeks,
             "solver_timeout_seconds": self.solver_timeout_seconds,

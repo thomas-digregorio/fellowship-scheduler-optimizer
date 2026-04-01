@@ -172,7 +172,7 @@ def _render_program_setup(config: ScheduleConfig) -> None:
 
         st.markdown("**Structured 24-Hr Call Rules**")
         st.caption(
-            "These settings drive the overlay weekend call model used by the solver."
+            "These settings drive the overlay 24-hour call model used by the solver."
         )
 
         year_options = [year.value for year in TrainingYear]
@@ -234,6 +234,30 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             max_value=4,
             value=max(1, min(config.call_max_consecutive_weeks_per_fellow, 4)),
             key="program_call_max_consecutive",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.call_max_calls_in_window_weeks = left_col.number_input(
+            "Rolling 24-hr window length (weeks, 0 disables)",
+            min_value=0,
+            max_value=12,
+            value=max(0, min(config.call_max_calls_in_window_weeks, 12)),
+            key="program_call_window_weeks",
+        )
+        max_window_count_limit = (
+            config.call_max_calls_in_window_weeks
+            if config.call_max_calls_in_window_weeks > 0
+            else config.num_weeks
+        )
+        config.call_max_calls_in_window_count = middle_col.number_input(
+            "Max 24-hr calls in rolling window",
+            min_value=0,
+            max_value=max_window_count_limit,
+            value=max(
+                0,
+                min(config.call_max_calls_in_window_count, max_window_count_limit),
+            ),
+            key="program_call_window_count",
         )
 
         st.markdown("**24-Hr Call Soft Preferences**")
@@ -326,6 +350,44 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             max_value=50,
             value=config.call_holiday_conflict_weight,
             key="program_call_holiday_conflict_weight",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.call_soft_forbidden_next_week_blocks = left_col.multiselect(
+            "Soft-avoid 24-hr call before next-week rotations",
+            options=all_state_names,
+            default=[
+                block_name
+                for block_name in config.call_soft_forbidden_next_week_blocks
+                if block_name in all_state_names
+            ],
+            key="program_call_soft_forbidden_next_week_blocks",
+        )
+        config.call_soft_forbidden_next_week_weight = middle_col.number_input(
+            "24-hr before next-week rotation penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.call_soft_forbidden_next_week_weight,
+            key="program_call_soft_forbidden_next_week_weight",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.call_soft_disfavored_current_blocks = left_col.multiselect(
+            "Soft-avoid 24-hr call on current-week rotations",
+            options=block_options,
+            default=[
+                block_name
+                for block_name in config.call_soft_disfavored_current_blocks
+                if block_name in block_options
+            ],
+            key="program_call_soft_disfavored_current_blocks",
+        )
+        config.call_soft_disfavored_current_weight = middle_col.number_input(
+            "24-hr on current rotation penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.call_soft_disfavored_current_weight,
+            key="program_call_soft_disfavored_current_weight",
         )
 
     with st.container(border=True):
@@ -441,6 +503,35 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             max_value=config.num_weeks,
             value=current_total_f1_max,
             key="program_srcva_total_f1_max",
+        )
+
+        left_col, middle_col, right_col = st.columns(3)
+        config.srcva_weekend_exclude_adjacent_24hr_weeks = left_col.checkbox(
+            "Hard rule: no weekend SRC/VA adjacent to 24-hr call",
+            value=config.srcva_weekend_exclude_adjacent_24hr_weeks,
+            key="program_srcva_weekend_adjacent_24hr_exclusion",
+        )
+        config.srcva_combined_call_window_weeks = middle_col.number_input(
+            "Combined 24-hr + weekend rolling window (weeks, 0 disables)",
+            min_value=0,
+            max_value=12,
+            value=max(0, min(config.srcva_combined_call_window_weeks, 12)),
+            key="program_srcva_combined_window_weeks",
+        )
+        max_combined_window = (
+            config.srcva_combined_call_window_weeks
+            if config.srcva_combined_call_window_weeks > 0
+            else config.num_weeks
+        )
+        config.srcva_combined_call_window_max = right_col.number_input(
+            "Max combined 24-hr + weekend calls in rolling window",
+            min_value=0,
+            max_value=max_combined_window,
+            value=max(
+                0,
+                min(config.srcva_combined_call_window_max, max_combined_window),
+            ),
+            key="program_srcva_combined_window_max",
         )
 
         st.markdown("**Weekday SRC/VA Call**")
@@ -611,6 +702,25 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             max_value=50,
             value=config.srcva_weekday_same_week_as_24hr_weight,
             key="program_srcva_same_week_24hr_penalty",
+        )
+
+        left_col, middle_col = st.columns(2)
+        config.srcva_weekend_soft_forbidden_next_week_blocks = left_col.multiselect(
+            "Soft-avoid weekend SRC/VA before next-week rotations",
+            options=all_state_names,
+            default=[
+                block_name
+                for block_name in config.srcva_weekend_soft_forbidden_next_week_blocks
+                if block_name in all_state_names
+            ],
+            key="program_srcva_weekend_soft_forbidden_next_week_blocks",
+        )
+        config.srcva_weekend_soft_forbidden_next_week_weight = middle_col.number_input(
+            "Weekend SRC/VA before next-week rotation penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_weekend_soft_forbidden_next_week_weight,
+            key="program_srcva_weekend_soft_forbidden_next_week_weight",
         )
 
     with st.container(border=True):

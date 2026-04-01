@@ -31,6 +31,7 @@ def add_call_constraints(
         )
         _add_structured_call_fairness(model, call, config)
         _add_structured_call_consecutive_rules(model, call, config)
+        _add_structured_call_window_rules(model, call, config)
         return
 
     _add_legacy_call_coverage(model, call, config)
@@ -61,8 +62,10 @@ def add_srcva_call_constraints(
             pto_idx,
         )
         _add_srcva_weekend_24hr_exclusion(model, weekend_call, call, config)
+        _add_srcva_weekend_adjacent_24hr_exclusion(model, weekend_call, call, config)
         _add_srcva_weekend_fairness(model, weekend_call, config)
         _add_srcva_total_f1_call_bounds(model, weekend_call, call, config)
+        _add_srcva_combined_call_window_rules(model, weekend_call, call, config)
     else:
         for fellow_idx in range(config.num_fellows):
             for week in range(config.num_weeks):
@@ -177,6 +180,27 @@ def _add_srcva_weekend_24hr_exclusion(
             model.Add(weekend_call[fellow_idx, week] + call[fellow_idx, week] <= 1)
 
 
+def _add_srcva_weekend_adjacent_24hr_exclusion(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Optionally forbid adjacent-week combinations of weekend and 24-hour call."""
+
+    if not config.srcva_weekend_exclude_adjacent_24hr_weeks:
+        return
+
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for week in range(config.num_weeks - 1):
+            model.Add(weekend_call[fellow_idx, week] + call[fellow_idx, week + 1] <= 1)
+            model.Add(call[fellow_idx, week] + weekend_call[fellow_idx, week + 1] <= 1)
+
+
 def _add_srcva_weekend_fairness(
     model: cp_model.CpModel,
     weekend_call: dict[tuple[int, int], cp_model.IntVar],
@@ -216,6 +240,38 @@ def _add_srcva_total_f1_call_bounds(
         total_calls = sum(call[fellow_idx, week] + weekend_call[fellow_idx, week] for week in range(config.num_weeks))
         model.Add(total_calls >= config.srcva_total_call_f1_min)
         model.Add(total_calls <= config.srcva_total_call_f1_max)
+
+
+def _add_srcva_combined_call_window_rules(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Limit combined 24-hour and weekend SRC/VA calls in rolling windows."""
+
+    window_weeks = config.srcva_combined_call_window_weeks
+    max_calls = config.srcva_combined_call_window_max
+    if (
+        window_weeks <= 0
+        or max_calls <= 0
+        or config.num_weeks < window_weeks
+    ):
+        return
+
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for start_week in range(config.num_weeks - window_weeks + 1):
+            model.Add(
+                sum(
+                    weekend_call[fellow_idx, week] + call[fellow_idx, week]
+                    for week in range(start_week, start_week + window_weeks)
+                )
+                <= max_calls
+            )
 
 
 def _add_srcva_weekday_coverage(
@@ -445,6 +501,31 @@ def _add_structured_call_consecutive_rules(
             model.Add(
                 sum(call[fellow_idx, week] for week in range(start_week, start_week + window))
                 <= max_consecutive
+            )
+
+
+def _add_structured_call_window_rules(
+    model: cp_model.CpModel,
+    call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Limit 24-hour call frequency in rolling windows."""
+
+    window_weeks = config.call_max_calls_in_window_weeks
+    max_calls = config.call_max_calls_in_window_count
+    if (
+        window_weeks <= 0
+        or max_calls <= 0
+        or config.num_weeks < window_weeks
+    ):
+        return
+
+    eligible_fellows = config.fellow_indices_for_years(config.call_eligible_years)
+    for fellow_idx in eligible_fellows:
+        for start_week in range(config.num_weeks - window_weeks + 1):
+            model.Add(
+                sum(call[fellow_idx, week] for week in range(start_week, start_week + window_weeks))
+                <= max_calls
             )
 
 

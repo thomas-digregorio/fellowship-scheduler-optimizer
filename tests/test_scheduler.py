@@ -1082,6 +1082,57 @@ class TestStructuredRules:
                         and result.call_assignments[fellow_idx][week + 1]
                     )
 
+    def test_fixed_assignments_preserve_master_schedule_for_call_resolve(self) -> None:
+        """A fixed-assignment solve should only change overlay calls, not rotations."""
+
+        fixed_assignments = [
+            ["EP", "EP", "EP", "EP"],
+            ["EP", "EP", "EP", "EP"],
+        ]
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=4,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            structured_call_rules_enabled=True,
+            call_eligible_years=[TrainingYear.F1],
+            call_allowed_block_names=["EP"],
+            call_min_per_fellow=2,
+            call_max_per_fellow=2,
+            call_forbidden_following_blocks=[],
+            call_max_consecutive_weeks_per_fellow=1,
+            call_max_calls_in_window_weeks=4,
+            call_max_calls_in_window_count=2,
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[BlockConfig(name="EP", hours_per_week=55.0)],
+            fellows=[
+                FellowConfig(name="F1 A", training_year=TrainingYear.F1),
+                FellowConfig(name="F1 B", training_year=TrainingYear.F1),
+            ],
+        )
+
+        result = solve_schedule(config, fixed_assignments=fixed_assignments)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.assignments == fixed_assignments
+        assert sum(result.call_assignments[0]) == 2
+        assert sum(result.call_assignments[1]) == 2
+        for fellow_idx in range(config.num_fellows):
+            assert sum(result.call_assignments[fellow_idx]) <= 2
+            for start_week in range(config.num_weeks - 3):
+                assert (
+                    sum(result.call_assignments[fellow_idx][start_week : start_week + 4])
+                    <= 2
+                )
+
     def test_srcva_overlay_call_rules_respect_rotations_and_counts(self) -> None:
         """SRC/VA weekend and weekday overlay call should honor rotations and totals."""
 
