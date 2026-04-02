@@ -62,8 +62,7 @@
   "call_max_calls_in_window_weeks": 4,
   "call_max_calls_in_window_count": 2,
   "call_soft_forbidden_next_week_blocks": [
-    "Research",
-    "PTO"
+    "Research"
   ],
   "call_soft_forbidden_next_week_weight": -6,
   "call_soft_disfavored_current_blocks": [
@@ -85,8 +84,7 @@
     "SRC Echo",
     "Yale Cath",
     "VA Cath",
-    "CT-MRI",
-    "Research"
+    "CT-MRI"
   ],
   "srcva_weekend_call_f1_start_week": 25,
   "srcva_weekend_call_f1_min": 0,
@@ -94,11 +92,20 @@
   "srcva_weekend_call_s2_min": 4,
   "srcva_weekend_call_s2_max": 6,
   "srcva_weekend_exclude_adjacent_24hr_weeks": true,
+  "srcva_weekend_hard_forbidden_next_week_blocks": [
+    "Night Float",
+    "CCU",
+    "Goodyer Consults",
+    "PTO",
+    "SRC Consults",
+    "White Consults"
+  ],
+  "srcva_disallow_consecutive_call_slots": true,
   "srcva_weekend_soft_forbidden_next_week_blocks": [
-    "Research",
-    "PTO"
+    "Research"
   ],
   "srcva_weekend_soft_forbidden_next_week_weight": -5,
+  "srcva_weekend_consecutive_same_fellow_weight": -4,
   "srcva_total_call_f1_min": 5,
   "srcva_total_call_f1_max": 7,
   "srcva_weekday_call_enabled": true,
@@ -116,8 +123,7 @@
     "SRC Echo",
     "Yale Cath",
     "VA Cath",
-    "CT-MRI",
-    "Research"
+    "CT-MRI"
   ],
   "srcva_weekday_call_f1_start_week": 25,
   "srcva_weekday_call_f1_min": 1,
@@ -125,6 +131,7 @@
   "srcva_weekday_call_s2_min": 16,
   "srcva_weekday_call_s2_max": 20,
   "srcva_weekday_call_max_consecutive_nights": 1,
+  "srcva_max_calls_per_week": 2,
   "srcva_holiday_anchor_week": 19,
   "srcva_christmas_target_week": 23,
   "srcva_new_year_target_week": 24,

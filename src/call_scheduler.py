@@ -61,6 +61,13 @@ def add_srcva_call_constraints(
             num_blocks,
             pto_idx,
         )
+        _add_srcva_weekend_following_block_rules(
+            model,
+            assign,
+            weekend_call,
+            config,
+            pto_idx,
+        )
         _add_srcva_weekend_24hr_exclusion(model, weekend_call, call, config)
         _add_srcva_weekend_adjacent_24hr_exclusion(model, weekend_call, call, config)
         _add_srcva_weekend_fairness(model, weekend_call, config)
@@ -83,6 +90,18 @@ def add_srcva_call_constraints(
         )
         _add_srcva_weekday_fairness(model, weekday_call, config)
         _add_srcva_weekday_consecutive_rules(model, weekday_call, config)
+        _add_srcva_total_calls_per_week_rules(
+            model,
+            weekend_call,
+            weekday_call,
+            config,
+        )
+        _add_srcva_consecutive_call_slot_rules(
+            model,
+            weekend_call,
+            weekday_call,
+            config,
+        )
     else:
         for fellow_idx in range(config.num_fellows):
             for week in range(config.num_weeks):
@@ -112,6 +131,22 @@ def _allowed_overlay_block_indices(
         block_name_to_idx[block_name]
         for block_name in allowed_block_names
         if block_name in block_name_to_idx
+    ]
+
+
+def _overlay_state_indices(
+    config: ScheduleConfig,
+    state_names: list[str],
+    pto_idx: int,
+) -> list[int]:
+    """Return block/state indices for overlay-call rules, including PTO."""
+
+    block_name_to_idx = {block.name: index for index, block in enumerate(config.blocks)}
+    block_name_to_idx["PTO"] = pto_idx
+    return [
+        block_name_to_idx[state_name]
+        for state_name in state_names
+        if state_name in block_name_to_idx
     ]
 
 
@@ -178,6 +213,31 @@ def _add_srcva_weekend_24hr_exclusion(
     for fellow_idx in range(config.num_fellows):
         for week in range(config.num_weeks):
             model.Add(weekend_call[fellow_idx, week] + call[fellow_idx, week] <= 1)
+
+
+def _add_srcva_weekend_following_block_rules(
+    model: cp_model.CpModel,
+    assign: dict[tuple[int, int, int], cp_model.IntVar],
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+    pto_idx: int,
+) -> None:
+    """Forbid weekend SRC/VA call immediately before selected next-week states."""
+
+    target_indices = _overlay_state_indices(
+        config,
+        config.srcva_weekend_hard_forbidden_next_week_blocks,
+        pto_idx,
+    )
+    if not target_indices:
+        return
+
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years):
+        for week in range(config.num_weeks - 1):
+            for block_idx in target_indices:
+                model.Add(
+                    weekend_call[fellow_idx, week] + assign[fellow_idx, week + 1, block_idx] <= 1
+                )
 
 
 def _add_srcva_weekend_adjacent_24hr_exclusion(
@@ -380,6 +440,65 @@ def _add_srcva_weekday_consecutive_rules(
                         for day_idx in range(start_day, start_day + window)
                     )
                     <= max_consecutive
+                )
+
+
+def _add_srcva_total_calls_per_week_rules(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Limit total SRC/VA weekend + weekday shifts in a single week."""
+
+    max_calls = config.srcva_max_calls_per_week
+    if max_calls <= 0:
+        return
+
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for week in range(config.num_weeks):
+            model.Add(
+                weekend_call[fellow_idx, week]
+                + sum(weekday_call[fellow_idx, week, day_idx] for day_idx in range(4))
+                <= max_calls
+            )
+
+
+def _add_srcva_consecutive_call_slot_rules(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    weekday_call: dict[tuple[int, int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> None:
+    """Forbid consecutive chronological SRC/VA call slots for one fellow."""
+
+    if not config.srcva_disallow_consecutive_call_slots:
+        return
+
+    eligible_years = sorted(
+        set(config.srcva_weekend_call_eligible_years + config.srcva_weekday_call_eligible_years),
+        key=lambda year: year.value,
+    )
+    for fellow_idx in config.fellow_indices_for_years(eligible_years):
+        for week in range(config.num_weeks):
+            for day_idx in range(3):
+                model.Add(
+                    weekday_call[fellow_idx, week, day_idx]
+                    + weekday_call[fellow_idx, week, day_idx + 1]
+                    <= 1
+                )
+            model.Add(
+                weekday_call[fellow_idx, week, 3] + weekend_call[fellow_idx, week] <= 1
+            )
+            if week + 1 < config.num_weeks:
+                model.Add(
+                    weekend_call[fellow_idx, week]
+                    + weekday_call[fellow_idx, week + 1, 0]
+                    <= 1
                 )
 
 

@@ -868,8 +868,11 @@ class ScheduleConfig:
     srcva_weekend_call_s2_min: int = 0
     srcva_weekend_call_s2_max: int = 0
     srcva_weekend_exclude_adjacent_24hr_weeks: bool = False
+    srcva_weekend_hard_forbidden_next_week_blocks: list[str] = field(default_factory=list)
+    srcva_disallow_consecutive_call_slots: bool = False
     srcva_weekend_soft_forbidden_next_week_blocks: list[str] = field(default_factory=list)
     srcva_weekend_soft_forbidden_next_week_weight: int = 0
+    srcva_weekend_consecutive_same_fellow_weight: int = 0
     srcva_total_call_f1_min: int = 0
     srcva_total_call_f1_max: int = 52
     srcva_weekday_call_enabled: bool = False
@@ -881,6 +884,7 @@ class ScheduleConfig:
     srcva_weekday_call_s2_min: int = 0
     srcva_weekday_call_s2_max: int = 0
     srcva_weekday_call_max_consecutive_nights: int = 1
+    srcva_max_calls_per_week: int = 0
     srcva_holiday_anchor_week: int | None = None
     srcva_christmas_target_week: int | None = None
     srcva_new_year_target_week: int | None = None
@@ -1096,8 +1100,11 @@ class ScheduleConfig:
             "srcva_weekend_call_s2_min": self.srcva_weekend_call_s2_min,
             "srcva_weekend_call_s2_max": self.srcva_weekend_call_s2_max,
             "srcva_weekend_exclude_adjacent_24hr_weeks": self.srcva_weekend_exclude_adjacent_24hr_weeks,
+            "srcva_weekend_hard_forbidden_next_week_blocks": self.srcva_weekend_hard_forbidden_next_week_blocks,
+            "srcva_disallow_consecutive_call_slots": self.srcva_disallow_consecutive_call_slots,
             "srcva_weekend_soft_forbidden_next_week_blocks": self.srcva_weekend_soft_forbidden_next_week_blocks,
             "srcva_weekend_soft_forbidden_next_week_weight": self.srcva_weekend_soft_forbidden_next_week_weight,
+            "srcva_weekend_consecutive_same_fellow_weight": self.srcva_weekend_consecutive_same_fellow_weight,
             "srcva_total_call_f1_min": self.srcva_total_call_f1_min,
             "srcva_total_call_f1_max": self.srcva_total_call_f1_max,
             "srcva_weekday_call_enabled": self.srcva_weekday_call_enabled,
@@ -1109,6 +1116,7 @@ class ScheduleConfig:
             "srcva_weekday_call_s2_min": self.srcva_weekday_call_s2_min,
             "srcva_weekday_call_s2_max": self.srcva_weekday_call_s2_max,
             "srcva_weekday_call_max_consecutive_nights": self.srcva_weekday_call_max_consecutive_nights,
+            "srcva_max_calls_per_week": self.srcva_max_calls_per_week,
             "srcva_holiday_anchor_week": self.srcva_holiday_anchor_week,
             "srcva_christmas_target_week": self.srcva_christmas_target_week,
             "srcva_new_year_target_week": self.srcva_new_year_target_week,

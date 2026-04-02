@@ -534,6 +534,31 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             key="program_srcva_combined_window_max",
         )
 
+        config.srcva_weekend_hard_forbidden_next_week_blocks = st.multiselect(
+            "Hard-avoid weekend SRC/VA before next-week rotations",
+            options=all_state_names,
+            default=[
+                block_name
+                for block_name in config.srcva_weekend_hard_forbidden_next_week_blocks
+                if block_name in all_state_names
+            ],
+            key="program_srcva_weekend_hard_forbidden_next_week_blocks",
+        )
+
+        config.srcva_disallow_consecutive_call_slots = st.checkbox(
+            "Hard rule: no consecutive SRC/VA call slots (including Thu->Weekend and Weekend->next Mon)",
+            value=config.srcva_disallow_consecutive_call_slots,
+            key="program_srcva_disallow_consecutive_call_slots",
+        )
+
+        config.srcva_max_calls_per_week = st.number_input(
+            "Hard rule: max total SRC/VA shifts in one week (weekday + weekend, 0 disables)",
+            min_value=0,
+            max_value=5,
+            value=max(0, min(config.srcva_max_calls_per_week, 5)),
+            key="program_srcva_max_calls_per_week",
+        )
+
         st.markdown("**Weekday SRC/VA Call**")
         left_col, middle_col, right_col = st.columns(3)
         selected_weekday_years = left_col.multiselect(
@@ -721,6 +746,14 @@ def _render_program_setup(config: ScheduleConfig) -> None:
             max_value=50,
             value=config.srcva_weekend_soft_forbidden_next_week_weight,
             key="program_srcva_weekend_soft_forbidden_next_week_weight",
+        )
+
+        config.srcva_weekend_consecutive_same_fellow_weight = st.number_input(
+            "Consecutive weekend SRC/VA penalty weight",
+            min_value=-50,
+            max_value=50,
+            value=config.srcva_weekend_consecutive_same_fellow_weight,
+            key="program_srcva_weekend_consecutive_same_fellow_weight",
         )
 
     with st.container(border=True):

@@ -87,6 +87,27 @@ def _add_fixed_assignments(
             model.Add(assign[fellow_idx, week, block_name_to_idx[state_name]] == 1)
 
 
+def _add_fixed_weekly_binary_assignments(
+    model: cp_model.CpModel,
+    weekly_values: dict[tuple[int, int], cp_model.IntVar],
+    fixed_assignments: list[list[bool]],
+    config: ScheduleConfig,
+    label: str,
+) -> None:
+    """Pin a weekly boolean overlay matrix to provided values."""
+
+    if len(fixed_assignments) != config.num_fellows:
+        raise ValueError(f"Fixed {label} assignments must include one row per fellow.")
+
+    for fellow_idx, fellow_assignments in enumerate(fixed_assignments):
+        if len(fellow_assignments) != config.num_weeks:
+            raise ValueError(
+                f"Fixed {label} assignments for fellow index {fellow_idx} must include one entry per week."
+            )
+        for week, assigned in enumerate(fellow_assignments):
+            model.Add(weekly_values[fellow_idx, week] == int(bool(assigned)))
+
+
 def check_feasibility(config: ScheduleConfig) -> list[str]:
     """Run quick sanity checks on the config before invoking the solver."""
 
@@ -702,6 +723,10 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
             issues.append(
                 "⚠️ SRC/VA weekday-call consecutive-night limit must allow at least 1 night."
             )
+        if config.srcva_max_calls_per_week < 0:
+            issues.append(
+                "⚠️ SRC/VA weekly total-call cap cannot be negative."
+            )
 
     for week_name, week_value in (
         ("holiday anchor week", config.srcva_holiday_anchor_week),
@@ -807,6 +832,7 @@ def check_feasibility(config: ScheduleConfig) -> list[str]:
 def solve_schedule(
     config: ScheduleConfig,
     fixed_assignments: list[list[str]] | None = None,
+    fixed_call_assignments: list[list[bool]] | None = None,
 ) -> ScheduleResult:
     """Build and solve the CP-SAT model for the fellowship schedule."""
 
@@ -863,6 +889,14 @@ def solve_schedule(
             fixed_assignments,
             config,
             block_name_to_idx,
+        )
+    if fixed_call_assignments is not None:
+        _add_fixed_weekly_binary_assignments(
+            model,
+            call,
+            fixed_call_assignments,
+            config,
+            "24-hour call",
         )
 
     add_one_assignment_per_week(model, assign, config, num_blocks, pto_idx)
@@ -1462,6 +1496,13 @@ def _build_srcva_call_objective_terms(
             block_name_to_idx,
         )
     )
+    objective_terms.extend(
+        _build_srcva_weekend_consecutive_terms(
+            model,
+            weekend_call,
+            config,
+        )
+    )
     return objective_terms
 
 
@@ -1980,6 +2021,37 @@ def _build_srcva_weekend_next_week_block_terms(
     return objective_terms
 
 
+def _build_srcva_weekend_consecutive_terms(
+    model: cp_model.CpModel,
+    weekend_call: dict[tuple[int, int], cp_model.IntVar],
+    config: ScheduleConfig,
+) -> list[cp_model.LinearExpr]:
+    """Penalize consecutive-week SRC/VA weekend call on the same fellow."""
+
+    if (
+        not config.srcva_weekend_call_enabled
+        or config.srcva_weekend_consecutive_same_fellow_weight == 0
+    ):
+        return []
+
+    objective_terms: list[cp_model.LinearExpr] = []
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years):
+        for week in range(config.num_weeks - 1):
+            match_var = model.NewBoolVar(
+                f"srcva_weekend_consecutive_match_f{fellow_idx}_w{week}"
+            )
+            model.Add(match_var <= weekend_call[fellow_idx, week])
+            model.Add(match_var <= weekend_call[fellow_idx, week + 1])
+            model.Add(
+                match_var
+                >= weekend_call[fellow_idx, week] + weekend_call[fellow_idx, week + 1] - 1
+            )
+            objective_terms.append(
+                match_var * config.srcva_weekend_consecutive_same_fellow_weight
+            )
+    return objective_terms
+
+
 def _first_call_week_var(
     model: cp_model.CpModel,
     call: dict[tuple[int, int], cp_model.IntVar],
@@ -2318,6 +2390,12 @@ def _build_srcva_call_breakdown_rows(
         _build_srcva_weekend_next_week_block_breakdown_row(
             config,
             assignments,
+            weekend_call_assignments,
+        )
+    )
+    rows.append(
+        _build_srcva_weekend_consecutive_breakdown_row(
+            config,
             weekend_call_assignments,
         )
     )
@@ -2868,6 +2946,27 @@ def _build_srcva_weekend_next_week_block_breakdown_row(
                 and assignments[fellow_idx][week + 1] in target_blocks
             ):
                 _add_points_to_row(row, year, config.srcva_weekend_soft_forbidden_next_week_weight)
+    return row
+
+
+def _build_srcva_weekend_consecutive_breakdown_row(
+    config: ScheduleConfig,
+    weekend_call_assignments: list[list[bool]],
+) -> dict[str, int | str]:
+    """Return the consecutive-weekend SRC/VA penalty by cohort."""
+
+    row = _empty_cohort_score_row("Penalty: Consecutive SRC/VA weekend calls")
+    if (
+        not config.srcva_weekend_call_enabled
+        or config.srcva_weekend_consecutive_same_fellow_weight == 0
+    ):
+        return row
+
+    for fellow_idx in config.fellow_indices_for_years(config.srcva_weekend_call_eligible_years):
+        year = config.fellows[fellow_idx].training_year
+        for week in range(config.num_weeks - 1):
+            if weekend_call_assignments[fellow_idx][week] and weekend_call_assignments[fellow_idx][week + 1]:
+                _add_points_to_row(row, year, config.srcva_weekend_consecutive_same_fellow_weight)
     return row
 
 

@@ -763,7 +763,7 @@ def _render_srcva_call_calendar(
     )
     styled_df = styled_df.map(
         lambda value: _style_fellow_assignment_cell(value, fellow_colors),
-        subset=["Weekend", "Mon", "Tue", "Wed", "Thu"],
+        subset=["Mon", "Tue", "Wed", "Thu", "Weekend"],
     )
     for fellow_idx in eligible_fellows:
         fellow_name = config.fellows[fellow_idx].name
@@ -782,11 +782,11 @@ def _render_srcva_call_calendar(
         height=min(800, 35 * len(call_df) + 40),
         column_config={
             "Week": st.column_config.TextColumn("Week", width="medium"),
-            "Weekend": st.column_config.TextColumn("Weekend", width="small"),
             "Mon": st.column_config.TextColumn("Mon", width="small"),
             "Tue": st.column_config.TextColumn("Tue", width="small"),
             "Wed": st.column_config.TextColumn("Wed", width="small"),
             "Thu": st.column_config.TextColumn("Thu", width="small"),
+            "Weekend": st.column_config.TextColumn("Weekend", width="small"),
             **{
                 config.fellows[fellow_idx].name: st.column_config.TextColumn(
                     config.fellows[fellow_idx].name,
@@ -812,11 +812,11 @@ def _build_srcva_call_calendar_dataframe(
         week_date = config.start_date + timedelta(weeks=week)
         row: dict[str, str] = {
             "Week": f"W{week + 1} ({week_date.strftime('%m/%d')})",
-            "Weekend": "",
             "Mon": "",
             "Tue": "",
             "Wed": "",
             "Thu": "",
+            "Weekend": "",
         }
 
         weekend_indices = [

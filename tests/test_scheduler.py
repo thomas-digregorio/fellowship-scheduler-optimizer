@@ -1133,6 +1133,321 @@ class TestStructuredRules:
                     <= 2
                 )
 
+    def test_fixed_24hr_assignments_preserve_call_overlay_during_srcva_resolve(self) -> None:
+        """A fixed-overlay solve should keep the provided 24-hour assignments intact."""
+
+        fixed_assignments = [
+            ["EP", "EP"],
+            ["EP", "EP"],
+            ["CT-MRI", "CT-MRI"],
+        ]
+        fixed_call_assignments = [
+            [True, False],
+            [False, True],
+            [False, False],
+        ]
+        config = ScheduleConfig(
+            num_fellows=3,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            structured_call_rules_enabled=True,
+            call_eligible_years=[TrainingYear.F1],
+            call_allowed_block_names=["EP"],
+            call_min_per_fellow=1,
+            call_max_per_fellow=1,
+            call_forbidden_following_blocks=[],
+            call_max_consecutive_weeks_per_fellow=1,
+            call_max_calls_in_window_weeks=2,
+            call_max_calls_in_window_count=1,
+            srcva_weekend_call_enabled=True,
+            srcva_weekend_call_eligible_years=[TrainingYear.S2],
+            srcva_weekend_call_allowed_block_names=["CT-MRI"],
+            srcva_weekend_call_f1_start_week=2,
+            srcva_weekend_call_f1_min=0,
+            srcva_weekend_call_f1_max=0,
+            srcva_weekend_call_s2_min=2,
+            srcva_weekend_call_s2_max=2,
+            srcva_total_call_f1_min=1,
+            srcva_total_call_f1_max=1,
+            srcva_weekday_call_enabled=False,
+            week_count_rules=[
+                WeekCountRule(
+                    name="noop",
+                    block_names=["EP"],
+                    applicable_years=[],
+                    min_weeks=0,
+                    max_weeks=2,
+                    is_active=False,
+                )
+            ],
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(
+                    name="EP",
+                    hours_per_week=55.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=2,
+                ),
+                BlockConfig(
+                    name="CT-MRI",
+                    hours_per_week=40.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=2,
+                ),
+            ],
+            fellows=[
+                FellowConfig(name="F1 A", training_year=TrainingYear.F1),
+                FellowConfig(name="F1 B", training_year=TrainingYear.F1),
+                FellowConfig(name="S2 A", training_year=TrainingYear.S2),
+            ],
+        )
+
+        result = solve_schedule(
+            config,
+            fixed_assignments=fixed_assignments,
+            fixed_call_assignments=fixed_call_assignments,
+        )
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.assignments == fixed_assignments
+        assert result.call_assignments == fixed_call_assignments
+        assert result.srcva_weekend_call_assignments[2] == [True, True]
+
+    def test_srcva_weekend_hard_next_week_blocks_are_forbidden(self) -> None:
+        """Weekend SRC/VA call cannot land immediately before a forbidden next-week block."""
+
+        fixed_assignments = [
+            ["CT-MRI", "Night Float"],
+            ["CT-MRI", "CT-MRI"],
+        ]
+        config = ScheduleConfig(
+            num_fellows=2,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            srcva_weekend_call_enabled=True,
+            srcva_weekend_call_eligible_years=[TrainingYear.S2],
+            srcva_weekend_call_allowed_block_names=["CT-MRI"],
+            srcva_weekend_call_f1_start_week=2,
+            srcva_weekend_call_f1_min=0,
+            srcva_weekend_call_f1_max=0,
+            srcva_weekend_call_s2_min=0,
+            srcva_weekend_call_s2_max=2,
+            srcva_weekend_hard_forbidden_next_week_blocks=["Night Float"],
+            srcva_total_call_f1_min=0,
+            srcva_total_call_f1_max=0,
+            srcva_weekday_call_enabled=False,
+            week_count_rules=[
+                WeekCountRule(
+                    name="noop",
+                    block_names=["CT-MRI"],
+                    applicable_years=[],
+                    min_weeks=0,
+                    max_weeks=2,
+                    is_active=False,
+                )
+            ],
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(
+                    name="CT-MRI",
+                    hours_per_week=40.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=2,
+                ),
+                BlockConfig(
+                    name="Night Float",
+                    hours_per_week=60.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=2,
+                ),
+            ],
+            fellows=[
+                FellowConfig(name="S2 A", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 B", training_year=TrainingYear.S2),
+            ],
+        )
+
+        result = solve_schedule(config, fixed_assignments=fixed_assignments)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        assert result.assignments == fixed_assignments
+        assert result.srcva_weekend_call_assignments[0][0] is False
+        assert result.srcva_weekend_call_assignments[1][0] is True
+
+    def test_srcva_total_calls_per_week_hard_limit(self) -> None:
+        """SRC/VA weekday plus weekend assignments cannot exceed the weekly hard cap."""
+
+        config = ScheduleConfig(
+            num_fellows=3,
+            num_weeks=1,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            srcva_weekend_call_enabled=True,
+            srcva_weekend_call_eligible_years=[TrainingYear.S2],
+            srcva_weekend_call_allowed_block_names=["CT-MRI"],
+            srcva_weekend_call_f1_start_week=1,
+            srcva_weekend_call_f1_min=0,
+            srcva_weekend_call_f1_max=0,
+            srcva_weekend_call_s2_min=0,
+            srcva_weekend_call_s2_max=1,
+            srcva_total_call_f1_min=0,
+            srcva_total_call_f1_max=0,
+            srcva_weekday_call_enabled=True,
+            srcva_weekday_call_eligible_years=[TrainingYear.S2],
+            srcva_weekday_call_allowed_block_names=["CT-MRI"],
+            srcva_weekday_call_f1_start_week=1,
+            srcva_weekday_call_f1_min=0,
+            srcva_weekday_call_f1_max=0,
+            srcva_weekday_call_s2_min=1,
+            srcva_weekday_call_s2_max=2,
+            srcva_weekday_call_max_consecutive_nights=4,
+            srcva_max_calls_per_week=2,
+            week_count_rules=[
+                WeekCountRule(
+                    name="noop",
+                    block_names=["CT-MRI"],
+                    applicable_years=[],
+                    min_weeks=0,
+                    max_weeks=1,
+                    is_active=False,
+                )
+            ],
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(
+                    name="CT-MRI",
+                    hours_per_week=40.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=1,
+                ),
+            ],
+            fellows=[
+                FellowConfig(name="S2 A", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 B", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 C", training_year=TrainingYear.S2),
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        for fellow_idx in range(config.num_fellows):
+            total_calls = int(result.srcva_weekend_call_assignments[fellow_idx][0]) + sum(
+                1 for assigned in result.srcva_weekday_call_assignments[fellow_idx][0] if assigned
+            )
+            assert total_calls <= 2
+
+    def test_srcva_disallow_consecutive_call_slots(self) -> None:
+        """SRC/VA call slots should not be adjacent when the hard rule is enabled."""
+
+        config = ScheduleConfig(
+            num_fellows=4,
+            num_weeks=2,
+            start_date=date(2026, 7, 13),
+            pto_weeks_granted=0,
+            pto_weeks_to_rank=0,
+            max_concurrent_pto=1,
+            max_consecutive_night_float=2,
+            call_day="saturday",
+            call_hours=24.0,
+            call_excluded_blocks=["Night Float", "PTO"],
+            srcva_weekend_call_enabled=True,
+            srcva_weekend_call_eligible_years=[TrainingYear.S2],
+            srcva_weekend_call_allowed_block_names=["CT-MRI"],
+            srcva_weekend_call_f1_start_week=2,
+            srcva_weekend_call_f1_min=0,
+            srcva_weekend_call_f1_max=0,
+            srcva_weekend_call_s2_min=0,
+            srcva_weekend_call_s2_max=2,
+            srcva_disallow_consecutive_call_slots=True,
+            srcva_total_call_f1_min=0,
+            srcva_total_call_f1_max=0,
+            srcva_weekday_call_enabled=True,
+            srcva_weekday_call_eligible_years=[TrainingYear.S2],
+            srcva_weekday_call_allowed_block_names=["CT-MRI"],
+            srcva_weekday_call_f1_start_week=2,
+            srcva_weekday_call_f1_min=0,
+            srcva_weekday_call_f1_max=0,
+            srcva_weekday_call_s2_min=2,
+            srcva_weekday_call_s2_max=3,
+            srcva_weekday_call_max_consecutive_nights=4,
+            srcva_max_calls_per_week=0,
+            week_count_rules=[
+                WeekCountRule(
+                    name="noop",
+                    block_names=["CT-MRI"],
+                    applicable_years=[],
+                    min_weeks=0,
+                    max_weeks=2,
+                    is_active=False,
+                )
+            ],
+            hours_cap=120.0,
+            trailing_avg_weeks=4,
+            solver_timeout_seconds=10.0,
+            blocks=[
+                BlockConfig(
+                    name="CT-MRI",
+                    hours_per_week=40.0,
+                    fellows_needed=0,
+                    min_weeks=0,
+                    max_weeks=2,
+                ),
+            ],
+            fellows=[
+                FellowConfig(name="S2 A", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 B", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 C", training_year=TrainingYear.S2),
+                FellowConfig(name="S2 D", training_year=TrainingYear.S2),
+            ],
+        )
+
+        result = solve_schedule(config)
+
+        assert result.solver_status in (SolverStatus.OPTIMAL, SolverStatus.FEASIBLE)
+        for fellow_idx in range(config.num_fellows):
+            for week in range(config.num_weeks):
+                days = result.srcva_weekday_call_assignments[fellow_idx][week]
+                for day_idx in range(3):
+                    assert not (days[day_idx] and days[day_idx + 1])
+                assert not (days[3] and result.srcva_weekend_call_assignments[fellow_idx][week])
+                if week + 1 < config.num_weeks:
+                    assert not (
+                        result.srcva_weekend_call_assignments[fellow_idx][week]
+                        and result.srcva_weekday_call_assignments[fellow_idx][week + 1][0]
+                    )
+
     def test_srcva_overlay_call_rules_respect_rotations_and_counts(self) -> None:
         """SRC/VA weekend and weekday overlay call should honor rotations and totals."""
 

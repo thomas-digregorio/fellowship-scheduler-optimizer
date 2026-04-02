@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -60,3 +61,26 @@ def test_build_schedule_checks_counts_schedule_patterns() -> None:
     assert checks["call_spread"].value == 1
     assert checks["max_concurrent_pto"].value == 1
     assert checks["max_night_float_streak"].value == 1
+    assert checks["call_rule_hard_violations"].value == 0
+    assert checks["srcva_rule_hard_violations"].value == 0
+    assert checks["call_rule_soft_exceptions"].value == 0
+
+
+def test_build_schedule_checks_audits_current_saved_call_rules() -> None:
+    """The saved call calendars should satisfy hard rules and expose soft exceptions."""
+
+    project_root = Path(__file__).resolve().parent.parent
+    config = ScheduleConfig.from_dict(
+        json.loads((project_root / "data" / "saved_config.json").read_text())
+    )
+    result = ScheduleResult.from_dict(
+        json.loads((project_root / "data" / "schedule_output.json").read_text())
+    )
+
+    checks = build_schedule_checks(config, result)
+
+    assert checks["call_rule_hard_violations"].value == 0
+    assert checks["srcva_rule_hard_violations"].value == 0
+    assert checks["call_rule_soft_exceptions"].value == 14
+    assert "Ambrosini" in checks["call_rule_soft_exceptions"].detail
+    assert "Chitsazan" in checks["call_rule_soft_exceptions"].detail

@@ -1057,6 +1057,7 @@ def test_srcva_call_calendar_dataframe_shows_weekend_and_weekday_overlays() -> N
 
     srcva_df = _build_srcva_call_calendar_dataframe(config, result, visible_fellows)
 
+    assert list(srcva_df.columns[:6]) == ["Week", "Mon", "Tue", "Wed", "Thu", "Weekend"]
     assert srcva_df.loc[0, "Weekend"] == "S2 A"
     assert srcva_df.loc[0, "Mon"] == "F1 A"
     assert srcva_df.loc[0, "Tue"] == "F1 B"
